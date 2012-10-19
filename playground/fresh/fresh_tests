@@ -1,4 +1,0 @@
-Implication:
-  builtin_plus(numeric_const("1"), length(alpha)) = i * cons(a, alpha) = j | |- length(cons(a, alpha)) = i | 
-? True
-

@@ -1,8 +1,0 @@
-Implication:
-  |- (numeric_const("0") < numeric_const("1"))
-? True
-
-
-Implication:
-  |- "0" != "1"
-? True

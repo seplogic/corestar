@@ -1,2 +1,0 @@
-equiv lt_zero_n:
-  (numeric_const("0") < numeric_const(?n)) <=> ?n != "0"

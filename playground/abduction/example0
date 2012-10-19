@@ -1,4 +1,0 @@
-Specification example0 : { something() } { } ?
-assign {lseg(a(),b())} {} ();
-assign {} {lseg(a(),b())} ();
-end;

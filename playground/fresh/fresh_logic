@@ -1,4 +1,0 @@
-rewrite length_cons_abs:
-  builtin_plus(numeric_const("1"), length(?alpha)) = length(cons(?a, ?alpha))
-if
-  cons(?a, ?alpha) = ?b

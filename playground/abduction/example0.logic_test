@@ -1,5 +1,0 @@
-Implication:  |- lseg(a(),b())
-
-Abduction:  |- lseg(a(),b())
-
-Abduction: field(r0, "foo", nil()) |- field(r0, "foo", nil()) * field(r1, "bar", nil())
