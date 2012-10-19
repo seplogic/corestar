@@ -16,7 +16,6 @@ exception Give_up
 
 open Core
 open Lexing
-open Load
 open Parsing 
 open Printing
 open Psyntax
@@ -34,7 +33,9 @@ let newVar x =
   if x = "_" then freshe() 
   else if String.get x 0 = '_' then newEVar (String.sub x 1 ((String.length x) -1)) 
   else newPVar x
-  
+
+let file_name = ref None
+
 let location_to_string pos = 
   Printf.sprintf "Line %d character %d" pos.pos_lnum  (pos.pos_cnum - pos.pos_bol + 1)
 
@@ -356,18 +357,19 @@ equiv_rule:
 ;
 
 rule:
-  | CONSTRUCTOR identifier  { NormalEntry( ConsDecl($2) ) }
-  | IMPORT STRING_CONSTANT SEMICOLON  { ImportEntry($2) }
-  | RULE identifier_op COLON sequent without where IF sequent_list_or_list { NormalEntry(SeqRule($4,$8,$2,$5,$6)) }
+  | CONSTRUCTOR identifier  { Load.NormalEntry( ConsDecl($2) ) }
+  | IMPORT STRING_CONSTANT SEMICOLON  { Load.ImportEntry($2) }
+  | RULE identifier_op COLON sequent without where IF sequent_list_or_list
+    { Load.NormalEntry(SeqRule($4,$8,$2,$5,$6)) }
   | REWRITERULE identifier_op COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where 
-    { NormalEntry(RewriteRule({function_name=$4;
+    { Load.NormalEntry(RewriteRule({function_name=$4;
         arguments=$6;
         result=$9;
         guard={without_form=$11;rewrite_where=$12;if_form=$10};
         rewrite_name=$2;
         saturate=false})) }
   | REWRITERULE identifier_op MULT COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where 
-    { NormalEntry(RewriteRule({function_name=$5;
+    { Load.NormalEntry(RewriteRule({function_name=$5;
         arguments=$7;
         result=$10;
         guard={without_form=$12; rewrite_where=$13; if_form=$11};
@@ -377,8 +379,8 @@ rule:
       let wo=(mkEmpty,mkEmpty) in 
       let seq2=(mkEmpty,$6,mkEmpty,mkEmpty) in
       let seq_list=[[seq2]] in
-      NormalEntry(SeqRule(seq,seq_list,$2,wo,$7)) }
-  | equiv_rule { NormalEntry($1) }
+      Load.NormalEntry(SeqRule(seq,seq_list,$2,wo,$7)) }
+  | equiv_rule { Load.NormalEntry($1) }
 ;
 
 rule_file:
