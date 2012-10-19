@@ -71,12 +71,6 @@ val verify_ensures :
   Psyntax.pform ->
   (Psyntax.pform -> Psyntax.form) ->
   Sepprover.inner_form list list -> Psyntax.logic -> Psyntax.logic -> unit
-
-(* TODO: This is only used by translatejimple in jstar, so perhaps it should not be here. *)
-val get_frame :
-  Cfg_core.cfg_node list ->
-  Psyntax.pform ->
-  Psyntax.logic -> Psyntax.logic -> Sepprover.inner_form list
 val bi_abduct :
   string ->
   Cfg_core.cfg_node list ->
@@ -85,3 +79,10 @@ val bi_abduct :
   Psyntax.logic ->
   Psyntax.logic ->
   (Sepprover.inner_form * Sepprover.inner_form) list
+
+(* TODO: This is only used by translatejimple in jstar, so perhaps it should not be here. *)
+val get_frame :
+  Cfg_core.cfg_node list ->
+  Psyntax.pform ->
+  Psyntax.logic -> Psyntax.logic -> Sepprover.inner_form list
+

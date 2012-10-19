@@ -171,6 +171,16 @@ type smttypeset = SMTTypeSet.t
 let smt_union_list (l : smttypeset list) : smttypeset =
   fold_right SMTTypeSet.union l SMTTypeSet.empty
 
+(*
+builtin_div
+builtin_ge
+builtin_gt
+builtin_le
+builtin_lt
+builtin_minus
+builtin_plus
+*)
+
 let rec args_smttype (arg : Psyntax.args) : smttypeset =
   match arg with
   | Arg_var v -> SMTTypeSet.singleton (SMT_Var(v))

@@ -38,7 +38,6 @@ let string_of_file fname =
   s
 
 
-
 let parse_file pars lexe fname ftype = 
   try 
     if log log_phase then 

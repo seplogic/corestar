@@ -16,13 +16,13 @@
 val java_path_delimiter : string
 val java_path_delimiter_re : Str.regexp
 
-(** 
+(**
   [getenv v] returns the value in the system environment of the variable
   [v], or the empty string if [v] is not set.
  *)
 val getenv : string -> string
 
-(** 
+(**
   [getenv_dirlist v] assumes [v] is a something like PATH and splits its
   value (if set) into a list. This function does NOT process trailing '*',
   nor does it filter out stuff that is usually ignored by classpaths, see:
@@ -35,26 +35,26 @@ val getenv_dirlist : string -> string list
 (** [string_of_file f] returns the content of file [f] as a string *)
 val string_of_file : string -> string
 
-(** 
+(**
   [parse_file parser lexer fname ftype] parses [fname] using the given
   [parser] and [lexer], prints some standard messages, and returns the
   result of the parser. ['a] is the token type, ['b] is the type of the
   parsing result.
  *)
-val parse_file : 
+val parse_file :
   ((Lexing.lexbuf->'a) -> Lexing.lexbuf -> 'b) ->
-  (Lexing.lexbuf->'a) -> 
+  (Lexing.lexbuf->'a) ->
   string -> string -> 'b
 
-(** 
+(**
   [find_file_from_dirs dirs f] tries to find file [f] (possibly a directory)
   in the current directory and then in [dirs]. Returns the first location
-  of [f]. Raises [Not_found] if not found. The behavior is undefined 
+  of [f]. Raises [Not_found] if not found. The behavior is undefined
   if [f] is an absolute path.
  *)
 val find_file_from_dirs : string list -> string -> string
 
-(** 
+(**
   [fs_postorder m f] runs [m f'] for all files [f'] reachable by descending
   directories from [f], and does so in postorder. (For the purposes of this
   description directories are files.)
@@ -73,13 +73,13 @@ val rm_rf : string -> unit
 (** [mkdir_p d] is the same as the shell command <tt>mkdir -p d</tt>. *)
 val mkdir_p : string -> unit
 
-(** 
+(**
   [is_executable_available f] returns whether [f] is in the PATH, not a
   directory, and executable.
  *)
 val is_executable_available : string -> bool
 
-(** 
+(**
   [is_ext_file ext f] says whether file [f] is a normal file with a name
   ending in [ext]. It is case insensitive.
  *)

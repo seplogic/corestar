@@ -20,7 +20,7 @@ module Display_CfgH = struct
   let vertex_attributes v = match CfgH.V.label v with
       C.Nop_stmt_core -> [`Label "NOP"]
     | C.Label_stmt_core s -> [`Label ("Label:" ^ s)]
-    | C.Assignment_core _ -> [`Label ("Assign"); `Shape `Box]
+    | C.Assignment_core _ -> [`Label "Assign "; `Shape `Box]
     | C.Call_core (fname, _) -> [`Label ("Call " ^ fname); `Shape `Box]
     | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat ", " ss))]
     | C.End -> [`Label "End"]
@@ -97,7 +97,6 @@ let simplify_cfg {
   let work_set = WorkSet.singleton (start, start_rep) in
   let interest sv = match CfgH.V.label sv with
       C.Nop_stmt_core when sv = start || sv = stop -> Some G.Nop_cfg
-    | C.Assignment_core call -> Some (G.Assign_cfg call)
     | C.Call_core (fname, call) -> Some (G.Call_cfg (fname, call))
     | _ -> None in
   let rec process_successor new_interest v_rep visited sv = match interest sv with
