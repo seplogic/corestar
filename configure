@@ -55,8 +55,8 @@ done
 # }}}
 # Check that an OCaml compiler is present. {{{
 OCAML_VERSION=$(ocamlc -version 2> /dev/null)
-if too_old 3.11 $OCAML_VERSION; then
-  echo "Please make sure that ocamlc >=3.11 is in your PATH." 2>&1
+if too_old 3.12 $OCAML_VERSION; then
+  echo "Please make sure that ocamlc >=3.12 is in your PATH." 2>&1
   echo "See http://caml.inria.fr/ocaml/release.en.html" 2>&1
   exit 1
 fi

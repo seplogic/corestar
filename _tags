@@ -1,2 +1,2 @@
-<**/*.ml> or <**/alt_abd.{native,byte}>: pkg_ocamlgraph
-true: debug, use_ocamlgraph
+<**/*.ml> or <**/alt_abd.{native,byte}>: package(ocamlgraph)
+true: debug
