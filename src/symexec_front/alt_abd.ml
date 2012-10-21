@@ -10,8 +10,9 @@ let parse fn =
   System.parse_file Parser.symb_question_file Lexer.token fn "core"
 
 (* helpers for [mk_intermediate_cfg] {{{ *)
-module CfgH = Graph.Imperative.Digraph.Abstract
+module CfgH = Digraph.Make
   (struct type t = C.core_statement end)
+  (struct type t = unit let compare = compare let default = () end)
 
 module ProcedureH = G.MakeProcedure (CfgH)
 
@@ -25,11 +26,10 @@ module Display_CfgH = struct
     | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat ", " ss))]
     | C.End -> [`Label "End"]
 end
-module Dot_CfgH = Graph.Graphviz.Dot(struct
+module Dot_CfgH = Digraph.Dot(struct
   include Display_CfgH
   include CfgH
 end)
-module Dfs = Graph.Traverse.Dfs(CfgH)
 let fprint_CfgH = Dot_CfgH.fprint_graph
 let print_CfgH = fprint_CfgH std_formatter
 let output_CfgH = Dot_CfgH.output_graph
@@ -57,7 +57,7 @@ let mic_add_edges r labels succ =
   let vertex_of_label l =
     try Hashtbl.find labels l
     with Not_found -> failwith "bad cfg (todo: nice user error)" in
-  let add_outgoing x = if x <> r.ProcedureH.stop then begin
+  let add_outgoing x = if not (CfgH.V.equal x r.ProcedureH.stop) then begin
       match CfgH.V.label x with
       | C.Goto_stmt_core ls ->
           List.iter (fun l -> CfgH.add_edge g x (vertex_of_label l)) ls
@@ -79,10 +79,12 @@ let mk_intermediate_cfg cs =
   mic_add_edges r labels succ;
   r
 
-let simplify_cfg {
-    ProcedureH.cfg = g
+(* TODO(rgrig): This function is *way* too long. *)
+let simplify_cfg
+  { ProcedureH.cfg = g
   ; ProcedureH.start = start
-  ; ProcedureH.stop = stop } =
+  ; ProcedureH.stop = stop }
+=
   let sg = G.Cfg.create () in
   let representatives = Hashtbl.create 13 in
   let rep_builder rep () =

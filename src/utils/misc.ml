@@ -115,3 +115,7 @@ let memo2 f =
 let cross_product l1 l2 =
   let product l v2 = List.map (fun v1 -> (v1, v2)) l in
   List.concat (List.map (product l1) l2)
+
+let fresh_int () =
+  let n = ref (-1) in
+  fun () -> incr n; assert (!n >= 0); !n (* checks for overflow *)

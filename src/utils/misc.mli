@@ -39,3 +39,6 @@ val memo2 : ('a -> 'b -> 'c) -> ('a -> 'b -> 'c)
   (** [memo2 f] returns a memoized version of [f]. *)
 
 val cross_product : ('a list) -> ('b list) -> (('a * 'b) list)
+
+val fresh_int : unit -> unit -> int
+  (** [fresh_int ()] is a generator for the sequence 0, 1, 2, ... *)

@@ -1,2 +1,1 @@
-<**/*.ml> or <**/alt_abd.{native,byte}>: package(ocamlgraph)
 true: debug

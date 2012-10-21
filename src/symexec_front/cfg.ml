@@ -1,4 +1,5 @@
 open Format
+open Digraph
 module C = Core
 
 type cfg_vertex =
@@ -8,24 +9,24 @@ type cfg_vertex =
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
-module Cfg = Graph.Imperative.Digraph.Abstract
+module Cfg = Digraph.Make
   (struct type t = cfg_vertex end)
+  (struct type t = unit let compare = compare let default = () end)
 
 type state_transition =
   | Statement_st of Cfg.V.t
   | Nop_st
   (* TODO: Add other ways to evolve the state, such as implication. *)
 
-module StateGraph (V : Graph.Sig.ANY_TYPE) =
-  Graph.Imperative.Digraph.AbstractLabeled
-    (V)
-    (struct
-      type t = state_transition
-      let compare = compare
-      let default = Nop_st
-    end)
+module StateGraph (V : Digraph.ANY_TYPE) = Digraph.Make
+  (V)
+  (struct
+    type t = state_transition
+    let compare = compare
+    let default = Nop_st
+  end)
 
-module MakeProcedure (Cfg : Graph.Sig.I ) = struct
+module MakeProcedure (Cfg : Digraph.IM) = struct
   type t =
     { cfg : Cfg.t
     ; start : Cfg.vertex
@@ -44,9 +45,8 @@ module Display_Cfg = struct
     | Nop_cfg -> [`Label "NOP"]
   let default_edge_attributes _ = []
   let edge_attributes _ = []
-  let get_subgraph _ = None
 end
-module Dot_Cfg = Graph.Graphviz.Dot(struct
+module Dot_Cfg = Digraph.Dot(struct
   include Display_Cfg
   include Cfg
 end)
@@ -58,10 +58,8 @@ let print_Cfg = fprint_Cfg std_formatter
 let output_Cfg = Dot_Cfg.output_graph
 
 let fileout file_name f =
-  try
-    let o = open_out file_name in
-      f o; close_out o
-  with _ -> eprintf "@[Could not create file %s@." file_name
+  let o = open_out file_name in
+  f o; close_out o
 
 let fileout_Cfg file_name g =
   fileout file_name (fun o -> output_Cfg o g)
