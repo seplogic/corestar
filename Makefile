@@ -25,7 +25,7 @@ native byte: $(SRC_SUBDIRS)
 test: test-native
 
 test-native test-byte: test-%: %
-	$(MAKE) -s -C unit_tests
+	$(MAKE) -s -C tests
 
 doc:
 	$(MAKE) -C doc/tutorial      		# DEV
@@ -38,7 +38,7 @@ all: build test
 clean:
 	ocamlbuild -clean
 	rm -f lib/*.a lib/* bin/* *.subdirs
-	$(MAKE) -C unit_tests clean
+	$(MAKE) -C tests clean
 	$(MAKE) -C scripts clean       	# DEV
 	$(MAKE) -C doc/tutorial clean  	# DEV
 
