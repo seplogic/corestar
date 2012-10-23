@@ -1,4 +1,3 @@
-(* XXX: Infer and fix digraph.mli *)
 open Debug
 open Format
 
@@ -160,7 +159,6 @@ module Dot = functor
         (match x with
         | `Box -> fprintf f "box"
         | #DotAttributes.shape -> failwith "TODO")
-    | #DotAttributes.vertex
     | #DotAttributes.edge
     | #DotAttributes.graph -> failwith "TODO"
 
