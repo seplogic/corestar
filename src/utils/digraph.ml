@@ -139,6 +139,15 @@ module DotAttributes = struct
     [ `Arrowsize of float ]
 end
 
+module DotDefault = struct
+  let vertex_name v = string_of_int (Hashtbl.hash v)
+  let graph_attributes _ = []
+  let default_vertex_attributes _ = []
+  let vertex_attributes _ = []
+  let default_edge_attributes _ = []
+  let edge_attributes _ = []
+end
+
 module Dot = functor
   (X : sig
     type t

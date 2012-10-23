@@ -1,8 +1,11 @@
 (** Entry point for experiments on abduction with procedure calls. *)
 
+open Debug
 open Format
 module C = Core
 module G = Cfg
+
+let verbose = ref 0
 
 let map_proc_body f x = { x with C.proc_body = f x.C.proc_body }
 
@@ -16,28 +19,22 @@ module CfgH = Digraph.Make
 
 module ProcedureH = G.MakeProcedure (CfgH)
 
-module Display_CfgH = struct
-  include G.Display_Cfg
+module DotH = Digraph.Dot (struct
+  include CfgH
+  include Digraph.DotDefault
   let vertex_attributes v = match CfgH.V.label v with
       C.Nop_stmt_core -> [`Label "NOP"]
     | C.Label_stmt_core s -> [`Label ("Label:" ^ s)]
     | C.Assignment_core _ -> [`Label "Assign "; `Shape `Box]
     | C.Call_core (fname, _) -> [`Label ("Call " ^ fname); `Shape `Box]
-    | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat ", " ss))]
+    | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat "," ss))]
     | C.End -> [`Label "End"]
-end
-module Dot_CfgH = Digraph.Dot(struct
-  include Display_CfgH
-  include CfgH
 end)
-let fprint_CfgH = Dot_CfgH.fprint_graph
-let print_CfgH = fprint_CfgH std_formatter
-let output_CfgH = Dot_CfgH.output_graph
-let fileout_CfgH file_name g =
-  G.fileout file_name (fun o -> output_CfgH o g)
+let fileout_cfgH file_name g =
+  G.fileout file_name (fun o -> DotH.output_graph o g)
 
 let mic_create_vertices g cs =
-  let succ = Hashtbl.create 13 in
+  let succ = Hashtbl.create 1 in
   let cs = C.Nop_stmt_core :: cs @ [C.Nop_stmt_core] in
   let vs = List.map CfgH.V.create cs in
   List.iter (CfgH.add_vertex g) vs;
@@ -45,7 +42,7 @@ let mic_create_vertices g cs =
   List.hd vs, List.hd (List.rev vs), succ
 
 let mic_hash_labels g =
-  let labels = Hashtbl.create 13 in
+  let labels = Hashtbl.create 1 in
   let f v = match CfgH.V.label v with
     | C.Label_stmt_core l -> Hashtbl.add labels l v
     | _ -> () in
@@ -86,7 +83,7 @@ let simplify_cfg
   ; ProcedureH.stop = stop }
 =
   let sg = G.Cfg.create () in
-  let representatives = Hashtbl.create 13 in
+  let representatives = Hashtbl.create 1 in
   let rep_builder rep () =
     let v_rep = G.Cfg.V.create rep in
     G.Cfg.add_vertex sg v_rep;
@@ -118,9 +115,19 @@ let simplify_cfg
   WorkSet.perform_work work_set add_successors;
   sg
 
-let mk_cfg cs =
-  let g = mk_intermediate_cfg cs in
-  simplify_cfg g
+let output_cfg n g =
+  G.fileout_cfg (n ^ "_Cfg.dot") g
+
+let output_cfgH n g =
+  fileout_cfgH (n ^ "_CfgH.dot") g
+
+let mk_cfg q =
+  let n = q.C.proc_name in
+  let g = mk_intermediate_cfg q.C.proc_body in
+  if !verbose >= 3 then output_cfgH n g.ProcedureH.cfg;
+  let g = simplify_cfg g in
+  if !verbose >= 2 then output_cfg n g;
+  { q with C.proc_body = g } (* XXX(rgrig): g should be C.Procedure. *)
 
 let compute_call_graph _ = failwith "todo"
 
@@ -133,28 +140,14 @@ let interpret gs =
   let scc_dag = compute_scc_dag cg in
   interpret_scc_dag scc_dag
 
-let print_Cfg { C.proc_name=n; C.proc_spec=_; C.proc_body=g } =
-  printf "@[Graph for %s:@\n" n;
-  G.print_Cfg g;
-  printf "@]@."
-(*  printf "@[Graph for %s:@\n@a@." n G.fprint_Cfg g *)
-
-let output_Cfg { C.proc_name=n; C.proc_spec=_; C.proc_body=g } =
-  G.fileout_Cfg (n ^ "_Cfg.dot") g
-
-let output_CfgH { C.proc_name=n; C.proc_spec=_; C.proc_body=g } =
-  fileout_CfgH (n ^ "_CfgH.dot") g.ProcedureH.cfg
-
 let main f =
   let ps = parse f in
-
-  (* TODO: skip next two, and move printing in mk_cfg. *)
-  let igs = List.map (map_proc_body mk_intermediate_cfg) ps in
-  List.iter output_CfgH igs;
-
-  let gs = List.map (map_proc_body mk_cfg) ps in
-  List.iter output_Cfg gs;
+  let gs = List.map mk_cfg ps in
   interpret gs
 
+let args =
+  [ "-v", Arg.Unit (fun () -> incr verbose), "increase verbosity" ]
+
+(* TODO(rgrig): Allow multiple input files. *)
 let _ =
-  Arg.parse [] main "alt_abd <file>";
+  Arg.parse args main "alt_abd [options] <file>";

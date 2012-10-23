@@ -58,6 +58,15 @@ module DotAttributes :
     type vertex = [ `Label of string | `Shape of shape ]
     type edge = [ `Arrowsize of float ]
   end
+module DotDefault :
+  sig
+    val graph_attributes : 'g -> DotAttributes.graph list
+    val default_vertex_attributes : 'g -> DotAttributes.vertex list
+    val vertex_name : 'v -> string
+    val vertex_attributes : 'v -> DotAttributes.vertex list
+    val default_edge_attributes : 'g -> DotAttributes.edge list
+    val edge_attributes : 'e -> DotAttributes.edge list
+  end
 module Dot :
   functor
     (X : sig

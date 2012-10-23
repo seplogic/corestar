@@ -35,34 +35,21 @@ end
 
 module Procedure = MakeProcedure (Cfg)
 
-module Display_Cfg = struct
-  let vertex_name v = string_of_int (Hashtbl.hash v)
-  let graph_attributes _ = []
-  let default_vertex_attributes _ = []
+module Dot = Digraph.Dot (struct
+  include Cfg
+  include Digraph.DotDefault
   let vertex_attributes v = match Cfg.V.label v with
       Assign_cfg _ -> [`Label "Assign"]
     | Call_cfg (fname, _) -> [`Label ("Call " ^ fname)]
     | Nop_cfg -> [`Label "NOP"]
-  let default_edge_attributes _ = []
-  let edge_attributes _ = []
-end
-module Dot_Cfg = Digraph.Dot(struct
-  include Display_Cfg
-  include Cfg
 end)
-
-let fprint_Cfg = Dot_Cfg.fprint_graph
-
-let print_Cfg = fprint_Cfg std_formatter
-
-let output_Cfg = Dot_Cfg.output_graph
 
 let fileout file_name f =
   let o = open_out file_name in
   f o; close_out o
 
-let fileout_Cfg file_name g =
-  fileout file_name (fun o -> output_Cfg o g)
+let fileout_cfg file_name g =
+  fileout file_name (fun o -> Dot.output_graph o g)
 
 let fixpoint _ = failwith "TODO"
 
