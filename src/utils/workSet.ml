@@ -7,9 +7,9 @@ let singleton = HashSet.singleton
 let add work_set done_set w =
   if HashSet.mem done_set w then ()
   else HashSet.add work_set w
-  
+
 let perform_work work_set f =
-  let done_set = HashSet.create 13 in
+  let done_set = HashSet.create 1 in
   try while true do
     let current = HashSet.choose work_set in
     HashSet.remove work_set current;

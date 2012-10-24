@@ -140,6 +140,7 @@ module DotAttributes = struct
 end
 
 module DotDefault = struct
+  (* TODO(rgrig): This should use VERTEX.hash, not Hashtbl.hash. *)
   let vertex_name v = string_of_int (Hashtbl.hash v)
   let graph_attributes _ = []
   let default_vertex_attributes _ = []
