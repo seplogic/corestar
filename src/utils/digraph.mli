@@ -4,6 +4,7 @@ I am forced not to use OCamlGraph, because of the licence. *)
 module type ANY_TYPE = sig type t end
 module type ORDERED_TYPE_DFT =
   sig type t val compare : t -> t -> int val default : t end
+module UnlabeledEdge : ORDERED_TYPE_DFT
 module type VERTEX =
   sig
     type t

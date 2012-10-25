@@ -1,9 +1,12 @@
 (** Entry point for experiments on abduction with procedure calls. *)
 
+open Corestar_std
 open Debug
 open Format
 module C = Core
 module G = Cfg
+
+exception Fatal of string
 
 let verbose = ref 0
 
@@ -15,7 +18,7 @@ let parse fn =
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
   (struct type t = C.core_statement end)
-  (struct type t = unit let compare = compare let default = () end)
+  (Digraph.UnlabeledEdge)
 module HVHashtbl = Hashtbl.Make (CfgH.V)
 
 module ProcedureH = G.MakeProcedure (CfgH)
@@ -54,7 +57,7 @@ let mic_add_edges r labels succ =
   let g = r.ProcedureH.cfg in
   let vertex_of_label l =
     try Hashtbl.find labels l
-    with Not_found -> failwith "bad cfg (TODO: nice user error)" in
+    with Not_found -> raise (Fatal ("label " ^ l ^ " is missing")) in
   let add_outgoing x = if not (CfgH.V.equal x r.ProcedureH.stop) then begin
       match CfgH.V.label x with
       | C.Goto_stmt_core ls ->
@@ -131,7 +134,39 @@ let mk_cfg q =
   if !verbose >= 2 then output_cfg n g.G.Procedure.cfg;
   { q with C.proc_body = g }
 
-let compute_call_graph _ = failwith "todo"
+(* helpers for [compute_call_graph] {{{ *)
+module CallGraph = Digraph.Make
+  (struct type t = G.Procedure.t C.procedure end)
+  (Digraph.UnlabeledEdge)
+module DotCg = Digraph.Dot (struct
+  include CallGraph
+  include Digraph.DotDefault
+  let vertex_attributes v = [ `Label (CallGraph.V.label v).C.proc_name ]
+end)
+let output_cg cg = failwith "XXX"
+
+let ccg_add_edges cg von p =
+  let u = Hashtbl.find von p.C.proc_name in
+  let add_outgoing s = match G.Cfg.V.label s with
+    | G.Call_cfg (n, p) ->
+        (* XXX: Check that the arguments are OK. *)
+        CallGraph.add_edge cg u (Hashtbl.find von n)
+    | _ -> () in
+  G.Cfg.iter_vertex add_outgoing p.C.proc_body.G.Procedure.cfg
+
+(* }}} *)
+
+let compute_call_graph ps =
+  let cg = CallGraph.create () in
+  let von = Hashtbl.create 1 in (* procedure name -> vertex *)
+  let add_vertex p =
+    if Hashtbl.mem von p.C.proc_name then
+      raise (Fatal ("repeated procedure name " ^ p.C.proc_name));
+    Hashtbl.add von p.C.proc_name (CallGraph.V.create p) in
+  List.iter add_vertex ps;
+  List.iter (ccg_add_edges cg von) ps;
+  if !verbose >= 2 then output_cg cg;
+  cg
 
 let compute_scc_dag _ = failwith "todo"
 
@@ -143,9 +178,11 @@ let interpret gs =
   interpret_scc_dag scc_dag
 
 let main f =
-  let ps = parse f in
-  let gs = List.map mk_cfg ps in
-  interpret gs
+  try
+    let ps = parse f in
+    let gs = List.map mk_cfg ps in
+    interpret gs
+  with Fatal m -> eprintf "@[ERROR: %s@." m
 
 let args =
   [ "-v", Arg.Unit (fun () -> incr verbose), "increase verbosity" ]

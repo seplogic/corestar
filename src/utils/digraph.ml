@@ -8,6 +8,12 @@ module type ORDERED_TYPE_DFT = sig
   val default : t
 end
 
+module UnlabeledEdge : ORDERED_TYPE_DFT = struct
+  type t = unit
+  let compare = compare
+  let default = ()
+end
+
 module type VERTEX = sig
   type t
   val compare : t -> t -> int
