@@ -10,10 +10,27 @@ exception Fatal of string
 
 let verbose = ref 0
 
-let map_proc_body f x = { x with C.proc_body = f x.C.proc_body }
-
 let parse fn =
   System.parse_file Parser.symb_question_file Lexer.token fn "core"
+
+let fresh_asgn_proc =
+  let fi = Misc.fresh_int () in
+  fun () -> sprintf "@[assignment %d@." (fi ())
+  (* NOTE: the space in the ID is intended: it should be unparseable *)
+
+let desugar_assignments ps =
+  let qs = ref [] in (* dummy procedures that simulate assignments *)
+  let d_stmt = function
+    | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
+        let name = fresh_asgn_proc () in
+        qs =:: { C.proc_name = name; proc_spec = asgn_spec; proc_body = None };
+        C.Call_core
+          { C.call_name = name; call_rets = asgn_rets; call_args = asgn_args }
+    | s -> s in
+  let d_body = List.map d_stmt in
+  let d_proc p = { p with C.proc_body = option_map d_body p.C.proc_body } in
+  let ps = List.map d_proc ps in
+  List.rev_append ps !qs
 
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
@@ -162,8 +179,10 @@ let ccg_add_edges cg von p =
   let u = Hashtbl.find von p.C.proc_name in
   let add_outgoing s = match G.Cfg.V.label s with
     | G.Call_cfg c ->
-        (* XXX: Check that the arguments are OK. *)
-        CallGraph.add_edge cg u (Hashtbl.find von c.C.call_name)
+        (* NOTE: calls may bound only subset of all in/out arguments *)
+        (try CallGraph.add_edge cg u (Hashtbl.find von c.C.call_name)
+        with Not_found ->
+          raise (Fatal ("undefined procedure: " ^ c.C.call_name)))
     | _ -> () in
   let pb b = G.Cfg.iter_vertex add_outgoing b.G.Procedure.cfg in
   maybe () pb p.C.proc_body
@@ -194,6 +213,7 @@ let interpret gs =
 let main f =
   try
     let ps = parse f in
+    let ps = desugar_assignments ps in
     let gs = List.map mk_cfg ps in
     interpret gs
   with Fatal m -> eprintf "@[ERROR: %s@." m

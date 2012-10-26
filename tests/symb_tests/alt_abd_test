@@ -10,7 +10,10 @@ Specification Test2:
 nop;
 assign x := {Emp}{Emp} (y);
 label loop;
-call x := {Emp}{Emp} f((x+y), y);
+call x := f((x+y), y);
 goto loop, and;
 label and;
 end;
+
+Specification f:
+

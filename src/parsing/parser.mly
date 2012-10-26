@@ -472,7 +472,9 @@ test_file:
 
 symb_question:
   | SPECIFICATION identifier COLON spec QUESTIONMARK core_stmt_list
-    {{proc_name=$2; proc_spec=$4; proc_body=Some $6}}
+    { {proc_name=$2; proc_spec=$4; proc_body=Some $6} }
+  | SPECIFICATION identifier COLON spec
+    { {proc_name=$2; proc_spec=$4; proc_body=None} }
 ;
 
 symb_test:
