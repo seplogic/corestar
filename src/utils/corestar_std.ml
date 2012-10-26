@@ -31,6 +31,10 @@ let maybe n f = function
   | None -> n
   | Some x -> f x
 
+let option_map f = function
+  | None -> None
+  | Some x -> Some (f x)
+
 module CharH = struct
   let is_space =
     let spaces = " \t\n\r\x0b\x0c" in

@@ -22,3 +22,7 @@ let choose h =
   with X -> (match !r with Some x -> x | _ -> failwith "impossible")
 
 let iter f h = Hashtbl.iter (fun x _ -> f x) h
+
+let fold f h z = Hashtbl.fold (fun x _ r -> f x r) h z
+
+let length h = Hashtbl.length h

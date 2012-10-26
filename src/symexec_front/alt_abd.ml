@@ -23,6 +23,18 @@ module HVHashtbl = Hashtbl.Make (CfgH.V)
 
 module ProcedureH = G.MakeProcedure (CfgH)
 
+(*
+let output_dot (type v) gm va =
+  let module GM = (val gm : Digraph.IM with type vertex = v) in
+  let module DotGM = Digraph.Dot (struct
+    include GM
+    include Digraph.DotDefault
+    let vertex_attributes = va
+  end) in
+  DotGM.output_graph
+*)
+
+
 module DotH = Digraph.Dot (struct
   include CfgH
   include Digraph.DotDefault
@@ -30,7 +42,7 @@ module DotH = Digraph.Dot (struct
       C.Nop_stmt_core -> [`Label "NOP"]
     | C.Label_stmt_core s -> [`Label ("Label:" ^ s)]
     | C.Assignment_core _ -> [`Label "Assign "; `Shape `Box]
-    | C.Call_core (fname, _) -> [`Label ("Call " ^ fname); `Shape `Box]
+    | C.Call_core c -> [`Label ("Call " ^ c.C.call_name); `Shape `Box]
     | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat "," ss))]
     | C.End -> [`Label "End"]
 end)
@@ -86,14 +98,15 @@ let sc_interesting_label = function
   | _ -> false
 
 let sc_new_label = function
-  | C.Assignment_core s -> G.Assign_cfg s
-  | C.Call_core (n, s) -> G.Call_cfg (n, s)
+  | C.Assignment_core s ->
+      failwith "INTERNAL: Assignments should already be turned into calls."
+  | C.Call_core c -> G.Call_cfg c
   | C.Nop_stmt_core -> G.Nop_cfg
   | _ -> assert false
 
 let sc_add_edges cfg nv s_cfg v =
   let add_outgoing v =
-    let seen = HVHashtbl.create 1 in
+    let seen = HVHashtbl.create 1 in (* XXX: Switch to HashSet, functorial *)
     let rec add_to u =
       if not (HVHashtbl.mem seen u) then begin
         HVHashtbl.add seen u ();
@@ -128,10 +141,10 @@ let output_cfgH n g =
 
 let mk_cfg q =
   let n = q.C.proc_name in
-  let g = mk_intermediate_cfg q.C.proc_body in
-  if !verbose >= 3 then output_cfgH n g.ProcedureH.cfg;
-  let g = simplify_cfg g in
-  if !verbose >= 2 then output_cfg n g.G.Procedure.cfg;
+  let g = option_map mk_intermediate_cfg q.C.proc_body in
+  if !verbose >= 3 then maybe () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
+  let g = option_map simplify_cfg g in
+  if !verbose >= 2 then maybe () (fun g -> output_cfg n g.G.Procedure.cfg) g;
   { q with C.proc_body = g }
 
 (* helpers for [compute_call_graph] {{{ *)
@@ -148,11 +161,12 @@ let output_cg cg = failwith "XXX"
 let ccg_add_edges cg von p =
   let u = Hashtbl.find von p.C.proc_name in
   let add_outgoing s = match G.Cfg.V.label s with
-    | G.Call_cfg (n, p) ->
+    | G.Call_cfg c ->
         (* XXX: Check that the arguments are OK. *)
-        CallGraph.add_edge cg u (Hashtbl.find von n)
+        CallGraph.add_edge cg u (Hashtbl.find von c.C.call_name)
     | _ -> () in
-  G.Cfg.iter_vertex add_outgoing p.C.proc_body.G.Procedure.cfg
+  let pb b = G.Cfg.iter_vertex add_outgoing b.G.Procedure.cfg in
+  maybe () pb p.C.proc_body
 
 (* }}} *)
 

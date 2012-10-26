@@ -16,7 +16,7 @@
 
 (* {{{ *) (** {2 Common operations} *)
 
-(** 
+(**
   Function composition. Where a function is expected, you can write [g @@
   f] instead of [fun x -> g (f x)].
  *)
@@ -43,6 +43,9 @@ val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 (** Like in Haskell. *)
 val maybe : 'b -> ('a -> 'b) -> 'a option -> 'b
 
+(** Map for options. *)
+val option_map : ('a -> 'b) -> 'a option -> 'b option
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 
@@ -51,6 +54,9 @@ module StringSet : Set.S with type elt = string
 
 (** A set of integers. *)
 module IntSet : Set.S with type elt = int
+
+(** A map from strings to something. *)
+module StringMap : Map.S with type key = string
 
 (**
   A few helpers for dealing with maps. This is a workaround for the lack of
@@ -63,11 +69,11 @@ module IntSet : Set.S with type elt = int
  *)
 module MapHelper :
   functor (M : Map.S) -> sig
-    (** 
+    (**
       [filter p m] returns a map with all the keys that satisfy predicate
       [p]. Takes O(|m|+|n| lg |n|) time, where [n] is the result.
      *)
-    val filter : (M.key -> 'a -> bool) -> 'a M.t -> 'a M.t 
+    val filter : (M.key -> 'a -> bool) -> 'a M.t -> 'a M.t
   end
 
 module HashtblH : sig
@@ -85,7 +91,7 @@ end
 
 (** Functions missing from [String]. *)
 module StringH : sig
-  (** 
+  (**
     Removes the longest prefix and the longest suffix made entierly of
     spaces. In particular, it returns the empty string if the input is all
     spaces.

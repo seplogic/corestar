@@ -19,8 +19,6 @@ val remove_duplicates : ('a -> 'a -> int) -> 'a list -> 'a list
 val intcmp : 'a -> 'a -> int
 val intcmp2 : 'a * 'b -> 'a * 'b -> int
 
-val option : 'a -> ('b -> 'a) -> 'b option -> 'a
-
 val iter_pairs : ('a -> 'a -> unit) -> 'a list -> unit
 
 val map_and_find : ('a -> 'b) -> 'a list -> 'b

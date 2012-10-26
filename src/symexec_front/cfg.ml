@@ -3,8 +3,7 @@ open Digraph
 module C = Core
 
 type cfg_vertex =
-    Assign_cfg of C.call_core
-  | Call_cfg of string * C.call_core
+  | Call_cfg of C.call_core
   | Nop_cfg
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
@@ -39,8 +38,7 @@ module Dot = Digraph.Dot (struct
   include Cfg
   include Digraph.DotDefault
   let vertex_attributes v = match Cfg.V.label v with
-      Assign_cfg _ -> [`Label "Assign"]
-    | Call_cfg (fname, _) -> [`Label ("Call " ^ fname)]
+    | Call_cfg c -> [`Label c.C.call_name]
     | Nop_cfg -> [`Label "NOP"]
 end)
 

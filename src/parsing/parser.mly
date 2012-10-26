@@ -1,13 +1,13 @@
 /********************************************************
-   This file is part of coreStar 
+   This file is part of coreStar
 	src/parsing/jparser.mly
-   Release 
+   Release
         $Release$
-   Version 
+   Version
         $Rev$
    $Copyright$
-   
-   coreStar is distributed under a BSD license,  see, 
+
+   coreStar is distributed under a BSD license,  see,
       LICENSE.txt
  ********************************************************/
 
@@ -16,7 +16,7 @@ exception Give_up
 
 open Core
 open Lexing
-open Parsing 
+open Parsing
 open Printing
 open Psyntax
 open Spec
@@ -29,14 +29,14 @@ let newAnyVar x = AnyVar(0,x)
 
 let newEVar x = EVar(0,x)
 
-let newVar x = 
-  if x = "_" then freshe() 
-  else if String.get x 0 = '_' then newEVar (String.sub x 1 ((String.length x) -1)) 
+let newVar x =
+  if x = "_" then freshe()
+  else if String.get x 0 = '_' then newEVar (String.sub x 1 ((String.length x) -1))
   else newPVar x
 
 let file_name = ref None
 
-let location_to_string pos = 
+let location_to_string pos =
   Printf.sprintf "Line %d character %d" pos.pos_lnum  (pos.pos_cnum - pos.pos_bol + 1)
 
 let parse_error s =
@@ -57,7 +57,7 @@ let parse_warning s =
 %token ABDUCTION
 %token ABSRULE
 %token ABSTRACT
-%token AND 
+%token AND
 %token ASSIGN
 %token AXIOMS
 %token BANG
@@ -68,32 +68,32 @@ let parse_warning s =
 %token CMP_GE
 %token CMP_GT
 %token COLON
-%token COLON_EQUALS 
+%token COLON_EQUALS
 %token COMMA
-%token CONSTRUCTOR 
+%token CONSTRUCTOR
 %token DASHV
 %token DOT
 %token EMP
 %token END
 %token EOF
-%token EQUALS 
+%token EQUALS
 %token EQUIV
 %token FALSE
 %token FRAME
 %token GARBAGE
-%token GOTO 
-%token <string> IDENTIFIER 
+%token GOTO
+%token <string> IDENTIFIER
 %token IF
 %token IMP
 %token IMPLICATION
-%token IMPORT 
+%token IMPORT
 %token INCONSISTENCY
 %token LABEL
-%token L_BRACE 
-%token L_BRACKET 
-%token L_PAREN 
+%token L_BRACE
+%token L_BRACKET
+%token L_PAREN
 %token LEADSTO
-%token MULT 
+%token MULT
 %token NOP
 %token NOT_EQUALS
 %token NOTIN
@@ -102,25 +102,25 @@ let parse_warning s =
 %token OP_DIV
 %token OP_MINUS
 %token OP_PLUS
-%token OR 
-%token OROR 
+%token OR
+%token OROR
 %token ORTEXT
-%token QUESTIONMARK 
+%token QUESTIONMARK
 %token QUOTE
-%token R_BRACE 
-%token R_BRACKET 
-%token R_PAREN 
+%token R_BRACE
+%token R_BRACKET
+%token R_PAREN
 %token REWRITERULE
 %token RULE
-%token SEMICOLON 
+%token SEMICOLON
 %token SPECIFICATION
 %token SPECTEST
-%token <string> STRING_CONSTANT 
+%token <string> STRING_CONSTANT
 %token TRUE
 %token VDASH
 %token WAND
 %token WHERE
-%token WITH 
+%token WITH
 %token WITHOUT
 
 /* === associativity and precedence === */
@@ -142,16 +142,16 @@ let parse_warning s =
 %type <Psyntax.test list> test_file
 
 %start symb_question_file
-%type <Core.symb_question list> symb_question_file 
+%type <Core.symb_question list> symb_question_file
 
 %start symb_test_file
-%type <Core.symb_test list> symb_test_file 
+%type <Core.symb_test list> symb_test_file
 
 %% /* rules */
 
 /* Identifiers and constants */
 
-boolean: 
+boolean:
   | TRUE { true }
   | FALSE { false }
 ;
@@ -213,11 +213,11 @@ term_npv:
   | identifier L_PAREN term_npv_list R_PAREN { Arg_op($1, $3) }
   | L_PAREN term_npv binop term_npv R_PAREN { Arg_op($3, [$2;$4]) }
   | L_BRACE fldlist_npv R_BRACE { mkArgRecord $2 }
-  | STRING_CONSTANT { Arg_string($1) } 
+  | STRING_CONSTANT { Arg_string($1) }
 ;
 term_npv_list_ne:
   | term_npv {$1::[]}
-  | term_npv COMMA term_npv_list_ne { $1::$3 } 
+  | term_npv COMMA term_npv_list_ne { $1::$3 }
 ;
 term_npv_list:
   | /*empty*/  {[]}
@@ -225,7 +225,7 @@ term_npv_list:
 ;
 
 /* With pattern vars*/
-term: 
+term:
   | lvariable { Arg_var ($1) }
   | identifier L_PAREN term_list R_PAREN { Arg_op($1, $3) }
   | L_PAREN term binop term R_PAREN { Arg_op($3, [$2;$4]) }
@@ -241,13 +241,13 @@ term_list:
   | term_list_ne {$1}
 ;
 
-fldlist_npv: 
+fldlist_npv:
    | identifier EQUALS term_npv { [($1,$3)] }
    | /*empty*/ { [] }
    | identifier EQUALS term_npv SEMICOLON fldlist_npv  { ($1,$3) :: $5 }
 ;
 
-fldlist: 
+fldlist:
    | identifier EQUALS term { [($1,$3)] }
    | /*empty*/ { [] }
    | identifier EQUALS term SEMICOLON fldlist  { ($1,$3) :: $5 }
@@ -256,11 +256,11 @@ fldlist:
 
 /* Formulae */
 
-formula: 
+formula:
   | /*empty*/  { mkEmpty }
   | EMP  { mkEmpty }
   | FALSE { mkFalse}
-  | BANG identifier L_PAREN term_list R_PAREN { mkPPred ($2, $4) } 
+  | BANG identifier L_PAREN term_list R_PAREN { mkPPred ($2, $4) }
   | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
   | formula MULT formula { pconjunction $1 $3 }
   | formula OROR formula { mkOr ($1,$3) }
@@ -270,7 +270,7 @@ formula:
   | L_PAREN formula R_PAREN { $2 }
 ;
 
-formula_npv: 
+formula_npv:
   | /*empty*/  { mkEmpty }
   | EMP  { mkEmpty }
   | FALSE { mkFalse}
@@ -282,21 +282,21 @@ formula_npv:
   | term_npv EQUALS term_npv { mkEQ ($1,$3) }
   | term_npv cmpop term_npv { mkPPred ($2, [$1;$3]) }
   | L_PAREN formula_npv R_PAREN { $2 }
-;   
-   
-spatial_at: 
+;
+
+spatial_at:
   | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
 ;
-spatial_list_ne: 
+spatial_list_ne:
   | spatial_at MULT spatial_list_ne  { pconjunction $1 $3 }
   | spatial_at    { $1 }
 ;
-spatial_list: 
+spatial_list:
   | spatial_list_ne { $1 }
   | /*empty*/  { mkEmpty }
 ;
 
-   
+
 /* Sequents and rules */
 
 sequent:
@@ -329,10 +329,10 @@ varterm:
   | lvariable_list { Var(vs_from_list $1) }
 ;
 
-clause: 
+clause:
   | varterm NOTINCONTEXT { NotInContext($1) }
   | varterm NOTIN term { NotInTerm($1,$3) }
-  | formula PUREGUARD { PureGuard($1) }   /* TODO: check that the formula here is really pure */ 
+  | formula PUREGUARD { PureGuard($1) }   /* TODO: check that the formula here is really pure */
 ;
 
 clause_list:
@@ -346,15 +346,15 @@ where:
 ;
 
 ifclause:
-  | /* empty plain term */ { [] } 
+  | /* empty plain term */ { [] }
   | IF formula {$2}
 ;
 
 /* Need to do tests that simplified rules are fine for pure bits.*/
 equiv_rule:
-  | EQUIV identifier_op COLON formula IMP formula BIMP formula without_simp  { EquivRule($2,$4,$6,$8,$9) } 
-  | EQUIV identifier_op COLON formula IMP formula without_simp  { EquivRule($2,$4,$6,mkEmpty,$7) } 
-  | EQUIV identifier_op COLON formula BIMP formula without_simp  { EquivRule($2,mkEmpty,$4,$6,$7) } 
+  | EQUIV identifier_op COLON formula IMP formula BIMP formula without_simp  { EquivRule($2,$4,$6,$8,$9) }
+  | EQUIV identifier_op COLON formula IMP formula without_simp  { EquivRule($2,$4,$6,mkEmpty,$7) }
+  | EQUIV identifier_op COLON formula BIMP formula without_simp  { EquivRule($2,mkEmpty,$4,$6,$7) }
 ;
 
 rule:
@@ -362,14 +362,14 @@ rule:
   | IMPORT STRING_CONSTANT SEMICOLON  { Load.ImportEntry($2) }
   | RULE identifier_op COLON sequent without where IF sequent_list_or_list
     { Load.NormalEntry(SeqRule($4,$8,$2,$5,$6)) }
-  | REWRITERULE identifier_op COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where 
+  | REWRITERULE identifier_op COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
     { Load.NormalEntry(RewriteRule({function_name=$4;
         arguments=$6;
         result=$9;
         guard={without_form=$11;rewrite_where=$12;if_form=$10};
         rewrite_name=$2;
         saturate=false})) }
-  | REWRITERULE identifier_op MULT COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where 
+  | REWRITERULE identifier_op MULT COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
     { Load.NormalEntry(RewriteRule({function_name=$5;
         arguments=$7;
         result=$10;
@@ -377,7 +377,7 @@ rule:
         rewrite_name=$2;
         saturate=true})) }
   | ABSRULE identifier_op COLON formula LEADSTO formula where  { let seq=(mkEmpty,$4,mkEmpty,mkEmpty) in
-      let wo=(mkEmpty,mkEmpty) in 
+      let wo=(mkEmpty,mkEmpty) in
       let seq2=(mkEmpty,$6,mkEmpty,mkEmpty) in
       let seq_list=[[seq2]] in
       Load.NormalEntry(SeqRule(seq,seq_list,$2,wo,$7)) }
@@ -388,17 +388,22 @@ rule_file:
   | EOF  { [] }
   | rule rule_file  { $1 :: $2 }
 ;
- 
-   
+
+
 /* Specifications */
 
-spec:
-  | L_BRACE formula R_BRACE L_BRACE formula R_BRACE exp_posts  { {pre=$2;post=$5;excep=$7} }
+triple:
+  L_BRACE formula R_BRACE L_BRACE formula R_BRACE exp_posts  { {pre=$2;post=$5;excep=$7} }
 ;
 
 exp_posts:
-  | L_BRACE identifier COLON formula R_BRACE exp_posts { ClassMap.add $2 $4 $6 }
+  | L_BRACKET identifier COLON formula R_BRACKET exp_posts { ClassMap.add $2 $4 $6 }
   | /*empty */ { ClassMap.empty }
+;
+
+spec:
+  | /* empty */ { HashSet.create 1 }
+  | spec triple { HashSet.add $1 $2; $1 }
 ;
 
 
@@ -406,36 +411,40 @@ exp_posts:
 
 core_assn_args:
   | lvariable_npv_list COLON_EQUALS { $1 }
-  |  /* empty */  { [] }
+  | /* empty */  { [] }
 ;
+core_args_in: L_PAREN term_npv_list R_PAREN { $2 };
+
 label_list:
   | IDENTIFIER   { [$1] }
   | IDENTIFIER COMMA label_list   { $1 :: $3 }
 ;
 
-core_stmt: 
+call_stmt: /* split in cases to avoid parsing conflict */
+  | IDENTIFIER core_args_in
+    { { call_name = $1; call_rets = []; call_args = $2 } }
+  | lvariable_npv COLON_EQUALS IDENTIFIER core_args_in
+    { { call_name = $3; call_rets = [$1]; call_args = $4 } }
+  | lvariable_npv COMMA lvariable_npv_list_ne COLON_EQUALS IDENTIFIER core_args_in
+    { { call_name = $5; call_rets = $1 :: $3; call_args = $6 } }
+;
+
+core_stmt:
   | END  { End }
   | NOP  { Nop_stmt_core }
-  | ASSIGN core_assn_args spec L_PAREN term_npv_list R_PAREN  
-    { Assignment_core { 
-        call_rets=$2; 
-        call_spec=HashSet.singleton $3; 
-        call_args=$5} } 
-  | CALL core_assn_args spec IDENTIFIER L_PAREN term_npv_list R_PAREN  
-    { Call_core ($4, {
-        call_rets=$2;
-        call_spec=HashSet.singleton $3;
-        call_args=$6}) }
-  | GOTO label_list { Goto_stmt_core $2 } 
+  | ASSIGN core_assn_args spec core_args_in
+    { Assignment_core { asgn_rets = $2; asgn_args = $4; asgn_spec = $3 } }
+  | CALL call_stmt { Call_core $2 }
+  | GOTO label_list { Goto_stmt_core $2 }
   | LABEL IDENTIFIER  { Label_stmt_core $2 }
 ;
 
 core_stmt_list:
-  | core_stmt SEMICOLON core_stmt_list  { $1 :: $3 } 
+  | core_stmt SEMICOLON core_stmt_list  { $1 :: $3 }
   | /* empty */  { [] }
 ;
 
- 
+
 /* Input files */
 
 question:
@@ -451,32 +460,32 @@ test:
   | FRAME COLON formula_npv VDASH formula_npv QUESTIONMARK formula_npv { TFrame($3,$5,$7) }
 ;
 
-question_file: 
+question_file:
   | EOF  { [] }
   | question question_file  {$1 :: $2}
 ;
 
-test_file: 
+test_file:
   | EOF  { [] }
   | test test_file  { $1 :: $2 }
 ;
 
-symb_question: 
-  | SPECIFICATION identifier COLON spec QUESTIONMARK core_stmt_list  
-    {{proc_name=$2; proc_spec=$4; proc_body=$6}}
+symb_question:
+  | SPECIFICATION identifier COLON spec QUESTIONMARK core_stmt_list
+    {{proc_name=$2; proc_spec=$4; proc_body=Some $6}}
 ;
 
-symb_test: 
+symb_test:
   | SPECTEST identifier COLON spec QUESTIONMARK boolean core_stmt_list
-    {({proc_name=$2; proc_spec=$4; proc_body=$7} , $6)}
-;   
-   
-symb_question_file: 
+    {({proc_name=$2; proc_spec=$4; proc_body=Some $7}, $6)}
+;
+
+symb_question_file:
   | EOF  { [] }
   | symb_question symb_question_file  {$1 :: $2}
-;   
-   
-symb_test_file: 
+;
+
+symb_test_file:
   | EOF  { [] }
   | symb_test symb_test_file  {$1 :: $2}
 ;

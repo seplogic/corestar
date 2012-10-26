@@ -35,7 +35,7 @@ let curr_abs_rules : Psyntax.logic ref = ref Psyntax.empty_logic
 
 (* ================  transition system ==================  *)
 type ntype = Plain | Good | Error | Abs | UnExplored
-    
+
 type etype = ExecE | AbsE | ContE | ExitE
 
 type id = int
@@ -435,7 +435,7 @@ and execs_one n sheaps =
 
 and execs n sheaps =
 	execs_with_function n sheaps (fun n -> [n])
-	
+
 
 
 and execute_core_stmt
@@ -537,9 +537,9 @@ and execute_core_stmt
 
   | Nop_stmt_core  -> execs_one n [sheap]
 
-  | Call_core (_, {call_rets=vl; call_spec=spec; call_args=il})
-  | Assignment_core {call_rets=vl; call_spec=spec; call_args=il} ->
-    ( 
+  | Call_core _ -> failwith "TODO, perhaps"
+  | Assignment_core {asgn_rets=vl; asgn_spec=spec; asgn_args=il} ->
+    (
       let spec = HashSet.choose spec in
       let hs = call_jsr_static sheap spec il n in
       let abort =
@@ -553,7 +553,7 @@ and execute_core_stmt
       else
         let hs = match hs with | None -> [] | Some hs -> hs in
         let hs =
-          match vl with 
+          match vl with
           | [] -> hs
           | vs -> List.map (eliminate_ret_vs "$ret_v" vs) hs
         in
@@ -606,21 +606,21 @@ let verify
             | Some spec_post -> lift_inner_form spec_post
           in
           let id_exit = add_good_node ("Exit") in
-          let ret = List.for_all (check_postcondition [(post, id_exit)]) posts in 
-          pp_dotty_transition_system (); 
+          let ret = List.for_all (check_postcondition [(post, id_exit)]) posts in
+          pp_dotty_transition_system ();
           (* TODO: the way verification failure is currently handled is stupid *)
           if !proof_succeeded then ret else false
 
 
-let verify_ensures 
-     (name : string) 
-     (stmts: cfg_node list) 
-     (post : Psyntax.pform) 
+let verify_ensures
+     (name : string)
+     (stmts: cfg_node list)
+     (post : Psyntax.pform)
      conjoin_with_res_true
-     (oldexp_frames : inner_form list list) 
-     (lo : logic) 
-     (abs_rules : logic) 
-     : unit 
+     (oldexp_frames : inner_form list list)
+     (lo : logic)
+     (abs_rules : logic)
+     : unit
      =
   flush_cache ();
   (* construct the specification of the ensures clause *)
@@ -635,9 +635,9 @@ let verify_ensures
 	let oldexp_results = List.fold_left (fun acc oldexp_res -> conjoin_disjunctions oldexp_res acc) [Sepprover.inner_truth] oldexp_frames in
 	  (* substitute $ret_var in the post! *)
 	let post = subst_pform (add Spec.ret_v1 (Arg_var(Vars.concretep_str (name_ret_v1^"_post"))) empty) post in
-	let ensures_preconds = List.map 
+	let ensures_preconds = List.map
     (fun oldexp_result -> lift_inner_form (Sepprover.conjoin post oldexp_result)) oldexp_results in
-  let ensures_postcond = 
+  let ensures_postcond =
     match Sepprover.convert (conjoin_with_res_true post) with
       None -> printf "@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" name; empty_inner_form_af
     | Some post -> lift_inner_form post
@@ -647,26 +647,26 @@ let verify_ensures
 	curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
-  match stmts with 
+  match stmts with
     [] -> assert false
   | s::stmts ->
-      let id = add_good_node ("Start "^name) in  
+      let id = add_good_node ("Start "^name) in
       make_start_node id;
       let posts = execs s (List.map (fun pre -> (pre,id)) ensures_preconds) in
       let id_exit = add_good_node ("Exit") in
-      ignore (List.map 
-        (fun post -> 
+      ignore (List.map
+        (fun post ->
           check_postcondition [(ensures_postcond,id_exit)] post) posts);
-      pp_dotty_transition_system () 
+      pp_dotty_transition_system ()
 
 
 let check_and_get_frame (pre_heap,id) post_sheap =
-  let post_sheap_noid = fst post_sheap in 
+  let post_sheap_noid = fst post_sheap in
   let node = snd post_sheap in
   let frame = frame_inner !curr_logic (inner_form_af_to_form post_sheap_noid) (inner_form_af_to_form pre_heap) in
-  match frame with 
-    Some frame -> 
-                 if Config.symb_debug() then 
+  match frame with
+    Some frame ->
+                 if Config.symb_debug() then
                         (printf "\n\nOld expression okay \n%!";
                         ignore (add_edge_with_proof node id ExitE "exit");
                         frame)
@@ -683,41 +683,41 @@ let check_and_get_frame (pre_heap,id) post_sheap =
               Sepprover.pprint_counter_example ();
               flush_str_formatter ()));
       printf "@{<b>(end of error)@}@.%!";
-      Printing.pp_json_node 
+      Printing.pp_json_node
         (match node.cfg with None -> -1 | Some x -> x.sid) et (Sepprover.get_counter_example());
       [])
 
 
 (* TODO: Is this unused? What about the functions it calls? *)
-let get_frame 
-     (stmts : cfg_node list) 
-     (pre : Psyntax.pform) 
-     (lo : logic) 
-     (abs_rules : logic) 
-     : inner_form list 
+let get_frame
+     (stmts : cfg_node list)
+     (pre : Psyntax.pform)
+     (lo : logic)
+     (abs_rules : logic)
+     : inner_form list
      =
   flush_cache ();
   exec_type := SymExec;
   curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
-  match stmts with 
+  match stmts with
     [] -> assert false
-  | s::stmts -> 
-		  let id = add_good_node ("Start") in  
+  | s::stmts ->
+		  let id = add_good_node ("Start") in
       make_start_node id;
       let rlogic_pre = Sepprover.convert pre in
       match rlogic_pre with
         None -> printf "@{<b>WARNING:@} False precondition in spec.@.%!"; []
       |	Some rlogic_pre ->
         let pre = lift_inner_form rlogic_pre in
-        let post = 
+        let post =
           match execute_core_stmt s (pre, id) with
           | [p] -> p
           | [] -> assert false
-          | _ -> assert false  (* an old expression is guaranteed to have only one exit point *) 
-        in 
-        let id_exit = add_good_node ("Exit") in 
+          | _ -> assert false  (* an old expression is guaranteed to have only one exit point *)
+        in
+        let id_exit = add_good_node ("Exit") in
         check_and_get_frame (pre,id_exit) post
 
 let verify_inner
@@ -727,16 +727,16 @@ let verify_inner
     (spec_post : inner_form)
     (lo : logic)
     (abs_rules : logic)
-    : bool 
+    : bool
     =
   exec_type := Check;
   curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
-  match stmts with 
+  match stmts with
   | [] -> failwith "Internal error: Method body shouldn't be empty."
-  | s::_ -> 
-      let id = add_good_node ("Start "^mname) in  
+  | s::_ ->
+      let id = add_good_node ("Start "^mname) in
       make_start_node id;
       let pre = lift_inner_form spec_pre in
       let posts = execute_core_stmt s (pre, id) in
@@ -744,14 +744,14 @@ let verify_inner
       let id_exit = add_good_node ("Exit") in
       List.for_all (check_postcondition [(post, id_exit)]) posts
 
-      
-let bi_abduct 
-    (mname : string) 
-    (stmts : cfg_node list)  
-    (spec : spec) 
-    (lo : logic) 
-    (abduct_lo : logic) 
-    (abs_rules : logic) 
+
+let bi_abduct
+    (mname : string)
+    (stmts : cfg_node list)
+    (spec : spec)
+    (lo : logic)
+    (abduct_lo : logic)
+    (abs_rules : logic)
     : (inner_form * inner_form) list
     =
   flush_cache ();
@@ -759,29 +759,29 @@ let bi_abduct
   curr_abduct_logic := abduct_lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
-  match stmts with 
+  match stmts with
   | [] -> []
-  | s::_ -> 
-      match Sepprover.convert (spec.pre) with 
+  | s::_ ->
+      match Sepprover.convert (spec.pre) with
         None -> printf "@{<b>WARNING@}: %s has an unsatisfiable precondition@.%!" mname; []
-      |	Some pre -> 
-        if Config.symb_debug() then 
+      |	Some pre ->
+        if Config.symb_debug() then
           Printf.printf "\nStarting abduction...\n%!";
         exec_type := Abduct;
-         let id = add_good_node ("Start "^mname) in  
+         let id = add_good_node ("Start "^mname) in
          make_start_node id;
         let posts = execute_core_stmt s (lift_inner_form pre, id) in
         (* build spec pre/post pairs *)
-        let specs = List.map 
+        let specs = List.map
           (fun (heap,_) -> (Sepprover.conjoin_inner pre (inner_form_af_to_af heap), inner_form_af_to_form heap))
           posts in
-        if Config.symb_debug() 
+        if Config.symb_debug()
         then begin
           Format.printf "\nCandidate specs: \n%!";
-          List.iter (fun (spec_pre, spec_post) -> 
-            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre; 
-            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post; 
-            ) specs; 
+          List.iter (fun (spec_pre, spec_post) ->
+            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre;
+            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post;
+            ) specs;
         end;
         (* eliminate those for which the symbolic execution does not go through *)
         if Config.symb_debug() then
@@ -792,8 +792,8 @@ let bi_abduct
           if Config.symb_debug()
           then begin
             Printf.printf "\nSymbolic execution for:\n%!";
-            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre; 
-            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post; 
+            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre;
+            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post;
           end;
           Hashtbl.clear formset_table;
           verify_inner (mname^".check("^(string_of_int !cnt)^")") stmts spec_pre spec_post lo abs_rules) specs in

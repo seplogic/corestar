@@ -11,7 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
-open Backtrack 
+open Backtrack
 
 let map_option f l =
   let f' acc x = match f x with
@@ -19,16 +19,14 @@ let map_option f l =
     | Some y -> y :: acc in
   List.rev (List.fold_left f' [] l)
 
-let option n s = function None -> n | Some x -> s x
-
 let rec iter_pairs f = function
   | [] | [_] -> ()
   | x :: ((y :: _) as xs) -> f x y; iter_pairs f xs
 
 let map_lift_exists f l
     =
-  List.fold_right 
-    (fun el rest-> 
+  List.fold_right
+    (fun el rest->
       match f el, rest  with
 	None,_ -> rest
    |	Some el,Some rest -> Some (el::rest)
@@ -36,31 +34,31 @@ let map_lift_exists f l
 
 let map_lift_forall f l
     =
-  List.fold_right 
-    (fun el rest-> 
+  List.fold_right
+    (fun el rest->
       match f el, rest  with
      	  None,_ -> None
 	    | _, None -> None
       |	Some el,Some rest -> Some (el::rest)) l (Some [])
 
 
-type ('a,'b) sum = 
+type ('a,'b) sum =
     Inr of 'a
   | Inl of 'b
 
 let map_sum f l
     =
   List.fold_right
-    (fun el (restl,restr) -> 
+    (fun el (restl,restr) ->
       match f el with
       | Inl l -> (l::restl,restr)
       | Inr r -> (restl,r::restr)) l ([],[])
 
 
 let remove_duplicates c l =
-  let l = List.sort c l in 
+  let l = List.sort c l in
   snd (
-  List.fold_left 
+  List.fold_left
     (fun (complast,list) next  ->
       if complast next = 0 then (complast,list) else (c next, next::list)
 	) ((fun _ -> -1),[]) l
@@ -73,8 +71,8 @@ let intcmp a b =
 
 (* TODO(rgrig): Isn't intcmp2 x y = compare y x? *)
 let intcmp2 (x1,x2) (y1,y2) =
-  let v = intcmp x1 y1 in 
-  if v = 0 then intcmp x2 y2 
+  let v = intcmp x1 y1 in
+  if v = 0 then intcmp x2 y2
   else v
 
 let rec map_and_find f = function
@@ -83,14 +81,14 @@ let rec map_and_find f = function
 
 let rec find_no_match_simp f l =
   let rec fnm_inner f l =
-  match l with 
+  match l with
     [] -> raise No_match
   | x::l -> try f x with No_match -> fnm_inner f l
-  in fnm_inner f l 
+  in fnm_inner f l
 
 
 
-let lift_pair f = 
+let lift_pair f =
   fun (x,y) -> (f x, f y)
 
 let lift_option f =
@@ -98,11 +96,11 @@ let lift_option f =
     Some x -> f x
   | None -> None
 
-let rec add_index 
-    ( xs : 'a list ) 
-    ( i : int ) : ('a * int) list = 
-  match xs with  | []     ->  [] 
-                 | y::ys  ->  ( (y,i) :: (add_index ys (i+1)) ) 
+let rec add_index
+    ( xs : 'a list )
+    ( i : int ) : ('a * int) list =
+  match xs with  | []     ->  []
+                 | y::ys  ->  ( (y,i) :: (add_index ys (i+1)) )
 
 let memo2 f =
   let cache = Hashtbl.create 101 in

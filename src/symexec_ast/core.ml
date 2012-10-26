@@ -11,25 +11,30 @@
       LICENSE.txt
  ********************************************************)
 
+type args_out = Vars.var list
+type args_in = Psyntax.args list
+type spec = Spec.spec HashSet.t
 
+type call_core =
+  { call_name : string
+  ; call_rets : args_out
+  ; call_args : args_in }
 
-type call_core = {
-  call_rets : Vars.var list;
-  call_args : Psyntax.args list;
-  call_spec : Spec.spec HashSet.t
-}
+type 'a procedure =
+  { proc_name : string
+  ; proc_spec : spec
+  ; proc_body : 'a option }
 
-type 'a procedure = {
-  proc_name : string;
-  proc_spec : Spec.spec;
-  proc_body : 'a
-}
+type assignment_core =
+  { asgn_rets : args_out
+  ; asgn_args : args_in
+  ; asgn_spec : spec }
 
 type core_statement =
     Nop_stmt_core
   | Label_stmt_core of string
-  | Assignment_core of call_core
-  | Call_core of string * call_core (* TODO: move specs centrally *)
+  | Assignment_core of assignment_core
+  | Call_core of call_core
   | Goto_stmt_core of string list
   | End
 type symb_question = core_statement list procedure
