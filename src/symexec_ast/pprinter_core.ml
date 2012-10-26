@@ -62,11 +62,6 @@ and list_form2str  list =
   | x::xs -> (form_at2str x)^" * "^list_form2str  xs
 
 
-
-
-
-
-
 let variable_list2str lv =
   Debug.list_format "," Vars.pp_var lv
 

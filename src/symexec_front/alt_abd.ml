@@ -15,7 +15,7 @@ let parse fn =
 
 let fresh_asgn_proc =
   let fi = Misc.fresh_int () in
-  fun () -> sprintf "@[assignment %d@." (fi ())
+  fun () -> sprintf "@[assignment %d@]" (fi ())
   (* NOTE: the space in the ID is intended: it should be unparseable *)
 
 let desugar_assignments ps =
@@ -40,17 +40,7 @@ module HVHashtbl = Hashtbl.Make (CfgH.V)
 
 module ProcedureH = G.MakeProcedure (CfgH)
 
-(*
-let output_dot (type v) gm va =
-  let module GM = (val gm : Digraph.IM with type vertex = v) in
-  let module DotGM = Digraph.Dot (struct
-    include GM
-    include Digraph.DotDefault
-    let vertex_attributes = va
-  end) in
-  DotGM.output_graph
-*)
-
+let fileout f file_name g = G.fileout file_name (fun o -> f o g)
 
 module DotH = Digraph.Dot (struct
   include CfgH
@@ -63,8 +53,7 @@ module DotH = Digraph.Dot (struct
     | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat "," ss))]
     | C.End -> [`Label "End"]
 end)
-let fileout_cfgH file_name g =
-  G.fileout file_name (fun o -> DotH.output_graph o g)
+let fileout_cfgH = fileout DotH.output_graph
 
 let mic_create_vertices g cs =
   let succ = HVHashtbl.create 1 in
@@ -173,7 +162,7 @@ module DotCg = Digraph.Dot (struct
   include Digraph.DotDefault
   let vertex_attributes v = [ `Label (CallGraph.V.label v).C.proc_name ]
 end)
-let output_cg cg = failwith "XXX"
+let output_cg = fileout DotCg.output_graph "callgraph.dot"
 
 let ccg_add_edges cg von p =
   let u = Hashtbl.find von p.C.proc_name in
