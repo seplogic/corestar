@@ -4,6 +4,12 @@ I am forced not to use OCamlGraph, because of the licence. *)
 module type ANY_TYPE = sig type t end
 module type ORDERED_TYPE_DFT =
   sig type t val compare : t -> t -> int val default : t end
+module type COMPARABLE = sig
+  type t
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+  val hash : t -> int
+end
 module UnlabeledEdge : ORDERED_TYPE_DFT
 module type VERTEX =
   sig
@@ -34,6 +40,7 @@ module type IM =
     module E : EDGE with type vertex = vertex
     type edge = E.t
     val iter_vertex : (vertex -> unit) -> t -> unit
+    val iter_edges : (vertex -> vertex -> unit) -> t -> unit
     val iter_edges_e : (edge -> unit) -> t -> unit
     val iter_succ : (vertex -> unit) -> t -> vertex -> unit
     val create : ?size:int -> unit -> t
@@ -87,3 +94,16 @@ module Dot :
       val fprint_graph : Format.formatter -> X.t -> unit
       val output_graph : out_channel -> X.t -> unit
     end
+module Components : sig
+  module type G = sig
+    type t
+    module V : COMPARABLE
+    val iter_vertex : (V.t -> unit) -> t -> unit
+    val iter_succ : (V.t -> unit) -> t -> V.t -> unit
+  end
+  module Make : functor (G : G) -> sig
+    val scc : G.t -> int * (G.V.t -> int)
+    val scc_array : G.t -> G.V.t list array
+    val scc_list : G.t -> G.V.t list list
+  end
+end

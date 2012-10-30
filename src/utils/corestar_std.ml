@@ -35,6 +35,8 @@ let option_map f = function
   | None -> None
   | Some x -> Some (f x)
 
+let flip f x y = f y x
+
 module CharH = struct
   let is_space =
     let spaces = " \t\n\r\x0b\x0c" in

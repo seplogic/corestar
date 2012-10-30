@@ -5,7 +5,7 @@ SHELL=/bin/bash
 test: $(TESTS)
 
 clean:
-	@ls -1 | grep -v '\(Makefile\|.star$$\)' | xargs rm -rf
+	@rm -rf *.out
 
 $(TESTS): %.test:
 	@rm -rf $*.out && mkdir $*.out

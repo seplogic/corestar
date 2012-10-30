@@ -190,14 +190,14 @@ let compute_call_graph ps =
   if !verbose >= 2 then output_cg cg;
   cg
 
-let compute_scc_dag _ = failwith "todo"
-
 let interpret_scc_dag _ = failwith "todo" (* interpret in postorder *)
 
 let interpret gs =
   let cg = compute_call_graph gs in
-  let scc_dag = compute_scc_dag cg in
-  interpret_scc_dag scc_dag
+  let sccs =
+    let module X = Digraph.Components.Make(CallGraph) in
+    X.scc_list cg in
+  interpret_scc_dag sccs
 
 let main f =
   try

@@ -46,6 +46,9 @@ val maybe : 'b -> ('a -> 'b) -> 'a option -> 'b
 (** Map for options. *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
+(** Flip the first two arguments of a function. *)
+val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 

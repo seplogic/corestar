@@ -1,3 +1,4 @@
+open Corestar_std
 open Debug
 open Format
 
@@ -6,6 +7,11 @@ module type ANY_TYPE = sig type t end
 module type ORDERED_TYPE_DFT = sig
   include Set.OrderedType
   val default : t
+end
+
+module type COMPARABLE = sig
+  include Set.OrderedType
+  include Hashtbl.HashedType with type t := t
 end
 
 module UnlabeledEdge : ORDERED_TYPE_DFT = struct
@@ -44,6 +50,7 @@ module type IM = sig
   module E : EDGE with type vertex = vertex
   type edge = E.t
   val iter_vertex : (vertex -> unit) -> t -> unit
+  val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
   val create : ?size:int -> unit -> t
@@ -96,6 +103,10 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
   let iter_edges_e f g =
     let f _ es = ESet.iter f es in
     VMap.iter f g.out_edges
+
+  let iter_edges f g =
+    let f e = f (E.src e) (E.dst e) in
+    iter_edges_e f g
 
   (* NOTE: Successors may be iterated multiple times in multigraphs. *)
   let iter_succ f g x =
@@ -208,4 +219,69 @@ module Dot = functor
     let f = formatter_of_out_channel out in
     let m = get_margin () in
     set_margin 80; fprintf f "%a@?" fprint_graph g; set_margin m
+end
+
+module Components = struct
+  module type G = sig
+    type t
+    module V : COMPARABLE
+    val iter_vertex : (V.t -> unit) -> t -> unit
+    val iter_succ : (V.t -> unit) -> t -> V.t -> unit
+  end
+
+  module Make (G : G) = struct
+    (* NOTE: The requirements on G are too weak to allow a nicer construction
+    of reverse(G). *)
+
+    module VH = Hashtbl.Make (G.V)
+
+    (* Ensures that all vertices appear as keys in the result. *)
+    let reverse g =
+      let gr = VH.create 1 in
+      let pe v u =
+        let succ_u = try VH.find gr u with Not_found -> VH.create 1 in
+        VH.replace succ_u v ();
+        VH.replace gr u succ_u;
+        if not (VH.mem gr v) then VH.add gr v (VH.create 1) in
+      let pv v = G.iter_succ (pe v) g v in
+      G.iter_vertex pv g;
+      gr
+
+    let rev_postorder_of_rev g =
+      let gr = reverse g in
+      let r = ref [] in
+      let seen = VH.create 1 in
+      let rec dfs_r v () =
+        if not (VH.mem seen v) then begin
+          VH.add seen v ();
+          (try VH.iter dfs_r (VH.find gr v) with Not_found -> ());
+          r =:: v
+        end in
+      (* Assumes all vertices appear as keys. *)
+      VH.iter (fun v _ -> dfs_r v ()) gr;
+      !r
+
+    let scc g =
+      let idx = VH.create 1 in
+      let n = ref (-1) in
+      let rec dfs u =
+        if not (VH.mem idx u) then begin
+          VH.add idx u !n;
+          G.iter_succ dfs g u
+        end in
+      let pc u = if not (VH.mem idx u) then (incr n; dfs u) in
+      List.iter pc (rev_postorder_of_rev g);
+      (!n + 1, VH.find idx)
+
+    let scc_array g =
+      let n, idx = scc g in
+      let r = Array.make n [] in
+      let pv v =
+        let i = idx v in
+        r.(i) <- v :: r.(i) in
+      G.iter_vertex pv g;
+      r
+
+    let scc_list g = Array.to_list (scc_array g)
+  end
 end
