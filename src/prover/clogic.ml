@@ -16,7 +16,6 @@ open Congruence
 open Cterm
 open Format
 open Misc
-open Multiset
 open Printing
 open Psyntax
 
@@ -24,7 +23,7 @@ exception Success
 exception Failed
 exception Assm_Contradiction
 
-module RMSet = MultisetImpl(
+module RMSet = Multiset.Make(
   struct
     type t = string * Cterm.term_handle
     let compare = compare
@@ -33,7 +32,7 @@ module RMSet = MultisetImpl(
 
 type multiset = RMSet.multiset
 
-module SMSet = MultisetImpl(
+module SMSet = Multiset.Make(
   struct
     type t = string * (Psyntax.args list)
     let compare = compare

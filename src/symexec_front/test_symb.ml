@@ -18,7 +18,6 @@ open Core
 open Format
 open List
 open Load_logic
-open Pprinter_core
 open Psyntax
 
 let question_file_name = ref "";;

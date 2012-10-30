@@ -17,7 +17,6 @@
 open List
 open Printf
 open Core
-open Pprinter_core
 open Load_logic
 open Psyntax
 
@@ -63,7 +62,7 @@ let main () : unit =
       List.iter (
       fun {proc_name=mname; proc_spec=spec; proc_body=core} ->
         let core = match core with None -> assert false | Some core -> core in
-        Format.printf "Method: %s\nSpec: %a"  mname Spec.specSet2str spec;
+        Format.printf "Method: %s\nSpec: %a"  mname SpecOp.specSet2str spec;
         let stmts_core = map Cfg_core.mk_node core in
         let verify_one spec =
           Symexec.verify mname stmts_core spec lo abs_rules in
@@ -79,7 +78,7 @@ let main () : unit =
       List.iter (
       fun {proc_name=mname; proc_spec=spec; proc_body=core} ->
         let core = match core with None -> assert false | Some core -> core in
-        Format.printf "\nMethod: %s\nSpec: %a"  mname  Spec.specSet2str spec;
+        Format.printf "\nMethod: %s\nSpec: %a"  mname  SpecOp.specSet2str spec;
         let stmts_core = map Cfg_core.mk_node core in
         let start_from spec =
           Symexec.bi_abduct mname stmts_core spec lo abduct_lo abs_rules in

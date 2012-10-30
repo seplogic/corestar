@@ -14,14 +14,14 @@
 
 (* Multiset that allows for iteration through the elements *)
 
-module MultisetImpl (A : Map.OrderedType) :
-  sig 
-    type t = A.t
+module type S =
+  sig
+    type t
     type multiset
 
 
 (* Checks if the multiset is empty *)
-    val is_empty : multiset -> bool 
+    val is_empty : multiset -> bool
 (* The iterator has more elements *)
     val has_more : multiset -> bool
 (* Move to the next element *)
@@ -45,16 +45,17 @@ module MultisetImpl (A : Map.OrderedType) :
     val union : multiset -> multiset -> multiset
     val empty : multiset
 
-(* Computes intersection of two multisets, 
+(* Computes intersection of two multisets,
    also returns remainders.
    Uses comparison function to improve efficiency *)
     val intersect : multiset -> multiset -> (multiset * multiset * multiset)
 
     val back : multiset -> int -> multiset
 
-    val map_to_list : multiset -> (A.t -> 'b) -> 'b list
+    val map_to_list : multiset -> (t -> 'b) -> 'b list
 
 (* fold_to_list ([x1; ...; xn], []) f a == f xn (f xn-1 (... (f x1 a) ...)) *)
-    val fold_to_list : multiset -> (A.t -> 'a -> 'a) -> 'a -> 'a
+    val fold_to_list : multiset -> (t -> 'a -> 'a) -> 'a -> 'a
   end
 
+module Make (A : Map.OrderedType) : S with type t = A.t

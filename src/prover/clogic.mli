@@ -10,51 +10,12 @@
    coreStar is distributed under a BSD license,  see,
       LICENSE.txt
  ********************************************************)
-
 exception Success
 exception Failed
 exception Assm_Contradiction
-module RMSet :
-  sig
-    type t = string * Cterm.term_handle
-    type multiset
-    val is_empty : multiset -> bool
-    val has_more : multiset -> bool
-    val next : multiset -> multiset
-    val peek : multiset -> t
-    val remove : multiset -> t * multiset
-    val restart : multiset -> multiset
-    val iter : (t -> unit) -> multiset -> unit
-    val fold : ('a -> t -> 'a) -> 'a -> multiset -> 'a
-    val lift_list : t list -> multiset
-    val union : multiset -> multiset -> multiset
-    val empty : multiset
-    val intersect : multiset -> multiset -> multiset * multiset * multiset
-    val back : multiset -> int -> multiset
-    val map_to_list : multiset -> (t -> 'a) -> 'a list
-    val fold_to_list : multiset -> (t -> 'a -> 'a) -> 'a -> 'a
-  end
+module RMSet : Multiset.S with type t = string * Cterm.term_handle
 type multiset = RMSet.multiset
-module SMSet :
-  sig
-    type t = string * Psyntax.args list
-    type multiset
-    val is_empty : multiset -> bool
-    val has_more : multiset -> bool
-    val next : multiset -> multiset
-    val peek : multiset -> t
-    val remove : multiset -> t * multiset
-    val restart : multiset -> multiset
-    val iter : (t -> unit) -> multiset -> unit
-    val fold : ('a -> t -> 'a) -> 'a -> multiset -> 'a
-    val lift_list : t list -> multiset
-    val union : multiset -> multiset -> multiset
-    val empty : multiset
-    val intersect : multiset -> multiset -> multiset * multiset * multiset
-    val back : multiset -> int -> multiset
-    val map_to_list : multiset -> (t -> 'a) -> 'a list
-    val fold_to_list : multiset -> (t -> 'a -> 'a) -> 'a -> 'a
-  end
+module SMSet : Multiset.S with type t = string * Psyntax.args list
 type syntactic_form = {
   sspat : SMSet.multiset;
   splain : SMSet.multiset;
@@ -76,30 +37,17 @@ module F:
       form : formula;
     }
   end
-module AF:
-  sig
-    type ts_formula = {
-      ts : Cterm.term_structure;
-      form : formula;
-      antiform : formula;
-    }
-  end
 val mk_ts_form : Cterm.term_structure -> formula -> F.ts_formula
-val mk_ts_form_af : Cterm.term_structure -> formula -> formula -> AF.ts_formula
 val break_ts_form : F.ts_formula -> Cterm.term_structure * formula
-val break_ts_form_af : AF.ts_formula -> Cterm.term_structure * formula * formula
 val kill_var : F.ts_formula -> Vars.var -> F.ts_formula
-val kill_var_af : AF.ts_formula -> Vars.var -> AF.ts_formula
 val update_var_to : F.ts_formula -> Vars.var -> Psyntax.args -> F.ts_formula
-val update_var_to_af : AF.ts_formula -> Vars.var -> Psyntax.args -> AF.ts_formula
 val pp_ts_formula : Format.formatter -> F.ts_formula -> unit
-val pp_ts_formula_af : Format.formatter -> AF.ts_formula -> unit
 val pp_syntactic_form : Format.formatter -> syntactic_form -> unit
-val conjunction : formula -> formula -> formula 
+val conjunction : formula -> formula -> formula
 val empty : formula
 val false_sform : syntactic_form
 val truth : formula
-val is_sempty : syntactic_form -> bool 
+val is_sempty : syntactic_form -> bool
 val add_eqs_list : (Cterm.term_handle * Cterm.term_handle) list -> Cterm.term_structure -> Cterm.term_structure
 val add_neqs_list : (Cterm.term_handle * Cterm.term_handle) list -> Cterm.term_structure -> Cterm.term_structure
 val intersect_with_ts : Cterm.term_structure -> bool -> RMSet.multiset -> RMSet.multiset -> (RMSet.multiset * RMSet.multiset * RMSet.multiset)
@@ -108,8 +56,6 @@ val normalise :
 val convert_to_inner : Psyntax.pform -> syntactic_form
 val convert_to_pform : syntactic_form -> Psyntax.pform
 val conjoin : bool -> F.ts_formula -> syntactic_form -> F.ts_formula
-val conjoin_af : bool -> AF.ts_formula -> syntactic_form -> syntactic_form -> AF.ts_formula
-val combine : bool -> F.ts_formula -> syntactic_form -> AF.ts_formula
 type sequent = {
   matched : RMSet.multiset;
   ts : Cterm.term_structure;
@@ -117,11 +63,11 @@ type sequent = {
   obligation : formula;
   antiframe : formula;
 }
-val plain : formula -> bool 
+val plain : formula -> bool
 val pp_sequent : Format.formatter -> sequent -> unit
 val true_sequent : sequent -> bool
 val frame_sequent : sequent -> bool
-val abductive_sequent : sequent -> bool 
+val abductive_sequent : sequent -> bool
 type sequent_rule =
     Psyntax.psequent * Psyntax.psequent list list * string *
     (Psyntax.pform * Psyntax.pform) * Psyntax.where list
@@ -149,7 +95,6 @@ val apply_or_left : sequent -> sequent list
 val apply_or_right : sequent -> sequent list list
 val get_frame : sequent -> F.ts_formula
 val get_frames : sequent list -> F.ts_formula list
-val get_frames_antiframes : sequent list -> AF.ts_formula list
 val convert_with_eqs : bool -> Psyntax.pform -> F.ts_formula
 val convert :
   bool ->
@@ -161,3 +106,21 @@ val make_implies_inner : F.ts_formula -> F.ts_formula -> sequent
 val ts_form_to_pform : F.ts_formula -> Psyntax.pform
 val ts_form_to_pform_no_ts : F.ts_formula -> Psyntax.pform
 val pform_to_ts_form : Psyntax.pform -> F.ts_formula
+
+(* TODO(rgrig): Remove these. It's wrong to share equalities. *)
+module AF:
+  sig
+    type ts_formula = {
+      ts : Cterm.term_structure;
+      form : formula;
+      antiform : formula;
+    }
+  end
+val mk_ts_form_af : Cterm.term_structure -> formula -> formula -> AF.ts_formula
+val break_ts_form_af : AF.ts_formula -> Cterm.term_structure * formula * formula
+val kill_var_af : AF.ts_formula -> Vars.var -> AF.ts_formula
+val update_var_to_af : AF.ts_formula -> Vars.var -> Psyntax.args -> AF.ts_formula
+val pp_ts_formula_af : Format.formatter -> AF.ts_formula -> unit
+val conjoin_af : bool -> AF.ts_formula -> syntactic_form -> syntactic_form -> AF.ts_formula
+val combine : bool -> F.ts_formula -> syntactic_form -> AF.ts_formula
+val get_frames_antiframes : sequent list -> AF.ts_formula list

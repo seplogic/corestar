@@ -1,6 +1,6 @@
 (********************************************************
    This file is part of coreStar
-        src/symbexe_syntax/pprinter_core.ml
+        src/symexec_ast/pp_core.ml
    Release
         $Release$
    Version

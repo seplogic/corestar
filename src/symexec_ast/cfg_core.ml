@@ -16,7 +16,6 @@
   Also, utilities to build such flowgraphs and to pretty-print them. *)
 
 open Core
-open Pprinter_core
 
 let cfg_debug () = false
 
@@ -76,7 +75,7 @@ let print_icfg_dotty
       "\t\t%i [label=\"%i: %s\"]\n"
       s.sid
       s.sid
-      (Dot.escape_for_label (Debug.toString pp_stmt_core s.skind));
+      (Dot.escape_for_label (Debug.toString Pp_core.pp_stmt_core s.skind));
     List.iter (d_cfgedge chan s) s.succs  in
 
   if cfg_debug () then ignore (Printf.printf "\n\nPrinting iCFG as dot file...");
@@ -101,13 +100,13 @@ let print_core
     (mname: string)
     (stmts : cfg_node list) : unit =
 
-  if core_debug () then ignore (Printf.printf "\n\nPrinting core file for method %s..." mname);
+  if Pp_core.core_debug () then ignore (Printf.printf "\n\nPrinting core file for method %s..." mname);
 
   (* FIXME: Don't understand why I can't use Format.formatter_of_out_channel *)
   Format.pp_set_margin Format.str_formatter 80;
 
   let cstr = Format.flush_str_formatter
-     (List.iter (fun x -> pp_stmt_core Format.str_formatter x.skind;
+     (List.iter (fun x -> Pp_core.pp_stmt_core Format.str_formatter x.skind;
 	             Format.pp_print_newline Format.str_formatter () ) stmts) in
 
   let chan = open_out (file ^ mname ^ ".core") in

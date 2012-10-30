@@ -208,7 +208,7 @@ let interpret_scc_dag cs =
 let interpret gs =
   let cg = compute_call_graph gs in
   let sccs =
-    let module X = Digraph.Components.Make(CallGraph) in
+    let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
   interpret_scc_dag sccs
 
