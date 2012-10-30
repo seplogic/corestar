@@ -190,7 +190,20 @@ let compute_call_graph ps =
   if !verbose >= 2 then output_cg cg;
   cg
 
-let interpret_scc_dag _ = failwith "todo" (* interpret in postorder *)
+let output_sccs cs =
+  let pp_procedure f v =
+    let p = CallGraph.V.label v in
+    fprintf f "@ %s" p.C.proc_name in
+  let pp_component f ps = fprintf f "@[[%a ]@]@\n" (pp_list pp_procedure) ps in
+  let file = open_out "sccs.txt" in
+  let f = make_formatter (output file) (fun () -> flush file) in
+  fprintf f "@[%a@]@?" (pp_list pp_component) cs;
+  close_out file
+
+(* Assumes that components come in reversed topological order. *)
+let interpret_scc_dag cs =
+  if !verbose >= 3 then output_sccs cs;
+  failwith "TODO"
 
 let interpret gs =
   let cg = compute_call_graph gs in

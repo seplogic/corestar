@@ -115,3 +115,7 @@ module ListH : sig
     (** Like [Array.init]. *)
 end
 (* }}} *)
+(* {{{ *) (** {2 Pretty printing} *)
+val pp_list :
+  (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
+(* }}} *)

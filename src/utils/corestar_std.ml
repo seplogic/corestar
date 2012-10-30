@@ -86,3 +86,5 @@ module ListH = struct
       | n -> loop (f (n - 1) :: acc) (n - 1) in
     loop [] n
 end
+
+let pp_list pp f = List.iter (pp f)

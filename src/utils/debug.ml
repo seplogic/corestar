@@ -93,27 +93,27 @@ let debug = false
 
 let buffer_dump = Buffer.create 10000
 
-let flagged_formatter frm flag = 
-  let sxy,fl =  Format.pp_get_formatter_output_functions frm () in 
-  Format.make_formatter 
+let flagged_formatter frm flag =
+  let sxy,fl =  Format.pp_get_formatter_output_functions frm () in
+  Format.make_formatter
     (fun s x y -> if flag then sxy s x y) (fun () -> fl ())
 
-let merge_formatters frm1 frm2 = 
-  let sxy1,fl1 =  Format.pp_get_formatter_output_functions frm1 () in 
-  let sxy2,fl2 =  Format.pp_get_formatter_output_functions frm2 () in 
+let merge_formatters frm1 frm2 =
+  let sxy1,fl1 =  Format.pp_get_formatter_output_functions frm1 () in
+  let sxy2,fl2 =  Format.pp_get_formatter_output_functions frm2 () in
   Format.make_formatter (fun s x y -> sxy1 s x y; sxy2 s x y) (fun () -> fl1 () ; fl2 ())
 
 
 
-let proof_dump = ref (merge_formatters 
+let proof_dump = ref (merge_formatters
 		  (Format.formatter_of_buffer buffer_dump)
 		  (flagged_formatter Format.std_formatter (log log_prove || (Config.verb_proof()))))
 
 (*IF-OCAML*)
-exception Unsupported 
+exception Unsupported
 let unsupported () = raise Unsupported
 
-exception Unsupported2 of string 
+exception Unsupported2 of string
 let unsupported_s s = raise (Unsupported2 s)
 
 (*ENDIF-OCAML*)
@@ -122,30 +122,28 @@ let unsupported_s s = raise (Unsupported2 s)
 let unsupported () = failwith "Assert false"
 F#*)
 
-let pp_list pp f = List.iter (pp f)
-
 (* TODO(rgrig): Move this out of debug. *)
 (* TODO(rgrig): Use a local buffer instead of the global str_formatter. *)
 let string_of pp x = pp str_formatter x; flush_str_formatter ()
 
-let rec form_format sep emp f ppf list = 
-  match list with 
+let rec form_format sep emp f ppf list =
+  match list with
     [] -> Format.fprintf ppf "%s" emp
   | [x] -> Format.fprintf ppf "%a" f x
-  | x::xs -> Format.fprintf ppf "@[%a@]@ %s @[%a@]" f x sep (form_format sep emp f) xs 
+  | x::xs -> Format.fprintf ppf "@[%a@]@ %s @[%a@]" f x sep (form_format sep emp f) xs
 
 
-let rec form_format_optional start sep emp f ppf list = 
-  Format.fprintf ppf "%s@ @[%a@]" start (form_format sep emp f) list 
+let rec form_format_optional start sep emp f ppf list =
+  Format.fprintf ppf "%s@ @[%a@]" start (form_format sep emp f) list
 
 let rec list_format sep f ppf = function
   | [] -> ()
-  | [x] -> fprintf ppf "%a" f x 
+  | [x] -> fprintf ppf "%a" f x
   | x::xs -> fprintf ppf "%a@ %s %a" f x sep (list_format sep f) xs
 
 let rec list_format_optional start sep f ppf = function
   | [] -> ()
-  | xs -> fprintf ppf "%s@ %a" start (list_format sep f) xs 
+  | xs -> fprintf ppf "%s@ %a" start (list_format sep f) xs
 
-let toString  f a : string = 
+let toString  f a : string =
   fprintf (str_formatter) "%a" f a ; flush_str_formatter ()
