@@ -13,12 +13,10 @@
 
 
 open Cfg_core
-open Core
 open Format
 open Misc
 open Psyntax
 open Sepprover
-open Spec
 open Specification
 open Vars
 
@@ -431,7 +429,7 @@ and execs_with_function
   |  _ -> f succs
 
 and execs_one n sheaps =
-	execs_with_function n sheaps (fun n -> if n.skind = End then [] else n.succs)
+	execs_with_function n sheaps (fun n -> if n.skind = Core.End then [] else n.succs)
 
 and execs n sheaps =
 	execs_with_function n sheaps (fun n -> [n])
@@ -452,7 +450,7 @@ and execute_core_stmt
     Format.printf "@\nExecuting statement:@ %a%!" Pp_core.pp_stmt_core n.skind;
     Format.printf "@\nwith heap :@\n    %a@\n@\n@.%!" heap_pprinter sheap_noid;);
   (match n.skind with
-  | Label_stmt_core l ->
+  | Core.Label_stmt_core l ->
     (* Update the labels formset, if sheap already implied then fine, otherwise or it in. *)
     (let id = n.sid in
     try
@@ -533,12 +531,12 @@ and execute_core_stmt
     with Contained ->
       if Config.symb_debug() then Format.printf "Formula contained.\n%!"; [])
 
-  | Goto_stmt_core _ -> execs_one n [sheap]
+  | Core.Goto_stmt_core _ -> execs_one n [sheap]
 
-  | Nop_stmt_core  -> execs_one n [sheap]
+  | Core.Nop_stmt_core  -> execs_one n [sheap]
 
-  | Call_core _ -> failwith "TODO, perhaps"
-  | Assignment_core {asgn_rets=vl; asgn_spec=spec; asgn_args=il} ->
+  | Core.Call_core _ -> failwith "TODO, perhaps"
+  | Core.Assignment_core {Core.asgn_rets=vl; asgn_spec=spec; asgn_args=il} ->
     (
       let spec = HashSet.choose spec in
       let hs = call_jsr_static sheap spec il n in
@@ -561,7 +559,7 @@ and execute_core_stmt
         execs_one n hs
     )
 
-  | End ->
+  | Core.End ->
     (match !exec_type with
     | Abduct ->
       ignore (add_edge_with_proof (snd sheap) (add_good_node ("Exit")) ExitE "exit")
@@ -574,7 +572,7 @@ and execute_core_stmt
 let verify
     (mname : string)
     (stmts : cfg_node list)
-    (spec : spec)
+    (spec : Spec.spec)
     (lo : logic)
     (abs_rules : logic)
     : bool
@@ -590,7 +588,7 @@ let verify
   | s::_ ->
       let id = add_good_node ("Start "^mname) in
       make_start_node id;
-      match Sepprover.convert (spec.pre) with
+      match Sepprover.convert (spec.Spec.pre) with
         None ->
           printf "@{<b>WARNING@}: %s has an unsatisfiable precondition@.%!" mname;
           false
@@ -599,7 +597,7 @@ let verify
           let pre = lift_inner_form spec_pre in
           let posts = execute_core_stmt s (pre, id) in
           let post =
-            match Sepprover.convert (spec.post) with
+            match Sepprover.convert (spec.Spec.post) with
               None ->
                 printf "@[@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" mname;
                 empty_inner_form_af
@@ -753,7 +751,7 @@ let verify_inner
 let bi_abduct
     (mname : string)
     (stmts : cfg_node list)
-    (spec : spec)
+    (spec : Spec.spec)
     (lo : logic)
     (abduct_lo : logic)
     (abs_rules : logic)
@@ -767,7 +765,7 @@ let bi_abduct
   match stmts with
   | [] -> []
   | s::_ ->
-      match Sepprover.convert (spec.pre) with
+      match Sepprover.convert (spec.Spec.pre) with
         None -> printf "@{<b>WARNING@}: %s has an unsatisfiable precondition@.%!" mname; []
       |	Some pre ->
         if Config.symb_debug() then
