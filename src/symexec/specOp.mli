@@ -11,8 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
-val mk_spec :
-  Psyntax.form -> Psyntax.form -> Spec.excep_post -> Spec.spec
+val mk_spec : Psyntax.form -> Psyntax.form -> Spec.spec
 val spec2str : Format.formatter -> Spec.spec -> unit
 val specSet2str : Format.formatter -> Spec.spec HashSet.t -> unit
 val pprinter_core_spec2str : Spec.spec -> string

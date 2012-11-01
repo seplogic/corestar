@@ -51,5 +51,5 @@ let import_flatten_extra_rules dirs filename extra_rules fileparser lexer =
   in
   fst (import_flatten_inner dirs filename [] [])
 
-let import_flatten dirs filename fileparser =
-  import_flatten_extra_rules dirs filename [] fileparser
+let import_flatten dirs filename fileparser lexer =
+  import_flatten_extra_rules dirs filename [] fileparser lexer

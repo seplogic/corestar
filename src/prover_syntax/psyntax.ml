@@ -59,7 +59,7 @@ module VarSet = Set
 type varset = var VarSet.t
 F#*)
 
-
+(* TODO(rgrig): Remove these. *)
 let vs_mem = VarSet.mem
 let vs_add = VarSet.add
 let vs_empty = VarSet.empty
@@ -71,6 +71,7 @@ let vs_inter = VarSet.inter
 let vs_diff = VarSet.diff
 let vs_exists = VarSet.exists
 let vs_for_all = VarSet.for_all
+
 let vs_from_list vl = List.fold_right (fun vs v -> vs_add vs v) vl vs_empty
 
 

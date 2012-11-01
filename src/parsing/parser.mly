@@ -262,7 +262,7 @@ formula:
   | FALSE { mkFalse}
   | BANG identifier L_PAREN term_list R_PAREN { mkPPred ($2, $4) }
   | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
-  | formula MULT formula { pconjunction $1 $3 }
+  | formula MULT formula { mkStar $1 $3 }
   | formula OROR formula { mkOr ($1,$3) }
   | term NOT_EQUALS term { mkNEQ ($1,$3) }
   | term EQUALS term { mkEQ ($1, $3) }
@@ -276,7 +276,7 @@ formula_npv:
   | FALSE { mkFalse}
   | BANG identifier L_PAREN term_npv_list R_PAREN { mkPPred ($2, $4) }
   | identifier L_PAREN term_npv_list R_PAREN { mkSPred($1,$3) }
-  | formula_npv MULT formula_npv { pconjunction $1 $3 }
+  | formula_npv MULT formula_npv { mkStar $1 $3 }
   | formula_npv OROR formula_npv { mkOr ($1,$3) }
   | term_npv NOT_EQUALS term_npv { mkNEQ ($1,$3) }
   | term_npv EQUALS term_npv { mkEQ ($1,$3) }
@@ -288,7 +288,7 @@ spatial_at:
   | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
 ;
 spatial_list_ne:
-  | spatial_at MULT spatial_list_ne  { pconjunction $1 $3 }
+  | spatial_at MULT spatial_list_ne  { mkStar $1 $3 }
   | spatial_at    { $1 }
 ;
 spatial_list:
@@ -393,12 +393,8 @@ rule_file:
 /* Specifications */
 
 triple:
-  L_BRACE formula R_BRACE L_BRACE formula R_BRACE exp_posts  { {pre=$2;post=$5;excep=$7} }
-;
-
-exp_posts:
-  | L_BRACKET identifier COLON formula R_BRACKET exp_posts { ClassMap.add $2 $4 $6 }
-  | /*empty */ { ClassMap.empty }
+  L_BRACE formula R_BRACE L_BRACE formula R_BRACE
+    { { Spec.pre = $2; post = $5 } }
 ;
 
 spec:

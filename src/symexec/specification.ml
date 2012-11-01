@@ -16,181 +16,106 @@
 (** Support functions for symbolic execution and misc conversion facilities. *)
 
 open Corestar_std
-open Psyntax
-open Sepprover
-open Spec
 
-type ts_excep_post = inner_form ClassMap.t 
+module P = Sepprover
+module PS = Psyntax
+module S = Spec
+module VS = Psyntax.VarSet
 
-let empty_inner_form = 
-  match convert mkEmpty with
+(* XXX type ts_excep_post = inner_form ClassMap.t *)
+
+let empty_inner_form =
+  match P.convert PS.mkEmpty with
     None -> assert false;
   | Some emp -> emp
 
 let empty_inner_form_af =
-  lift_inner_form empty_inner_form
-  
-let conjunction_excep excep_post f1 =
-  ClassMap.map (fun post -> Psyntax.pconjunction post f1) excep_post
+  P.lift_inner_form empty_inner_form
 
-let conjunction_excep_convert excep_post f1 =
-  ClassMap.map (fun post -> Sepprover.conjoin post f1) excep_post
-
-let combine_maps empty fold add find combine_values m1 m2 =
-  let combine_add k v m =
-    try add k (combine_values v (find k m)) m
-    with Not_found -> add k v m in
-  fold combine_add m1 m2
-
-let disjunction_excep = 
-  combine_maps ClassMap.empty ClassMap.fold ClassMap.add ClassMap.find (curry mkOr)
-
-let spec_conjunction spec1 spec2 =
-  let var = Arg_var(Vars.freshe()) in
-  let zero = Arg_string("**first**") in
-  let one = Arg_string("**second**") in
-  let eq = mkEQ(var,zero) in 
-  let neq = mkEQ(var,one) in       
-  match spec1,spec2 with 
-    {pre=pre1; post=post1; excep=excep1},
-    {pre=pre2; post=post2; excep=excep2} ->
-      {pre= Psyntax.mkOr ((Psyntax.pconjunction pre1 eq),(Psyntax.pconjunction pre2 neq));
-       post= Psyntax.mkOr ((Psyntax.pconjunction post1 eq),(Psyntax.pconjunction post2 neq));
-       excep = disjunction_excep (conjunction_excep excep1 eq) (conjunction_excep excep2 neq)}
-
+let spec_conjunction { Spec.pre = p1; post = q1 } { Spec.pre = p2; post = q2} =
+  let v = PS.Arg_var (Vars.freshe ()) in
+  let one = PS.mkEQ (v, PS.Arg_string "case*one") in
+  let two = PS.mkEQ (v, PS.Arg_string "case*two") in
+  let ( && ) = PS.mkStar and ( || ) = curry PS.mkOr in
+  { Spec.pre = (one && p1) || (two && p2)
+  ; post = (one && q1) || (two && q2) }
 
 
 (***************************************
-   Refinement type stuff 
+   Refinement type stuff
  ***************************************)
 
 
-(* 
-   { e1 : f1} , ... , {en :  fn}   (excep1)  
-   ===>
-   { e1' : f1', ... , {em' : fm'}  (excep2)
-iff
-forall ei :fi. exists ej' : fj'.  ei=ej' /\ fi==>fj'
-*)
-exception Check_fails
+let sub_spec sub { S.pre; post} =
+  { S.pre = PS.subst_pform sub pre; post = PS.subst_pform sub post }
 
-let implication_excep logic excep1 excep2 = 
-  try 
-    ClassMap.iter (
-    fun exname form -> 
-      if Sepprover.implies logic form (ClassMap.find exname excep2) 
-      then ()
-      else raise Check_fails
-   ) excep1; true
-  with check_fails -> false
-
-let sub_spec  sub spec =
-  match spec with 
-    {pre=pre; post=post; excep=excep} ->
-      {pre=subst_pform sub pre;
-       post=subst_pform sub post;
-       excep=ClassMap.map (subst_pform sub) excep}
-      
-let ev_spec spec = 
-  match spec with
-    {pre=spec_pre; post=spec_post; excep =spec_excep} -> 
-      let ev = ev_form spec_pre in 
-      let ev = ev_form_acc spec_post ev in 
-      let ev = ClassMap.fold (fun key ex vs -> ev_form_acc ex vs) spec_excep ev in 
-      ev
-
-let ev_spec_pre spec = 
-  match spec with
-    {pre=spec_pre; post=spec_post; excep =spec_excep} -> 
-      let ev = ev_form spec_pre in 
-      ev
-
+let ev_spec { S.pre; post } = PS.ev_form_acc post (PS.ev_form pre)
 
 (* if pre_antiframe = None then perform jsr, otherwise perform jsr with abduction *)
-let jsr logic (pre : inner_form_af) (spec : spec) (abduct : bool) : inner_form_af list option  = 
-  let ev = ev_spec spec in 
-  let subst = subst_kill_vars_to_fresh_exist ev in 
+let jsr logic state spec abduct =
+  let ev = ev_spec spec in
+  let subst = PS.subst_kill_vars_to_fresh_exist ev in
   let spec = sub_spec subst spec in
-  let pre_form = inner_form_af_to_form pre in
-  match spec with
-    {pre=spec_pre; post=spec_post; excep=spec_excep} ->
-    let frame_antiframe_list = 
-      if abduct then
-        Sepprover.abduction_opt logic (Some pre_form) spec_pre
-      else
-        (let frame_list = Sepprover.frame logic pre_form spec_pre in
-        match frame_list with
-          None -> None
-        | Some frame_list -> 
-          Some (List.map (fun inner_form -> lift_inner_form inner_form) frame_list))
-    in
-    match frame_antiframe_list with
-      None -> None
-    | Some frame_antiframe_list ->
-      let res = Misc.map_option 
-        (fun frame_antiframe ->
-          try Some (Sepprover.conjoin_af frame_antiframe spec_post (inner_form_af_to_af pre))
-          with Contradiction -> None) 
-        frame_antiframe_list in 
-      let res = List.map (fun frame_antiframe -> 
-        vs_fold (fun e ts_form -> kill_var_af e ts_form) ev frame_antiframe) res in 
-      Some res
+  let pre_form = P.inner_form_af_to_form state in
+  let frame_antiframe_list =
+    if abduct then
+      P.abduction_opt logic (Some pre_form) spec.S.pre
+    else
+      option_map (List.map P.lift_inner_form) (P.frame logic pre_form spec.S.pre)
+  in
+  let faf_state = P.inner_form_af_to_af state in
+  let add_post fafs =
+    let star_post s = P.conjoin_af s spec.S.post faf_state in
+    let star_post_opt s =
+      try Some (star_post s) with PS.Contradiction -> None in
+    let r = Misc.map_option star_post_opt fafs in
+    List.map (VS.fold P.kill_var_af ev) r in
+  option_map add_post frame_antiframe_list
+
+(* TODO(rgrig): This should replace [jsr] after the "_af" stuff is removed. *)
+let simple_jsr logic state spec =
+  let ev = ev_spec spec in
+  let sub = PS.subst_kill_vars_to_fresh_exist ev in
+  let spec = sub_spec sub spec in
+  let frames = P.frame logic state spec.S.pre in
+  let add_post fs =
+    let star_post = P.conjoin spec.S.post in
+    let star_post f = try Some (star_post f) with PS.Contradiction -> None in
+    let r = Misc.map_option star_post fs in
+    List.map (VS.fold P.kill_var ev) r in
+  option_map add_post frames
+
+let logical_vars_to_prog spec =
+  let ev = PS.ev_form spec.S.pre in
+  let sub = PS.subst_kill_vars_to_fresh_prog ev in
+  sub_spec sub spec
 
 
-(* TODO: need exceptions in jsr? *)
-let jsr_excep logic (pre : inner_form) (spec : spec) : (inner_form  list * ts_excep_post list) option = 
-  let ev = ev_spec spec in 
-  let subst = subst_kill_vars_to_fresh_exist ev in 
-  let spec = sub_spec subst spec in 
-  match spec with
-    {pre=spec_pre; post=spec_post; excep=spec_excep} -> 
-      let frame_list = Sepprover.frame logic pre spec_pre in 
-      match frame_list with
-        None -> None
-      |	Some frame_list -> 
-        let res = Misc.map_option 
-          (fun post -> (*Prover.tidy_one*) 
-            try Some (Sepprover.conjoin spec_post post) with Contradiction -> None) 
-        frame_list in 
-        let excep_res = List.map (conjunction_excep_convert spec_excep) frame_list in 
-        let res = List.map (fun ts -> vs_fold (fun e ts -> kill_var e ts) ev ts) res in 
-        Some (res,excep_res)
+(* Notation: speci is {Pi}..{Qi}; extra is E
 
+Checks that
+  if    P2 * E |- P1 * F
+  then  Q1 * F |- Q2
+for all F found by the prover.
 
-let logical_vars_to_prog spec2 = 
-  let ev = ev_spec_pre spec2 in 
-  let sub = subst_kill_vars_to_fresh_prog ev in 
-  sub_spec sub spec2 
+TODO(rgrig): Doesn't seem sound to me, because of "found by the prover". *)
+let refinement_extra logic spec1 spec2 extra =
+  let spec2 = logical_vars_to_prog spec2 in
+  let stronger q = P.implies logic q spec2.S.post in
+  let all_stronger qs = List.for_all stronger qs in
+  let run_from state =
+    maybe false all_stronger (simple_jsr logic state spec1) in
+  maybe true run_from (P.convert (PS.mkStar extra spec2.S.pre))
 
-(*  spec2={P}{Q} =[extra]=> spec1  
- 
-   {P*extra}{Q} ===> spec1
-*)
-let refinement_extra (logic : logic) (spec1 : spec) (spec2 : spec) (extra : pform): bool =
-  let spec2 = logical_vars_to_prog spec2 in 
-  match spec2 with
-    {pre=pre; post=post; excep=excep} ->
-      match (Sepprover.convert (extra&&&pre)) with 
-	None -> true
-      |	Some form -> 
-	  match jsr_excep logic form spec1 with 
-	    None -> false
-	  | Some (newposts, newexcep_posts) ->
-	      let res = List.for_all (fun newpost -> Sepprover.implies logic newpost post) newposts in 
-	      let res2 = List.for_all (fun newexcep_post -> implication_excep logic newexcep_post excep) newexcep_posts in 
-	      (res&&res2)
-
-
-(*  spec2 ==> spec1 
+(*  spec2 ==> spec1
 That is
    spec2
    -----
      :
-   ----- 
-   spec1  
+   -----
+   spec1
 *)
-let refinement (logic : logic) (spec1 : spec) (spec2 : spec) : bool =
-    refinement_extra logic spec1 spec2 [] 
-
+let refinement logic spec1 spec2 =
+    refinement_extra logic spec1 spec2 []
 
 

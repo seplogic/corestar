@@ -38,3 +38,7 @@ val get_frame :
   Psyntax.pform ->
   Psyntax.logic -> Psyntax.logic -> Sepprover.inner_form list
 
+
+(* TODO(rgrig): Should these be here? Only jStar uses them. *)
+val set_group : bool -> unit
+val pp_dotty_transition_system : unit -> unit

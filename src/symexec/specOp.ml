@@ -13,15 +13,14 @@
 
 open Format
 
-let mk_spec pre post excep =
-    { Spec.pre = pre;
-      post = post;
-      excep = excep }
+(* XXX: I'm not convinced that it is worth having this function. *)
+let mk_spec pre post =
+    { Spec.pre = pre
+    ; post = post }
 
 let spec2str ppf spec  =
   let po s = fprintf ppf "@\n@[<4>{%a}@]" Psyntax.string_form s in
-  po spec.Spec.pre; po spec.Spec.post;
-  Spec.ClassMap.iter (fun _ s -> po s) spec.Spec.excep
+  po spec.Spec.pre; po spec.Spec.post
 
 let specSet2str ppf specs =
   fprintf ppf "@\n@[<4>{";
