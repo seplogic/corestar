@@ -13,11 +13,6 @@
 
 open Format
 
-(* XXX: I'm not convinced that it is worth having this function. *)
-let mk_spec pre post =
-    { Spec.pre = pre
-    ; post = post }
-
 let spec2str ppf spec  =
   let po s = fprintf ppf "@\n@[<4>{%a}@]" Psyntax.string_form s in
   po spec.Spec.pre; po spec.Spec.post

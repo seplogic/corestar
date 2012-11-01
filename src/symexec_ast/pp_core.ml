@@ -11,76 +11,33 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
 open Format
 
 module C = Core
 module PS = Psyntax
 module S = Spec
 
-(** Pretty printer for core programs. Note that this handles a lot more
-  than the data structure in core.ml. *)
 
-let core_debug () = false
+(** Pretty printer for core programs. *)
 
-let rec args2str  arg =
-  match arg with
-  | PS.Arg_var v -> Vars.string_var v
-  | PS.Arg_string s -> s
-  | PS.Arg_op ("builtin_plus",[a1;a2]) ->  "("^(args2str a1)^"+"^(args2str a2)^")"
-  | PS.Arg_op ("builtin_minus",[a1;a2]) ->  "("^(args2str a1)^"-"^(args2str a2)^")"
-  | PS.Arg_op ("builtin_mult",[a1;a2]) ->  "("^(args2str a1)^"*"^(args2str a2)^")"
-  | PS.Arg_op (name,args) ->  name^"("^( args_list2str args)^")"
-  | PS.Arg_cons (name,args) -> name^"("^( args_list2str args)^")"
-  | PS.Arg_record fldlist -> "[{"^(args_fldlist2str fldlist)^"}]"
-and args_list2str argsl =
-  match argsl with
-  | [] -> ""
-  | [a] ->  args2str a
-  | a::al ->  (args2str a)^","^(args_list2str al)
-and args_fldlist2str fdl =
-  match fdl with
-  | [] ->  ""
-  | [(f,a)] -> f^"="^( args2str a)
-  | (f,a)::fdl -> f^"="^(args2str a)^"; "^(args_fldlist2str fdl)
+let pp_args_out = pp_list_sep "," Vars.pp_var
+let pp_args_in = pp_list_sep "," PS.string_args
 
+let pp_triple f { S.pre; post } =
+  fprintf f "@[@[{%a}@]@[{%a}@]@]" PS.string_form pre PS.string_form post
 
+let pp_spec f ts = pp_list_sep " " pp_triple f (HashSet.elements ts)
 
-let rec form_at2str pa =
-  match pa with
-    PS.P_NEQ(a1,a2) ->(args2str a1)^ "!= "^  (args2str a2)
-  | PS.P_EQ(a1,a2) ->  (args2str a1)^ " = "^ (args2str a2)
-  | PS.P_PPred(op,al) -> "!"^op^"("^ (args_list2str al)^")"
-  | PS.P_SPred (s,al) -> s^"("^ (args_list2str al)^")"
-  | PS.P_Or(f1,f2) -> "[[("^(list_form2str f1)^" || "^" [("^( list_form2str f2)^")]]"
-  | PS.P_Wand(f1,f2) -> "[[("^(list_form2str f1)^" -* "^" [("^( list_form2str f2)^")]]"
-  | PS.P_Septract(f1,f2) ->  "[[("^(list_form2str f1)^" -o "^" [("^( list_form2str f2)^")]]"
-  | PS.P_False ->  "False"
-and list_form2str  list =
-  match list with
-    [] ->  ""
-  | [x] ->  (form_at2str x)
-  | x::xs -> (form_at2str x)^" * "^list_form2str  xs
-
-
-let variable_list2str lv =
-  Debug.list_format "," Vars.pp_var lv
-
-let pp_stmt_core (ppf: Format.formatter) : C.core_statement -> unit =
-  function
+let pp_stmt_core ppf = function
   | C.Nop_stmt_core -> fprintf ppf "nop;"
   | C.Label_stmt_core l -> fprintf ppf "label %s;" l
-  | C.Assignment_core _ -> failwith "XXX"
-      (*
-      fprintf ppf "@[assign %a@ @[%a@]@[(%a)@];@]"
-	(fun ppf v -> match v with [] -> () | _ -> Format.fprintf ppf "%a@ :=@ " variable_list2str v) v
-	specSet2str spec
-	string_args_list e *)
-  | C.Call_core _ -> failwith "todo"
-  | C.Goto_stmt_core l ->
-      fprintf ppf
-	"goto %a;"
-	(Debug.list_format "," (fun ppf -> Format.fprintf ppf "%s")) l
+  | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
+      fprintf ppf "@[<2>assign@ @[%a@]@,:=@[@[%a@]@[(%a)@]@];@]"
+        pp_args_out asgn_rets pp_spec asgn_spec pp_args_in asgn_args
+  | C.Call_core { C.call_name; call_rets; call_args } ->
+      fprintf ppf "@[<2>call @[%a@]@,:=@[%s@[(%a)@]@];@]"
+        pp_args_out call_rets call_name pp_args_in call_args
+  | C.Goto_stmt_core ls ->
+      fprintf ppf "goto %a;" (pp_list_sep "," pp_string) ls
   | C.End -> fprintf ppf "end;"
-
-
-

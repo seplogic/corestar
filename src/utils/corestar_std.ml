@@ -11,6 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
+open Format
 
 module Int = struct type t = int let compare = compare end
 module StringSet = Set.Make (String)
@@ -87,4 +88,12 @@ module ListH = struct
     loop [] n
 end
 
+let pp_string f s = fprintf f "%s" s
+
 let pp_list pp f = List.iter (pp f)
+
+let pp_list_sep sep pp f = function
+  | [] -> ()
+  | x :: xs ->
+      let pp f x = fprintf f "%s%a" sep pp x in
+      fprintf f "%a@,%a" pp x (pp_list pp) xs

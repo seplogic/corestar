@@ -13,7 +13,7 @@
 
 type args_out = Vars.var list
 type args_in = Psyntax.args list
-type spec = Spec.spec HashSet.t
+type spec = Spec.ast_spec HashSet.t
 
 type call_core =
   { call_name : string

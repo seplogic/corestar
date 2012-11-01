@@ -22,8 +22,6 @@ module PS = Psyntax
 module S = Spec
 module VS = Psyntax.VarSet
 
-(* XXX type ts_excep_post = inner_form ClassMap.t *)
-
 let empty_inner_form =
   match P.convert PS.mkEmpty with
     None -> assert false;

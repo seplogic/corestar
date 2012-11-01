@@ -116,6 +116,15 @@ module ListH : sig
 end
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
+val pp_string : Format.formatter -> string -> unit
+
 val pp_list :
   (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
+
+val pp_list_sep :
+  string
+  -> (Format.formatter -> 'a -> unit)
+  -> Format.formatter
+  -> 'a list
+  -> unit
 (* }}} *)

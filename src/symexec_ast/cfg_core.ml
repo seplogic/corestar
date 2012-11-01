@@ -1,6 +1,6 @@
 (********************************************************
    This file is part of coreStar
-        src/symbexe_syntax/cfg_core.ml
+        src/symbexe_ast/cfg_core.ml
    Release
         $Release$
    Version
@@ -14,6 +14,10 @@
 
 (** Data structures for representing flowgraphs of the core languages.
   Also, utilities to build such flowgraphs and to pretty-print them. *)
+
+open Corestar_std
+open Debug
+open Format
 
 open Core
 
@@ -94,23 +98,11 @@ let print_icfg_dotty
   if cfg_debug() then ignore (Printf.printf "\n\n Printing dot file done!")
 (* pretty printing flowgraphs (to .dot) }}} *)
 
-(* Print a sequence of core statements to a file *)
-let print_core
-    (file: string)
-    (mname: string)
-    (stmts : cfg_node list) : unit =
-
-  if Pp_core.core_debug () then ignore (Printf.printf "\n\nPrinting core file for method %s..." mname);
-
-  (* FIXME: Don't understand why I can't use Format.formatter_of_out_channel *)
-  Format.pp_set_margin Format.str_formatter 80;
-
-  let cstr = Format.flush_str_formatter
-     (List.iter (fun x -> Pp_core.pp_stmt_core Format.str_formatter x.skind;
-	             Format.pp_print_newline Format.str_formatter () ) stmts) in
-
-  let chan = open_out (file ^ mname ^ ".core") in
-  Printf.fprintf chan "%s" cstr;
-  close_out chan;
-
-
+let print_core fn mn (cs : cfg_node list) =
+  if log log_phase then
+    fprintf logf "@[Printing core file for method %s.@." mn;
+  let c = open_out (fn ^ mn ^ ".core") in
+  let f = formatter_of_out_channel c in
+  let pp f cmd = fprintf f "@[%a@]@\n" Pp_core.pp_stmt_core cmd.skind in
+  fprintf f "@[%a@." (pp_list pp) cs;
+  close_out c

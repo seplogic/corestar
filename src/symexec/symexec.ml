@@ -572,7 +572,7 @@ and execute_core_stmt
 let verify
     (mname : string)
     (stmts : cfg_node list)
-    (spec : Spec.spec)
+    (spec : Spec.ast_spec)
     (lo : logic)
     (abs_rules : logic)
     : bool
@@ -751,7 +751,7 @@ let verify_inner
 let bi_abduct
     (mname : string)
     (stmts : cfg_node list)
-    (spec : Spec.spec)
+    (spec : Spec.ast_spec)
     (lo : logic)
     (abduct_lo : logic)
     (abs_rules : logic)

@@ -16,7 +16,7 @@ val file : string ref
 val verify :
   string ->
   Cfg_core.cfg_node list ->
-  Spec.spec -> Psyntax.logic -> Psyntax.logic -> bool
+  Spec.ast_spec -> Psyntax.logic -> Psyntax.logic -> bool
 val verify_ensures :
   string ->
   Cfg_core.cfg_node list ->
@@ -26,7 +26,7 @@ val verify_ensures :
 val bi_abduct :
   string ->
   Cfg_core.cfg_node list ->
-  Spec.spec ->
+  Spec.ast_spec ->
   Psyntax.logic ->
   Psyntax.logic ->
   Psyntax.logic ->
