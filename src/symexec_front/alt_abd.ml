@@ -37,14 +37,14 @@ module CfgH = Digraph.Make
   (struct type t = C.ast_spec C.core_statement end)
   (Digraph.UnlabeledEdge)
 module HVHashtbl = Hashtbl.Make (CfgH.V)
+module HVHashSet = HashSet.Make (CfgH.V)
 
 module ProcedureH = G.MakeProcedure (CfgH)
 
 let fileout f file_name g = G.fileout file_name (fun o -> f o g)
 
 module DotH = Digraph.Dot (struct
-  include CfgH
-  include Digraph.DotDefault
+  include Digraph.DotDefault (CfgH)
   let vertex_attributes v = match CfgH.V.label v with
       C.Nop_stmt_core -> [`Label "NOP"]
     | C.Label_stmt_core s -> [`Label ("Label:" ^ s)]
@@ -112,10 +112,10 @@ let sc_new_label = function
 
 let sc_add_edges cfg nv s_cfg v =
   let add_outgoing v =
-    let seen = HVHashtbl.create 1 in (* XXX: Switch to HashSet, functorial *)
+    let seen = HVHashSet.create 1 in
     let rec add_to u =
-      if not (HVHashtbl.mem seen u) then begin
-        HVHashtbl.add seen u ();
+      if not (HVHashSet.mem seen u) then begin
+        HVHashSet.add seen u;
         try G.Cfg.add_edge s_cfg v (HVHashtbl.find nv u)
         with Not_found -> CfgH.iter_succ add_to cfg u
       end in
@@ -158,8 +158,7 @@ module CallGraph = Digraph.Make
   (struct type t = (G.Procedure.t, C.ast_spec) C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
-  include CallGraph
-  include Digraph.DotDefault
+  include Digraph.DotDefault (CallGraph)
   let vertex_attributes v = [ `Label (CallGraph.V.label v).C.proc_name ]
 end)
 let output_cg = fileout DotCg.output_graph "callgraph.dot"

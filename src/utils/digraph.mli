@@ -66,34 +66,25 @@ module DotAttributes :
     type vertex = [ `Label of string | `Shape of shape ]
     type edge = [ `Arrowsize of float ]
   end
-module DotDefault :
-  sig
-    val graph_attributes : 'g -> DotAttributes.graph list
-    val default_vertex_attributes : 'g -> DotAttributes.vertex list
-    val vertex_name : 'v -> string
-    val vertex_attributes : 'v -> DotAttributes.vertex list
-    val default_edge_attributes : 'g -> DotAttributes.edge list
-    val edge_attributes : 'e -> DotAttributes.edge list
-  end
-module Dot :
-  functor
-    (X : sig
-           type t
-           module V : VERTEX
-           module E : EDGE with type vertex = V.t
-           val iter_vertex : (V.t -> unit) -> t -> unit
-           val iter_edges_e : (E.t -> unit) -> t -> unit
-           val graph_attributes : t -> DotAttributes.graph list
-           val default_vertex_attributes : t -> DotAttributes.vertex list
-           val vertex_name : V.t -> string
-           val vertex_attributes : V.t -> DotAttributes.vertex list
-           val default_edge_attributes : t -> DotAttributes.edge list
-           val edge_attributes : E.t -> DotAttributes.edge list
-         end) ->
-    sig
-      val fprint_graph : Format.formatter -> X.t -> unit
-      val output_graph : out_channel -> X.t -> unit
-    end
+module type DISPLAY = sig
+  type t
+  module V : VERTEX
+  module E : EDGE with type vertex = V.t
+  val iter_vertex : (V.t -> unit) -> t -> unit
+  val iter_edges_e : (E.t -> unit) -> t -> unit
+  val graph_attributes : t -> DotAttributes.graph list
+  val default_vertex_attributes : t -> DotAttributes.vertex list
+  val vertex_name : V.t -> string
+  val vertex_attributes : V.t -> DotAttributes.vertex list
+  val default_edge_attributes : t -> DotAttributes.edge list
+  val edge_attributes : E.t -> DotAttributes.edge list
+end
+module DotDefault : functor (G : IM) ->
+  DISPLAY with type t = G.t and module V = G.V and module E = G.E
+module Dot : functor (X : DISPLAY) -> sig
+  val fprint_graph : Format.formatter -> X.t -> unit
+  val output_graph : out_channel -> X.t -> unit
+end
 module Components : sig
   module type G = sig
     type t

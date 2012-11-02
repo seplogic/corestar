@@ -114,6 +114,8 @@ module ListH : sig
   val init : int -> (int -> 'a) -> 'a list
     (** Like [Array.init]. *)
 end
+
+val cons : 'a -> 'a list -> 'a list
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
 val pp_string : Format.formatter -> string -> unit

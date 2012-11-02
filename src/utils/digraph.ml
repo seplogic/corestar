@@ -156,9 +156,23 @@ module DotAttributes = struct
     [ `Arrowsize of float ]
 end
 
-module DotDefault = struct
-  (* TODO(rgrig): This should use VERTEX.hash, not Hashtbl.hash. *)
-  let vertex_name v = string_of_int (Hashtbl.hash v)
+module type DISPLAY = sig
+  type t
+  module V : VERTEX
+  module E : EDGE with type vertex = V.t
+  val iter_vertex : (V.t -> unit) -> t -> unit
+  val iter_edges_e : (E.t -> unit) -> t -> unit
+  val graph_attributes : t -> DotAttributes.graph list
+  val default_vertex_attributes : t -> DotAttributes.vertex list
+  val vertex_name : V.t -> string
+  val vertex_attributes : V.t -> DotAttributes.vertex list
+  val default_edge_attributes : t -> DotAttributes.edge list
+  val edge_attributes : E.t -> DotAttributes.edge list
+end
+
+module DotDefault (G : IM) = struct
+  include G
+  let vertex_name v = string_of_int (V.hash v)
   let graph_attributes _ = []
   let default_vertex_attributes _ = []
   let vertex_attributes _ = []
@@ -166,20 +180,7 @@ module DotDefault = struct
   let edge_attributes _ = []
 end
 
-module Dot = functor
-  (X : sig
-    type t
-    module V : VERTEX
-    module E : EDGE with type vertex = V.t
-    val iter_vertex : (V.t -> unit) -> t -> unit
-    val iter_edges_e : (E.t -> unit) -> t -> unit
-    val graph_attributes : t -> DotAttributes.graph list
-    val default_vertex_attributes : t -> DotAttributes.vertex list
-    val vertex_name : V.t -> string
-    val vertex_attributes : V.t -> DotAttributes.vertex list
-    val default_edge_attributes : t -> DotAttributes.edge list
-    val edge_attributes : E.t -> DotAttributes.edge list end)
--> struct
+module Dot (X : DISPLAY) = struct
   let fprint_attribute f = function
     | `Label s -> fprintf f "label=\"%s\"" s
     | `Shape x -> fprintf f "shape=";

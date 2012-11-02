@@ -88,6 +88,8 @@ module ListH = struct
     loop [] n
 end
 
+let cons x xs = x :: xs
+
 let pp_string f s = fprintf f "%s" s
 
 let pp_list pp f = List.iter (pp f)

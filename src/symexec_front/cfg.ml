@@ -35,9 +35,8 @@ end
 module Procedure = MakeProcedure (Cfg)
 
 module Dot = Digraph.Dot (struct
-  include Cfg
-  include Digraph.DotDefault
-  let vertex_attributes v = match Cfg.V.label v with
+  include Digraph.DotDefault (Cfg)
+  let vertex_attributes v = match V.label v with
     | Call_cfg c -> [`Label c.C.call_name]
     | Nop_cfg -> [`Label "NOP"]
 end)
