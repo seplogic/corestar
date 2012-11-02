@@ -32,9 +32,14 @@ let desugar_assignments ps =
   let ps = List.map d_proc ps in
   List.rev_append ps !qs
 
+let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
+  let proc_spec = Core.ast_to_inner_spec proc_spec in
+  let proc_body = option_map (List.map Core.ast_to_inner_core) proc_body in
+  { C.proc_name; proc_spec; proc_body }
+
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
-  (struct type t = C.ast_spec C.core_statement end)
+  (struct type t = C.inner_core end)
   (Digraph.UnlabeledEdge)
 module HVHashtbl = Hashtbl.Make (CfgH.V)
 module HVHashSet = HashSet.Make (CfgH.V)
@@ -155,7 +160,7 @@ let mk_cfg q =
 
 (* helpers for [compute_call_graph] {{{ *)
 module CallGraph = Digraph.Make
-  (struct type t = (G.Procedure.t, C.ast_spec) C.procedure end)
+  (struct type t = (G.Procedure.t, C.inner_spec) C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
   include Digraph.DotDefault (CallGraph)
@@ -200,7 +205,7 @@ let output_sccs cs =
   close_out file
 
 (* Assumes that components come in reversed topological order. *)
-let interpret_scc_dag cs =
+let interpret_sccs cs =
   if !verbose >= 3 then output_sccs cs;
   failwith "TODO"
 
@@ -209,12 +214,13 @@ let interpret gs =
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
-  interpret_scc_dag sccs
+  interpret_sccs sccs
 
 let main f =
   try
     let ps = parse f in
     let ps = desugar_assignments ps in
+    let ps = List.map ast_to_inner_procedure ps in
     let gs = List.map mk_cfg ps in
     interpret gs
   with Fatal m -> eprintf "@[ERROR: %s@." m

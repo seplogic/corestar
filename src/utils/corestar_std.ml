@@ -36,6 +36,10 @@ let option_map f = function
   | None -> None
   | Some x -> Some (f x)
 
+let from_option d = function
+  | None -> d
+  | Some x -> x
+
 let flip f x y = f y x
 
 module CharH = struct

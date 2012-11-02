@@ -46,6 +46,9 @@ val maybe : 'b -> ('a -> 'b) -> 'a option -> 'b
 (** Map for options. *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
+(** Like in Haskell. *)
+val from_option : 'a -> ('a option) -> 'a
+
 (** Flip the first two arguments of a function. *)
 val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
 
