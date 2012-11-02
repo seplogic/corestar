@@ -319,13 +319,13 @@ let call_jsr_static (sheap,id) spec il node =
         let idd = add_error_node "ERROR" in
         let proof_file = add_edge_with_proof id idd ExecE
           (fprintf str_formatter "@[%a:@\n %a@]"
-            Pp_core.pp_stmt_core node.skind
+            Pp_core.pp_ast_core node.skind
             Sepprover.pprint_counter_example ();
             flush_str_formatter ())
         in
         printf "@[<2>@{<b>ERROR@}: While executing node %d:@\n%a@.%!"
           node.sid
-          Pp_core.pp_stmt_core node.skind;
+          Pp_core.pp_ast_core node.skind;
         Sepprover.print_counter_example ();
         printf "Proof file: %s@\n" proof_file;
         printf "%s(end of error)%s@.%!"
@@ -442,12 +442,12 @@ and execute_core_stmt
     : formset_entry list =
   let sheap_noid = fst sheap in
   if Config.symb_debug() then begin
-    Format.printf "@\nExecuting statement:@ %a%!" Pp_core.pp_stmt_core n.skind;
+    Format.printf "@\nExecuting statement:@ %a%!" Pp_core.pp_ast_core n.skind;
     Format.printf "@\nwith heap :@\n    %a@\n@\n@.%!" heap_pprinter sheap_noid
   end;
   if Config.symb_debug() then
     (Format.printf "\nStarting execution of node %i \n%!" (n.sid);
-    Format.printf "@\nExecuting statement:@ %a%!" Pp_core.pp_stmt_core n.skind;
+    Format.printf "@\nExecuting statement:@ %a%!" Pp_core.pp_ast_core n.skind;
     Format.printf "@\nwith heap :@\n    %a@\n@\n@.%!" heap_pprinter sheap_noid;);
   (match n.skind with
   | Core.Label_stmt_core l ->
@@ -481,7 +481,7 @@ and execute_core_stmt
       List.iter
         (fun sheap2 ->
           ignore (add_edge_with_proof (snd sheap) (snd sheap2) AbsE
-            ("Abstract@"^(Debug.toString Pp_core.pp_stmt_core n.skind))))
+            ("Abstract@"^(Debug.toString Pp_core.pp_ast_core n.skind))))
         sheaps_abs;
 
       if Config.symb_debug() then
@@ -510,7 +510,7 @@ and execute_core_stmt
                   (frame_inner !curr_logic sheap2_af sheap1_af <> None))
                 then
                   (ignore (add_edge_with_proof id2 id1 ContE
-                    ("Contains@"^(Debug.toString Pp_core.pp_stmt_core n.skind))); false)
+                    ("Contains@"^(Debug.toString Pp_core.pp_ast_core n.skind))); false)
                 else (s := ("\n---------------------------------------------------------\n" ^
                   (string_of_proof ())) :: !s; true))
               formset)
@@ -555,7 +555,7 @@ and execute_core_stmt
           | [] -> hs
           | vs -> List.map (eliminate_ret_vs "$ret_v" vs) hs
         in
-        let hs = add_id_formset_edge (snd sheap) (Debug.toString Pp_core.pp_stmt_core n.skind) hs n in
+        let hs = add_id_formset_edge (snd sheap) (Debug.toString Pp_core.pp_ast_core n.skind) hs n in
         execs_one n hs
     )
 

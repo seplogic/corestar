@@ -34,7 +34,7 @@ let desugar_assignments ps =
 
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
-  (struct type t = C.core_statement end)
+  (struct type t = C.ast_spec C.core_statement end)
   (Digraph.UnlabeledEdge)
 module HVHashtbl = Hashtbl.Make (CfgH.V)
 
@@ -155,7 +155,7 @@ let mk_cfg q =
 
 (* helpers for [compute_call_graph] {{{ *)
 module CallGraph = Digraph.Make
-  (struct type t = G.Procedure.t C.procedure end)
+  (struct type t = (G.Procedure.t, C.ast_spec) C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
   include CallGraph

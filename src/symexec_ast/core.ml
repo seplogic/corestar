@@ -13,29 +13,31 @@
 
 type args_out = Vars.var list
 type args_in = Psyntax.args list
-type spec = Spec.ast_spec HashSet.t
+type 'a spec = 'a HashSet.t
+type ast_spec = Spec.ast_spec spec
+type inner_spec = Spec.inner_spec spec
 
 type call_core =
   { call_name : string
   ; call_rets : args_out
   ; call_args : args_in }
 
-type 'a procedure =
+type ('body, 'spec) procedure =
   { proc_name : string
-  ; proc_spec : spec
-  ; proc_body : 'a option }
+  ; proc_spec : 'spec
+  ; proc_body : 'body option }
 
-type assignment_core =
+type 'spec assignment_core =
   { asgn_rets : args_out
   ; asgn_args : args_in
-  ; asgn_spec : spec }
+  ; asgn_spec : 'spec }
 
-type core_statement =
+type 'spec core_statement =
     Nop_stmt_core
   | Label_stmt_core of string
-  | Assignment_core of assignment_core
+  | Assignment_core of 'spec assignment_core
   | Call_core of call_core
   | Goto_stmt_core of string list
   | End
-type symb_question = core_statement list procedure
-type symb_test = symb_question * bool (* snd is expected answer *)
+type 'spec symb_question = ('spec core_statement list, 'spec) procedure
+type 'spec symb_test = 'spec symb_question * bool (* snd is expected answer *)

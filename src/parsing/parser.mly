@@ -142,10 +142,10 @@ let parse_warning s =
 %type <Psyntax.test list> test_file
 
 %start symb_question_file
-%type <Core.symb_question list> symb_question_file
+%type <Core.ast_spec Core.symb_question list> symb_question_file
 
 %start symb_test_file
-%type <Core.symb_test list> symb_test_file
+%type <Core.ast_spec Core.symb_test list> symb_test_file
 
 %% /* rules */
 

@@ -11,5 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
+val pp_ast_core : Format.formatter -> Core.ast_spec Core.core_statement -> unit
 
-val pp_stmt_core : Format.formatter -> Core.core_statement -> unit
+val pp_inner_core
+  : Format.formatter -> Core.inner_spec Core.core_statement -> unit
