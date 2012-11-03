@@ -216,18 +216,21 @@ let interpret gs =
     X.scc_list cg in
   interpret_sccs sccs
 
-let main f =
-  try
-    let ps = parse f in
-    let ps = desugar_assignments ps in
-    let ps = List.map ast_to_inner_procedure ps in
-    let gs = List.map mk_cfg ps in
-    interpret gs
-  with Fatal m -> eprintf "@[ERROR: %s@." m
+let verify ps =
+  let ps = desugar_assignments ps in
+  let ps = List.map ast_to_inner_procedure ps in
+  let gs = List.map mk_cfg ps in
+  interpret gs
+
+let procedures = ref []
+let parse_file f = procedures =:: parse f
 
 let args =
   [ "-v", Arg.Unit (fun () -> incr verbose), "increase verbosity" ]
 
-(* TODO(rgrig): Allow multiple input files. *)
-let _ =
-  Arg.parse args main "alt_abd [options] <file>";
+let () =
+  try
+    procedures := [];
+    Arg.parse args parse_file "alt_abd [options] <files>";
+    verify (List.concat !procedures)
+  with Fatal m -> eprintf "@[ERROR: %s@." m
