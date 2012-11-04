@@ -24,7 +24,7 @@ type call_core =
 
 type ('body, 'spec) procedure =
   { proc_name : string
-  ; proc_spec : 'spec
+  ; mutable proc_spec : 'spec
   ; proc_body : 'body option }
 
 type 'spec assignment_core =

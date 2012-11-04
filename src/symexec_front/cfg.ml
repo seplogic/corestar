@@ -4,19 +4,15 @@ module C = Core
 
 type cfg_vertex =
   | Call_cfg of C.call_core
+  | Abs_cfg
   | Nop_cfg
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
-module Cfg = Digraph.Make
-  (struct type t = cfg_vertex end)
-  (struct type t = unit let compare = compare let default = () end)
+module Cfg = Digraph.Make (struct type t = cfg_vertex end) (UnlabeledEdge)
+module CfgVHashtbl = Hashtbl.Make (Cfg.V)
 
-type state_transition =
-  | Statement_st of Cfg.V.t
-  | Nop_st
-  (* TODO: Add other ways to evolve the state, such as implication. *)
-
+(* TODO(rgrig): uncomment after defining the type for symbolic states.
 module StateGraph (V : Digraph.ANY_TYPE) = Digraph.Make
   (V)
   (struct
@@ -24,6 +20,7 @@ module StateGraph (V : Digraph.ANY_TYPE) = Digraph.Make
     let compare = compare
     let default = Nop_st
   end)
+*)
 
 module MakeProcedure (Cfg : Digraph.IM) = struct
   type t =
@@ -38,6 +35,7 @@ module Dot = Digraph.Dot (struct
   include Digraph.DotDefault (Cfg)
   let vertex_attributes v = match V.label v with
     | Call_cfg c -> [`Label c.C.call_name]
+    | Abs_cfg -> [`Label "ABS"]
     | Nop_cfg -> [`Label "NOP"]
 end)
 

@@ -49,6 +49,8 @@ module type IM = sig
   type vertex = V.t
   module E : EDGE with type vertex = vertex
   type edge = E.t
+  val out_degree : t -> vertex -> int
+  val in_degree : t -> vertex -> int
   val iter_vertex : (vertex -> unit) -> t -> unit
   val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
@@ -95,6 +97,13 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
   type t =
     { out_edges : ESet.t VMap.t
     ; in_edges : ESet.t VMap.t }
+
+  let degree es x =
+    try ESet.cardinal (VMap.find es x)
+    with Not_found -> raise (Invalid_argument "vertex not in graph")
+
+  let out_degree g = degree g.out_edges
+  let in_degree g = degree g.in_edges
 
   let iter_vertex f g =
     let f x _ = f x in

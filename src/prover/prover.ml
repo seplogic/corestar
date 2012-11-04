@@ -31,7 +31,7 @@ let empty_sequent () =
   ts = Cterm.new_ts ();
   assumption = Clogic.empty;
   obligation = Clogic.empty;
-  antiframe = Clogic.empty; 
+  antiframe = Clogic.empty;
 }
 
 
@@ -83,36 +83,36 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
       try
       convert_sf fresh  seq.ts pseq.assumption_diff
       with Contradiction ->
-        fprintf !(Debug.proof_dump) 
-          "Failed to add formula to lhs: %a@\n" 
+        fprintf !(Debug.proof_dump)
+          "Failed to add formula to lhs: %a@\n"
           pp_syntactic_form pseq.assumption_diff;
       raise Contradiction
     in
     let ass = conjunction ass seq.assumption in
-    
+
     (* Construct new antiframe *)
-    let ant,ts = 
-      try 
-        convert_sf fresh ts pseq.antiframe_diff 
-      with Contradiction -> 
-        fprintf !(Debug.proof_dump) 
-          "Failed to add formula to antiframe: %a@\n" 
+    let ant,ts =
+      try
+        convert_sf fresh ts pseq.antiframe_diff
+      with Contradiction ->
+        fprintf !(Debug.proof_dump)
+          "Failed to add formula to antiframe: %a@\n"
           pp_syntactic_form pseq.antiframe_diff;
         raise Contradiction
-    in 
+    in
     let ant = conjunction ant seq.antiframe in
-    
+
     (* Construct new matched portion *)
     let sam,ts =
       try
         convert_sf fresh ts pseq.assumption_same
       with Contradiction ->
-        fprintf !(Debug.proof_dump) 
-          "Failed to add formula to matched: %a@\n" 
+        fprintf !(Debug.proof_dump)
+          "Failed to add formula to matched: %a@\n"
           pp_syntactic_form pseq.assumption_same;
         assert false in
     let sam = RMSet.union sam.spat seq.matched in
-    
+
     (* Construct new obligation portion *)
     let obs,ts =
       try
@@ -129,12 +129,12 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
            obligation = obs;
            matched = sam;
            ts = ts;
-           antiframe = ant; 
+           antiframe = ant;
          }
   with Contradiction ->
     fprintf !(Debug.proof_dump) "Contradiction detected!!@\n";
     None
-    
+
 
 let sequent_join_fresh = sequent_join true
 let sequent_join = sequent_join false
@@ -159,14 +159,14 @@ let check wheres seq : bool  =
 	  fun v ->
 	    Cterm.var_not_used_in_term seq.ts v term
 	) varset
-    | PureGuard pf -> 
-        if !Config.smt_run then 
+    | PureGuard pf ->
+        if !Config.smt_run then
           begin
-            let sf = convert_to_inner pf in 
-            let (f,ts) = convert_ground seq.ts sf in 
-            if Config.smt_debug() then 
-               Format.printf "[Calling SMT to discharge a pure guard]@\nguard:@\n%a@\nheap:@\n%a@\n" 
-               pp_ts_formula (mk_ts_form ts f) pp_sequent seq;  
+            let sf = convert_to_inner pf in
+            let (f,ts) = convert_ground seq.ts sf in
+            if Config.smt_debug() then
+               Format.printf "[Calling SMT to discharge a pure guard]@\nguard:@\n%a@\nheap:@\n%a@\n"
+               pp_ts_formula (mk_ts_form ts f) pp_sequent seq;
             Smt.finish_him ts seq.assumption f
           end
         else raise No_match
@@ -188,7 +188,7 @@ let apply_rule
   (* Match antiframe_diff *)
   match_form true ts seq.antiframe sr.conclusion.antiframe_diff
     (@)
-    (fun (ts,ant) -> 
+    (fun (ts,ant) ->
   (* Match assumption_diff *)
   match_form true ts seq.assumption sr.conclusion.assumption_diff
     (@)
@@ -214,7 +214,7 @@ let apply_rule
 		   ts = ts;
 		   obligation = ob;
                    assumption = ass;
-                   antiframe = ant; } in 
+                   antiframe = ant; } in
 		List.map
 		  (map_option
 		     (sequent_join_fresh seq))
@@ -306,7 +306,7 @@ try
 	plain = o_plain;
 	eqs = ob_eqs;
 	neqs=ob_neqs
-      }; 
+      };
       antiframe = seq.antiframe; (* FIXME: What should this do? *)
     } in
    (*  printf "After simplification : %a@\n" pp_sequent seq; *)
@@ -323,13 +323,13 @@ with Success -> None
 
 let prover_counter_example : Clogic.sequent list ref = ref []
 
-let pprint_counter_example ppf () = 
+let pprint_counter_example ppf () =
   fprintf ppf "Needed to prove:@   @[%a@]@\n@\n"
     (list_format "\nor" Clogic.pp_sequent)
     !prover_counter_example
 
 let print_counter_example = pprint_counter_example std_formatter
-  
+
 let get_counter_example () =
   let out_buff = Buffer.create 1000 in
   let out_ft = Format.formatter_of_buffer out_buff in
@@ -339,8 +339,8 @@ let get_counter_example () =
   Buffer.clear out_buff;
   r
 
-let pprint_proof (f : formatter) : unit = 
-  Format.pp_print_flush !proof_dump ();  
+let pprint_proof (f : formatter) : unit =
+  Format.pp_print_flush !proof_dump ();
   fprintf f "%s" (Buffer.contents buffer_dump)
 
 let string_of_proof () =
@@ -349,39 +349,39 @@ let string_of_proof () =
 exception Failed_eg of Clogic.sequent list
 
 
-let rec apply_rule_list_once 
-   (rules : sequent_rule list) 
-   (seq : Clogic.sequent) 
+let rec apply_rule_list_once
+   (rules : sequent_rule list)
+   (seq : Clogic.sequent)
    : Clogic.sequent list list
    =
-  match rules with 
+  match rules with
     [] -> raise No_match
   | rule::rules ->
-      try 
+      try
       apply_rule (Clogic.convert_rule rule) seq
-      with 
+      with
       | No_match -> apply_rule_list_once rules seq
 
 
-let rec sequents_backtrack 
-    f (seqss : Clogic.sequent list list) xs 
+let rec sequents_backtrack
+    f (seqss : Clogic.sequent list list) xs
     : Clogic.sequent list =
-  match seqss with 
+  match seqss with
     [] -> raise (Failed_eg xs)
-  | seqs::seqss -> 
-      try f seqs 
-      with 
-	Failed ->  
+  | seqs::seqss ->
+      try f seqs
+      with
+	Failed ->
 	  fprintf !proof_dump "Backtracking!@\n"; sequents_backtrack f seqss xs
-      | Failed_eg x -> 
+      | Failed_eg x ->
 	  fprintf !proof_dump "Backtracking!@\n"; sequents_backtrack f seqss (x @ xs)
 
-let apply_rule_list 
-    (logic : logic) 
-    (sequents : Clogic.sequent list) 
-    (must_finish : Clogic.sequent -> bool) 
-    (may_finish : Clogic.sequent -> bool) 
-    : Clogic.sequent list 
+let apply_rule_list
+    (logic : logic)
+    (sequents : Clogic.sequent list)
+    (must_finish : Clogic.sequent -> bool)
+    (may_finish : Clogic.sequent -> bool)
+    : Clogic.sequent list
     =
 (* Clear pretty print buffer *)
   Buffer.clear buffer_dump;
@@ -390,123 +390,123 @@ let apply_rule_list
   if log log_prove then
     (List.iter (fun seq -> fprintf !proof_dump "Goal@ %a@\n@\n" Clogic.pp_sequent seq) sequents;
      fprintf !proof_dump "Start time :%f @\n" (Sys.time ()));
-  let rec apply_rule_list_inner sequents n : Clogic.sequent list = 
-    let search seqss : Clogic.sequent list = 
-      sequents_backtrack 
+  let rec apply_rule_list_inner sequents n : Clogic.sequent list =
+    let search seqss : Clogic.sequent list =
+      sequents_backtrack
 	(fun seqs->apply_rule_list_inner seqs (n+1)) seqss [] in
-    let sequents = map_option (simplify_sequent logic.rw_rules) sequents in 
+    let sequents = map_option (simplify_sequent logic.rw_rules) sequents in
   (* Apply rules lots *)
-    List.flatten 
-      (List.map 
+    List.flatten
+      (List.map
 	 (fun seq ->
 	   fprintf !proof_dump "%s>@[%a@]@\n@." (String.make n '-') Clogic.pp_sequent  seq;
-	   if must_finish seq then 
+	   if must_finish seq then
 	     [seq]
 	   else
-	   try 
+	   try
 	     search (apply_rule_list_once logic.seq_rules seq)
-	   with No_match -> 
-	   try 
-		 if may_finish seq then 
+	   with No_match ->
+	   try
+		 if may_finish seq then
 		   [seq]
-		 else 
+		 else
 		   search ([Clogic.apply_or_left seq])
-	       with No_match -> 
-		 try 
+	       with No_match ->
+		 try
 		   search (Clogic.apply_or_right seq)
-		 with No_match -> 
-                 try 
+		 with No_match ->
+                 try
 	             let ts' = Smt.ask_the_audience seq.ts seq.assumption in
 	             search [[ {seq with ts = ts'} ]]
-                   with 
+                   with
                    | Assm_Contradiction -> []
                    | No_match -> raise (Failed_eg [seq])
-	 ) sequents 
+	 ) sequents
       )
-  in let res = apply_rule_list_inner sequents n in 
-  if log log_prove then 
+  in let res = apply_rule_list_inner sequents n in
+  if log log_prove then
     fprintf !proof_dump "@\nEnd time :%f@ " (Sys.time ());
   res
 
-let check_imp (logic : logic) (seq : sequent) : bool = 
-    try 
-      let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.ts in 
-      let seq = {seq with ts = ts} in 
+let check_imp (logic : logic) (seq : sequent) : bool =
+    try
+      let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.ts in
+      let seq = {seq with ts = ts} in
       ignore (apply_rule_list logic [seq] Smt.true_sequent_smt Smt.true_sequent_smt); true
-    with  
+    with
       Failed -> false
     | Failed_eg x -> prover_counter_example := x ; false
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.F.ts_formula list option =
   try
-    let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.ts in 
+    let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.ts in
     let seq = {seq with ts = ts} in
-    let leaves = apply_rule_list logic [seq] (fun _ -> false) Smt.frame_sequent_smt in 
+    let leaves = apply_rule_list logic [seq] (fun _ -> false) Smt.frame_sequent_smt in
     Some (Clogic.get_frames leaves)
-  with 
-    Failed -> fprintf !proof_dump "Frame failed\n"; None 
-  | Failed_eg x -> fprintf !proof_dump "Frame failed\n"; prover_counter_example := x; None 
+  with
+    Failed -> fprintf !proof_dump "Frame failed\n"; None
+  | Failed_eg x -> fprintf !proof_dump "Frame failed\n"; prover_counter_example := x; None
 
 
-let check_abduct logic seq : Clogic.AF.ts_formula list option = 
-  try 
-    let leaves = apply_rule_list logic [seq] (fun _ -> false) Clogic.abductive_sequent in 
+let check_abduct logic seq : Clogic.AF.ts_formula list option =
+  try
+    let leaves = apply_rule_list logic [seq] (fun _ -> false) Clogic.abductive_sequent in
     (* the lists of frames and antiframes have equal lengths *)
     Some (Clogic.get_frames_antiframes leaves)
-  with 
+  with
     Failed -> Format.fprintf !proof_dump "Abduction failed\n"; None
-  | Failed_eg x -> Format.fprintf !proof_dump "Abduction failed\n"; prover_counter_example := x; None 
+  | Failed_eg x -> Format.fprintf !proof_dump "Abduction failed\n"; prover_counter_example := x; None
 
 
-let check_implication_frame_pform logic heap pheap  =  
+let check_implication_frame_pform logic heap pheap  =
   check_frm logic (Clogic.make_implies heap pheap)
 
 
-let check_implication_pform 
-    (logic : logic) 
-    (heap : F.ts_formula) 
-    (pheap : pform) : bool =  
+let check_implication_pform
+    (logic : logic)
+    (heap : F.ts_formula)
+    (pheap : pform) : bool =
   check_imp logic (Clogic.make_implies heap pheap)
 
 
-let check_abduction_pform logic heap pheap = 
+let check_abduction_pform logic heap pheap =
   check_abduct logic (Clogic.make_implies heap pheap)
 
 
 (* abstract P by applying frame inference to P => emp *)
 (* result should be collection of abstracted frames F implying P *)
-let abs 
-    (logic : logic) 
+let abs
+    (logic : logic)
     (ts_form : F.ts_formula)
-    : F.ts_formula list  = 
-  match check_frm logic  (Clogic.make_implies ts_form []) with 
+    : F.ts_formula list  =
+  match check_frm logic  (Clogic.make_implies ts_form []) with
     Some r -> r
-  | None -> 
+  | None ->
       (* Abstraction cannot fail *)
       assert false
 
-let check_implication_syntactic logic pform pform2 = 
+let check_implication_syntactic logic pform pform2 =
   let seq = make_sequent (Clogic.convert_sequent ([],pform,pform2,mkEmpty)) in
-  match seq with 
+  match seq with
     None -> true (* Found contradiction immediately *)
-  | Some seq -> 
+  | Some seq ->
       check_imp logic seq
 
-let check_implication_frame_syntactic logic pform pform2 = 
+let check_implication_frame_syntactic logic pform pform2 =
   let seq = make_sequent (Clogic.convert_sequent ([],pform,pform2,mkEmpty)) in
-  match seq with 
+  match seq with
     None -> Some [] (* Found contradiction immediately *)
-  | Some seq -> 
+  | Some seq ->
       check_frm logic seq
-    
+
 
 let check_implication logic ts_form1 ts_form2 =
-  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in 
-  check_imp logic seq 
+  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in
+  check_imp logic seq
 
 let check_frame logic ts_form1 ts_form2 =
-  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in 
-  check_frm logic seq 
+  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in
+  check_frm logic seq
 
 
 (* let check_inconsistency logic ts_form   = assert false *)
@@ -517,7 +517,7 @@ let check_inconsistency logic ts_form =
 
 
 let check_implies_list fl1 pf =
-  List.for_all 
-    (fun f1 -> 
+  List.for_all
+    (fun f1 ->
       check_implication_pform empty_logic f1 pf
-    ) fl1 
+    ) fl1

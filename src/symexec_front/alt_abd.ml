@@ -144,6 +144,19 @@ let simplify_cfg { ProcedureH.cfg; start; stop } =
   ; start = HVHashtbl.find nv start
   ; stop = HVHashtbl.find nv stop }
 
+let insert_abstraction_nodes g =
+  let module P = G.Procedure in
+  assert (G.Cfg.in_degree g.P.cfg g.P.start <= 1);
+  let module H = G.CfgVHashtbl in
+  let xs = H.create 1 in
+  let record x =
+    if G.Cfg.in_degree g.P.cfg x > 1 then begin
+      assert (not (H.mem xs x));
+      H.add xs x (G.Cfg.V.create G.Abs_cfg)
+    end in
+  G.Cfg.iter_vertex record g.P.cfg;
+  failwith "TODO"
+
 let output_cfg n g =
   G.fileout_cfg (n ^ "_Cfg.dot") g
 
@@ -155,6 +168,7 @@ let mk_cfg q =
   let g = option_map mk_intermediate_cfg q.C.proc_body in
   if !verbose >= 3 then maybe () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
+  let g = option_map insert_abstraction_nodes g in
   if !verbose >= 2 then maybe () (fun g -> output_cfg n g.G.Procedure.cfg) g;
   { q with C.proc_body = g }
 
@@ -192,7 +206,7 @@ let compute_call_graph ps =
   List.iter add_vertex ps;
   List.iter (ccg_add_edges cg von) ps;
   if !verbose >= 2 then output_cg cg;
-  cg
+  cg, Hashtbl.find von
 
 let output_sccs cs =
   let pp_procedure f v =
@@ -204,17 +218,33 @@ let output_sccs cs =
   fprintf f "@[%a@]@?" (pp_list pp_component) cs;
   close_out file
 
-(* Assumes that components come in reversed topological order. *)
-let interpret_sccs cs =
-  if !verbose >= 3 then output_sccs cs;
+(* symbolic execution for one procedure {{{ *)
+
+type interpret_procedure_result =
+  | IPR_ok
+  | IPR_spec_updated
+  | IPR_nok
+
+let interpret_procedure proc_of_name p =
   failwith "TODO"
 
+(* }}} *)
+
+(* Assumes that components come in reversed topological order. *)
+let rec interpret_one_scc proc_of_name ps =
+  let rs = List.map (interpret_procedure proc_of_name) ps in
+  if List.exists ((=) IPR_spec_updated) rs
+  then interpret_one_scc proc_of_name ps
+  else List.for_all ((=) IPR_ok) rs
+
 let interpret gs =
-  let cg = compute_call_graph gs in
+  let cg, von = compute_call_graph gs in
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
-  interpret_sccs sccs
+  if !verbose >= 3 then output_sccs sccs;
+  let proc_of_name n = CallGraph.V.label (von n) in
+  List.for_all (interpret_one_scc proc_of_name) sccs
 
 let verify ps =
   let ps = desugar_assignments ps in
@@ -232,5 +262,6 @@ let () =
   try
     procedures := [];
     Arg.parse args parse_file "alt_abd [options] <files>";
-    verify (List.concat !procedures)
+    if not (verify (List.concat !procedures)) then
+      printf "@[verification failed@."
   with Fatal m -> eprintf "@[ERROR: %s@." m
