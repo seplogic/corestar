@@ -45,9 +45,11 @@ module type IM =
     val iter_edges : (vertex -> vertex -> unit) -> t -> unit
     val iter_edges_e : (edge -> unit) -> t -> unit
     val iter_succ : (vertex -> unit) -> t -> vertex -> unit
+    val iter_pred : (vertex -> unit) -> t -> vertex -> unit
     val create : ?size:int -> unit -> t
     val add_vertex : t -> vertex -> unit
     val add_edge : t -> vertex -> vertex -> unit
+    val remove_edge : t -> vertex -> vertex -> unit
   end
 module Make :
   functor (Vl : ANY_TYPE) ->

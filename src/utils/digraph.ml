@@ -55,9 +55,11 @@ module type IM = sig
   val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
+  val iter_pred : (vertex -> unit) -> t -> vertex -> unit
   val create : ?size:int -> unit -> t
   val add_vertex : t -> vertex -> unit
   val add_edge : t -> vertex -> vertex -> unit
+  val remove_edge : t -> vertex -> vertex -> unit
 end
 
 let fresh_vertex_id = Misc.fresh_int ()
@@ -117,13 +119,16 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     let f e = f (E.src e) (E.dst e) in
     iter_edges_e f g
 
-  (* NOTE: Successors may be iterated multiple times in multigraphs. *)
-  let iter_succ f g x =
+  (* NOTE: Succs/Preds may be iterated multiple times in multigraphs. *)
+  let iter_pred_or_succ f es x =
     let es =
-      try VMap.find g.out_edges x
-      with Not_found -> raise (Invalid_argument "iter_succ") in
+      try VMap.find es x
+      with Not_found -> invalid_arg "iter_pred_or_succ" in
     let f e = f (E.dst e) in
     ESet.iter f es
+
+  let iter_succ f g = iter_pred_or_succ f g.out_edges
+  let iter_pred f g = iter_pred_or_succ f g.in_edges
 
   let create ?(size = 1) () =
     { out_edges = VMap.create size
@@ -141,6 +146,16 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     let add x h = VMap.replace h x (ESet.add e (VMap.find h x)) in
     add x g.out_edges;
     add y g.in_edges
+
+  let remove_edge g x y =
+    try
+      let wy = VMap.find g.out_edges x in
+      let wx = VMap.find g.in_edges y in
+      let woy = ESet.filter (fun e -> V.equal y (E.dst e)) wy in
+      let wox = ESet.filter (fun e -> V.equal x (E.src e)) wx in
+      VMap.replace g.out_edges x woy;
+      VMap.replace g.in_edges y wox
+    with Not_found -> invalid_arg "remove_edge"
 end
 
 module DotAttributes = struct

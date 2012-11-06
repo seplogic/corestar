@@ -144,18 +144,19 @@ let simplify_cfg { ProcedureH.cfg; start; stop } =
   ; start = HVHashtbl.find nv start
   ; stop = HVHashtbl.find nv stop }
 
-let insert_abstraction_nodes g =
-  let module P = G.Procedure in
-  assert (G.Cfg.in_degree g.P.cfg g.P.start <= 1);
-  let module H = G.CfgVHashtbl in
+let insert_abstraction_nodes p =
+  let module P = G.Procedure in let module H = G.CfgVHashtbl in
+  let g = p.P.cfg in
+  assert (G.Cfg.in_degree g p.P.start <= 1);
   let xs = H.create 1 in
-  let record x =
-    if G.Cfg.in_degree g.P.cfg x > 1 then begin
+  let record x = if G.Cfg.in_degree g x > 1 then begin
       assert (not (H.mem xs x));
       H.add xs x (G.Cfg.V.create G.Abs_cfg)
     end in
-  G.Cfg.iter_vertex record g.P.cfg;
-  failwith "TODO"
+  let insert_abs z y =
+    let replace x = G.Cfg.remove_edge g x z; G.Cfg.add_edge g x y in
+    G.Cfg.iter_pred replace g z; G.Cfg.add_edge g y z in
+  G.Cfg.iter_vertex record g; H.iter insert_abs xs
 
 let output_cfg n g =
   G.fileout_cfg (n ^ "_Cfg.dot") g
@@ -168,7 +169,7 @@ let mk_cfg q =
   let g = option_map mk_intermediate_cfg q.C.proc_body in
   if !verbose >= 3 then maybe () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
-  let g = option_map insert_abstraction_nodes g in
+  ignore (option_map insert_abstraction_nodes g);
   if !verbose >= 2 then maybe () (fun g -> output_cfg n g.G.Procedure.cfg) g;
   { q with C.proc_body = g }
 
