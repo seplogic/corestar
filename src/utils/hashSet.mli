@@ -1,5 +1,3 @@
-(* TODO(rgrig): Functorial interface when we'll need it. *)
-
 type 'a t
 val add : 'a t -> 'a -> unit
 val choose : 'a t -> 'a

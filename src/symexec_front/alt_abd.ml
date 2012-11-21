@@ -226,6 +226,30 @@ type interpret_procedure_result =
   | IPR_spec_updated
   | IPR_nok
 
+type 'vertex graph =
+  { g_succs : 'vertex -> 'vertex list
+  ; g_preds : 'vertex -> 'vertex list
+  ; g_start_vertex : 'vertex
+  ; g_equal : 'vertex -> 'vertex -> bool
+  ; g_hash : 'vertex -> int }
+
+type ('state, 'statement) exec =
+  { e_join : 'state list -> 'state
+  ; e_step : 'state -> 'statement -> 'state }
+
+type ('vertex, 'state) init =
+  { i_vertex : 'vertex
+  ; i_state : 'state }
+
+let generic_interpreter (type vertex) exec graph init =
+  let module VS = HashSet.Make (struct
+    type t = vertex
+    let equal = graph.g_equal
+    let hash = graph.g_hash
+  end) in
+  let dirty = VS.singleton init.i_vertex in
+  failwith "TODO"
+
 let interpret_procedure proc_of_name p =
   failwith "TODO"
 
