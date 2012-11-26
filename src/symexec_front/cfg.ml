@@ -11,6 +11,7 @@ type cfg_vertex =
 
 module Cfg = Digraph.Make (struct type t = cfg_vertex end) (UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
+module CfgVSet = HashSet.Make (Cfg.V)
 
 (* TODO(rgrig): uncomment after defining the type for symbolic states.
 module StateGraph (V : Digraph.ANY_TYPE) = Digraph.Make

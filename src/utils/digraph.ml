@@ -56,6 +56,8 @@ module type IM = sig
   val iter_edges_e : (edge -> unit) -> t -> unit
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
   val iter_pred : (vertex -> unit) -> t -> vertex -> unit
+  val fold_succ : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
+  val fold_pred : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
   val create : ?size:int -> unit -> t
   val add_vertex : t -> vertex -> unit
   val add_edge : t -> vertex -> vertex -> unit
@@ -120,15 +122,17 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     iter_edges_e f g
 
   (* NOTE: Succs/Preds may be iterated multiple times in multigraphs. *)
-  let iter_pred_or_succ f es x =
+  let iter_pred_or_succ f es tip x =
     let es =
       try VMap.find es x
       with Not_found -> invalid_arg "iter_pred_or_succ" in
-    let f e = f (E.dst e) in
+    let f e = f (tip e) in
     ESet.iter f es
 
-  let iter_succ f g = iter_pred_or_succ f g.out_edges
-  let iter_pred f g = iter_pred_or_succ f g.in_edges
+  let iter_succ f g = iter_pred_or_succ f g.out_edges E.dst
+  let iter_pred f g = iter_pred_or_succ f g.in_edges E.src
+  let fold_succ _ = failwith "todo"
+  let fold_pred _ = failwith "todo"
 
   let create ?(size = 1) () =
     { out_edges = VMap.create size
@@ -151,8 +155,8 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     try
       let wy = VMap.find g.out_edges x in
       let wx = VMap.find g.in_edges y in
-      let woy = ESet.filter (fun e -> V.equal y (E.dst e)) wy in
-      let wox = ESet.filter (fun e -> V.equal x (E.src e)) wx in
+      let woy = ESet.filter (fun e -> not (V.equal y (E.dst e))) wy in
+      let wox = ESet.filter (fun e -> not (V.equal x (E.src e))) wx in
       VMap.replace g.out_edges x woy;
       VMap.replace g.in_edges y wox
     with Not_found -> invalid_arg "remove_edge"

@@ -144,6 +144,7 @@ let simplify_cfg { ProcedureH.cfg; start; stop } =
   ; start = HVHashtbl.find nv start
   ; stop = HVHashtbl.find nv stop }
 
+(* POST: Only abstraction nodes have in-degree bigger than 1. *)
 let insert_abstraction_nodes p =
   let module P = G.Procedure in let module H = G.CfgVHashtbl in
   let g = p.P.cfg in
@@ -226,13 +227,6 @@ type interpret_procedure_result =
   | IPR_spec_updated
   | IPR_nok
 
-type 'vertex graph =
-  { g_succs : 'vertex -> 'vertex list
-  ; g_preds : 'vertex -> 'vertex list
-  ; g_start_vertex : 'vertex
-  ; g_equal : 'vertex -> 'vertex -> bool
-  ; g_hash : 'vertex -> int }
-
 type ('state, 'statement) exec =
   { e_join : 'state list -> 'state
   ; e_step : 'state -> 'statement -> 'state }
@@ -241,14 +235,17 @@ type ('vertex, 'state) init =
   { i_vertex : 'vertex
   ; i_state : 'state }
 
-let generic_interpreter (type vertex) exec graph init =
-  let module VS = HashSet.Make (struct
-    type t = vertex
-    let equal = graph.g_equal
-    let hash = graph.g_hash
-  end) in
-  let dirty = VS.singleton init.i_vertex in
-  failwith "TODO"
+let generic_interpreter exec cfg init =
+  let module VS = G.CfgVSet in let module VM = G.CfgVHashtbl in
+  let dirty_set = VS.singleton init.i_vertex in
+  let dirty_que = Queue.create () in Queue.push init.i_vertex dirty_que;
+  let result = VM.create 1 in VM.replace result init.i_vertex init.i_state;
+  let rec step () =
+    if VS.length dirty_set > 0 then begin
+      let y = Queue.pop dirty_que in let yv = VM.find result y in
+      failwith "todo"
+    end in
+  step (); result
 
 let interpret_procedure proc_of_name p =
   failwith "TODO"
