@@ -227,25 +227,15 @@ type interpret_procedure_result =
   | IPR_spec_updated
   | IPR_nok
 
-type ('state, 'statement) exec =
-  { e_join : 'state list -> 'state
-  ; e_step : 'state -> 'statement -> 'state }
-
-type ('vertex, 'state) init =
-  { i_vertex : 'vertex
-  ; i_state : 'state }
-
-let generic_interpreter exec cfg init =
-  let module VS = G.CfgVSet in let module VM = G.CfgVHashtbl in
-  let dirty_set = VS.singleton init.i_vertex in
-  let dirty_que = Queue.create () in Queue.push init.i_vertex dirty_que;
-  let result = VM.create 1 in VM.replace result init.i_vertex init.i_state;
-  let rec step () =
-    if VS.length dirty_set > 0 then begin
-      let y = Queue.pop dirty_que in let yv = VM.find result y in
-      failwith "todo"
-    end in
-  step (); result
+(* Builds a graph of formulae, in BFS order. *)
+let generic_interpreter exec cfg start_statement start_state_list =
+  (* Short names for Statement/Formula Set/Dictionary *)
+  let module SS = G.CfgVHashSet in let module SD = G.CfgVHashtbl in
+  let module FS = G.SgVHashSet in let module FD = G.SgVHashtbl in
+  let fg = G.StateGraph.create () in (* formula graph *)
+  let fsos = SD.create 1 in (* formulas of statement *)
+  let sof = FD.create 1 in (* statement of formula *)
+  failwith "todo"
 
 let interpret_procedure proc_of_name p =
   failwith "TODO"

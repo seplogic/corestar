@@ -1,6 +1,8 @@
 open Format
-open Digraph
+
 module C = Core
+module DG = Digraph
+module P = Sepprover
 
 type cfg_vertex =
   | Call_cfg of C.call_core
@@ -9,21 +11,24 @@ type cfg_vertex =
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
-module Cfg = Digraph.Make (struct type t = cfg_vertex end) (UnlabeledEdge)
+module Cfg = DG.Make (struct type t = cfg_vertex end) (DG.UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
-module CfgVSet = HashSet.Make (Cfg.V)
+module CfgVHashSet = HashSet.Make (Cfg.V)
 
-(* TODO(rgrig): uncomment after defining the type for symbolic states.
-module StateGraph (V : Digraph.ANY_TYPE) = Digraph.Make
-  (V)
-  (struct
-    type t = state_transition
-    let compare = compare
-    let default = Nop_st
-  end)
+(* If [ss_missing_heap] is star-joined to the initial heap, then
+  [ss_current_heap] is reached without fault.
+  INV: [ss_missing_heap] must not mention program variables, only logical ones
 *)
+type symbolic_state =
+  { ss_current_heap : P.inner_form
+  ; ss_missing_heap : P.inner_form }
 
-module MakeProcedure (Cfg : Digraph.IM) = struct
+module StateGraph =
+  DG.Make (struct type t = symbolic_state end) (DG.UnlabeledEdge)
+module SgVHashtbl = Hashtbl.Make (StateGraph.V)
+module SgVHashSet = HashSet.Make (StateGraph.V)
+
+module MakeProcedure (Cfg : DG.IM) = struct
   type t =
     { cfg : Cfg.t
     ; start : Cfg.vertex
@@ -32,8 +37,8 @@ end
 
 module Procedure = MakeProcedure (Cfg)
 
-module Dot = Digraph.Dot (struct
-  include Digraph.DotDefault (Cfg)
+module Dot = DG.Dot (struct
+  include DG.DotDefault (Cfg)
   let vertex_attributes v = match V.label v with
     | Call_cfg c -> [`Label c.C.call_name]
     | Abs_cfg -> [`Label "ABS"]

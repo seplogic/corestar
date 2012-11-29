@@ -18,11 +18,11 @@ type term_structure
 
 type term_handle
 
-type pattern 
+type pattern
 
 (*
    Create a new term structure
-   It is externally functional, however underneath it uses mutation, 
+   It is externally functional, however underneath it uses mutation,
    so best to create new ones, rather than having a single starting one.
 *)
 val new_ts : unit -> term_structure
@@ -35,8 +35,8 @@ val unifies : term_structure -> pattern -> term_handle -> (term_structure -> 'a)
 val determined_exists : term_structure -> (term_handle list) -> term_handle -> term_handle -> term_structure  * (term_handle * term_handle) list
 
 
-(* Match pattern against the term_handle in the current term structure, 
-   the new term structure (with the unified variables) will be passed to the continuation 
+(* Match pattern against the term_handle in the current term structure,
+   the new term structure (with the unified variables) will be passed to the continuation
    Will raise No_match if no match can be found.
    Continutation can cause back tracking of pattern match by raising No_match
 *)
@@ -49,7 +49,7 @@ val determined_exists : term_structure -> (term_handle list) -> term_handle -> t
 val ground_pattern_tuple : Psyntax.args list -> term_structure -> (term_handle * term_structure)
 
 val ground_pattern : Psyntax.args -> term_structure -> (term_handle * term_structure)
-        
+
 val add_term : bool -> Psyntax.args -> term_structure -> (term_handle * term_structure)
 
 val add_pattern : Psyntax.args -> term_structure -> (pattern * term_structure)
@@ -66,7 +66,7 @@ val make_equal : term_structure -> term_handle -> term_handle -> term_structure
 
 val make_list_equal  : term_structure -> term_handle list -> term_structure
 
-val normalise : term_structure -> term_handle -> term_handle 
+val normalise : term_structure -> term_handle -> term_handle
 
 (*
    Return a compressed term_structure, will remove redundant terms.
@@ -75,9 +75,9 @@ val compress : term_structure -> term_structure * (term_handle -> term_handle)
 
 val make_not_equal : term_structure -> term_handle -> term_handle -> term_structure
 
-val add_tuple : bool -> Psyntax.args list -> term_structure -> term_handle * term_structure 
+val add_tuple : bool -> Psyntax.args list -> term_structure -> term_handle * term_structure
 
-val make_tuple_pattern : Psyntax.args list -> term_structure -> pattern * term_structure 
+val make_tuple_pattern : Psyntax.args list -> term_structure -> pattern * term_structure
 
 
 val make_equal_t : bool -> term_structure -> Psyntax.args -> Psyntax.args -> term_structure
@@ -108,7 +108,7 @@ val get_eqs_norecs : term_structure -> (Psyntax.args * Psyntax.args) list
 val get_neqs_norecs : term_structure -> (Psyntax.args * Psyntax.args) list
 
 val get_term : term_structure -> term_handle-> Psyntax.args
-val kill_var : term_structure -> Vars.var -> term_structure 
+val kill_var : term_structure -> Vars.var -> term_structure
 val update_var_to : term_structure -> Vars.var -> Psyntax.args -> term_structure
 
 val rewrite : term_structure -> Psyntax.rewrite_rule list -> (term_structure * Psyntax.rewrite_guard -> bool) -> term_structure

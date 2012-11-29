@@ -82,7 +82,7 @@ let mk_ts_form_af ts form antiform =
 
 let break_ts_form ts_form =
   ts_form.F.ts, ts_form.F.form
-  
+
 let break_ts_form_af ts_form =
   ts_form.AF.ts, ts_form.AF.form, ts_form.AF.antiform
 
@@ -99,7 +99,7 @@ let update_var_to_af ts_form v e =
   {ts_form with AF.ts = Cterm.update_var_to ts_form.AF.ts v e}
 
 (* {{{ pretty printing
- * See 
+ * See
  *   http://rgrig.blogspot.com/2010/09/certain-type-of-pretty-printing-in.html
  * for an explanation of the basic idea.  *)
 (* {{{ printing of atomic formulas *)
@@ -114,33 +114,33 @@ let pp_smset_element prefix ppf (n, args) =
 (* {{{ printing for [formula], [syntactic_form], and [ts_form] *)
 (* NOTE: The pattern match on formula is meant to cause errors if
   * new fields are added to type [formula]. *)
-let rec pp_formula' pp_term pp ppf first 
+let rec pp_formula' pp_term pp ppf first
   {spat=spat; plain=plain; disjuncts=disjuncts; eqs=eqs; neqs=neqs} =
-    let first = 
+    let first =
       List.fold_left (pp.separator (pp_eq pp_term) ppf) first eqs in
-    let first = 
+    let first =
       List.fold_left (pp.separator (pp_neq pp_term) ppf) first neqs in
-    let first = 
+    let first =
       RMSet.fold (pp.separator (pp_rmset_element "" pp_term) ppf) first spat in
-    let first = 
-      RMSet.fold (pp.separator (pp_rmset_element "!" pp_term) ppf) first plain 
+    let first =
+      RMSet.fold (pp.separator (pp_rmset_element "!" pp_term) ppf) first plain
     in
-      List.fold_left 
+      List.fold_left
         (pp.separator (pp_disjunct (pp_formula pp_term)) ppf) first disjuncts
 and pp_formula pp_term = pp_whole (pp_formula' pp_term) pp_star
 
-let rec pp_syntactic_form' pp ppf first 
+let rec pp_syntactic_form' pp ppf first
   {sspat=sspat; splain=splain; sdisjuncts=sdisjuncts; seqs=seqs; sneqs=sneqs} =
-    let first = 
+    let first =
       List.fold_left (pp.separator (pp_eq string_args) ppf) first seqs in
-    let first = 
+    let first =
       List.fold_left (pp.separator (pp_neq string_args) ppf) first sneqs in
-    let first = 
+    let first =
       SMSet.fold (pp.separator (pp_smset_element "") ppf) first sspat in
-    let first = 
-      SMSet.fold (pp.separator (pp_smset_element "!") ppf) first splain 
+    let first =
+      SMSet.fold (pp.separator (pp_smset_element "!") ppf) first splain
     in
-      List.fold_left 
+      List.fold_left
         (pp.separator (pp_disjunct pp_syntactic_form) ppf) first sdisjuncts
 and pp_syntactic_form ppf sform = pp_whole pp_syntactic_form' pp_star ppf sform
 
@@ -298,8 +298,8 @@ let rec normalise ts form : formula * term_structure =
 	  None,None -> raise Contradiction
 	| Some (form,ts'), None
 	| None, Some (form,ts') ->
-	    fprintf !(Debug.proof_dump) 
-              "Disjunct eliminated! Remaining disjunct:@ %a@\n" 
+	    fprintf !(Debug.proof_dump)
+              "Disjunct eliminated! Remaining disjunct:@ %a@\n"
               (pp_formula (pp_c ts)) form;
 	    let nform = (conjunction form nform) in
 	    f nform
@@ -371,7 +371,7 @@ let smset_to_list fresh a ts =
     else
       rs, ts
   in inner a [] ts
-  
+
 
 let rec add_pair_list fresh xs ts rs =
   match xs with
@@ -426,10 +426,10 @@ let smset_to_list_ground a ts =
 
 let rec convert_ground (ts :term_structure) (sf : syntactic_form) : formula * term_structure =
   assert (sf.sdisjuncts = []);  (* don't want disjuncts in an SMT pattern *)
-  assert (sf.sspat = SMSet.empty); 
+  assert (sf.sspat = SMSet.empty);
   let plain, ts = smset_to_list_ground sf.splain ts in
-  let eqs, ts = List.fold_left (fun (eqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::eqs,ts)) ([],ts) sf.seqs in  
-  let neqs, ts = List.fold_left (fun (neqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::neqs,ts)) ([],ts) sf.sneqs in  
+  let eqs, ts = List.fold_left (fun (eqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::eqs,ts)) ([],ts) sf.seqs in
+  let neqs, ts = List.fold_left (fun (neqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::neqs,ts)) ([],ts) sf.sneqs in
   {spat = RMSet.empty; plain = RMSet.lift_list plain; disjuncts = []; eqs=eqs; neqs=neqs}, ts
 
 
@@ -573,21 +573,21 @@ type sequent =
     ts : term_structure;
     assumption : formula;
     obligation : formula;
-    antiframe : formula; 
+    antiframe : formula;
   }
 
 
 let pp_sequent ppf
   {matched=matched; ts=ts; assumption=assumption; obligation=obligation; antiframe=antiframe} =
-    let pp_term = pp_c ts in 
+    let pp_term = pp_c ts in
     let rmf = pp_star.separator (pp_rmset_element "" pp_term) ppf in
     ignore (RMSet.fold rmf true matched);
     fprintf ppf "@ | ";
     let first = pp_ts' pp_star ppf true ts in
     ignore (pp_formula' pp_term pp_star ppf first assumption);
     fprintf ppf "@ |- ";
-    pp_formula pp_term ppf obligation; 
-    fprintf ppf "@ -| "; 
+    pp_formula pp_term ppf obligation;
+    fprintf ppf "@ -| ";
     pp_formula pp_term ppf antiframe
 
 
@@ -601,10 +601,10 @@ let true_sequent (seq : sequent) : bool =
     &&
   plain seq.assumption
 
-let frame_sequent (seq : sequent) : bool = 
+let frame_sequent (seq : sequent) : bool =
   (seq.obligation = empty) && (seq.antiframe = empty)
 
-let abductive_sequent (seq : sequent) : bool = 
+let abductive_sequent (seq : sequent) : bool =
   (seq.obligation = empty)
 
 (* Stolen from Prover just for refactor *)
@@ -616,19 +616,19 @@ type pat_sequent =
     assumption_same : syntactic_form;
     assumption_diff : syntactic_form;
     obligation_diff : syntactic_form;
-    antiframe_diff : syntactic_form; 
+    antiframe_diff : syntactic_form;
   }
 
 let convert_sequent (ps : psequent) : pat_sequent =
 (*  fprintf !(Debug.proof_dump) "Converting sequent: %a@\n" string_pseq ps;*)
   let ps = match ps with
-    pm,pl,pr,pa -> 
+    pm,pl,pr,pa ->
       {
        assumption_same = convert_to_inner pm;
        assumption_diff = convert_to_inner pl;
        obligation_diff = convert_to_inner pr;
        antiframe_diff = convert_to_inner pa;
-     } in 
+     } in
 (*  Format.fprintf !(Debug.proof_dump) "Produced sequent: %a@ |@ %a@ |-@ %a@\n@\n" pp_sform ps.assumption_same pp_sform ps.assumption_diff pp_sform ps.obligation_diff; *)
   ps
 
@@ -767,12 +767,12 @@ let get_frame_antiframe seq =
   assert (abductive_sequent seq);
   mk_ts_form_af seq.ts seq.assumption seq.antiframe
 
-let rec get_frames_antiframes seqs frms = 
-  match seqs with 
+let rec get_frames_antiframes seqs frms =
+  match seqs with
     [] -> frms
   | seq::seqs ->  get_frames_antiframes seqs ((get_frame_antiframe seq)::frms)
 
-let get_frames_antiframes seqs = 
+let get_frames_antiframes seqs =
   get_frames_antiframes seqs []
 
 

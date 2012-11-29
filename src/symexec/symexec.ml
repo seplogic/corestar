@@ -20,6 +20,28 @@ open Sepprover
 open Specification
 open Vars
 
+(* IMPLEMENTATION NOTE
+
+(This is descriptive, not prescriptive.  I, rgrig, would change some of these,
+time permitting.)
+
+Data structures:
+  * a control flow graph, made out of [cfg_node]s
+  * a transition system, whose graph is made out of [node]s
+  * each [node] points to its corresponding [cfg_node]; to go from a [cfg_node]
+    to its list of [node]s use the dictionary [graphn]
+Where are the formulas?
+  * a [formset_entry] is a pair of a formula and a [node]
+  * to go from [cfg_node] to its set of [formset_entry]s use the dictionary
+    [formset_hashtbl]; it should be in sync with [graphn]
+
+Some notes on algorithms:
+  * The exploration is DFS, done mainly by [execute_core_stmt].
+  * Abstraction is done when a label-statement is hit.  This is where the prover
+    is asked if existing [node]s (for the same [cfg_node]) imply each-other, and
+    some (DFS) exploration paths are cut short.
+*)
+
 
 type execType = Abduct | Check | SymExec
 
@@ -337,9 +359,6 @@ let call_jsr_static (sheap,id) spec il node =
   res
 
 
-exception Contained
-
-
 let check_postcondition (heaps : formset_entry list) (sheap : formset_entry) =
   let sheap_noid = fst sheap in
   let node = snd sheap in
@@ -453,83 +472,80 @@ and execute_core_stmt
   | Core.Label_stmt_core l ->
     (* Update the labels formset, if sheap already implied then fine, otherwise or it in. *)
     (let id = n.sid in
-    try
-      if Config.symb_debug() then
-        Format.printf "@\nPre-abstraction heap:@\n    %a@.%!" heap_pprinter sheap_noid;
-      (* TODO: Introduce curr_abduct_abs_rules? *)
-      let frames_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_form sheap_noid) in
-      let antiframes_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_af sheap_noid) in
-      let antiframes_abs =
-        if frames_abs != [] && antiframes_abs = [] then [ empty_inner_form ] else antiframes_abs in
-      if Config.symb_debug() then
-        (List.iter (fun heap -> Format.printf "@\nPost-abstraction heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-        match !exec_type with
-        | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstraction antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
-        | _ -> ());
-      (* Obtain abstract values of abstracted heaps using abstract interpretation *)
-      let frames_abs = List.map (fun heap -> Sepprover.abstract_val heap) frames_abs in
-      let antiframes_abs = List.map (fun heap -> Sepprover.abstract_val heap) antiframes_abs in
-      if Config.symb_debug() then
-        (List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-        match !exec_type with
-        | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstract_val antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
-        | _ -> ());
+    if Config.symb_debug() then
+      Format.printf "@\nPre-abstraction heap:@\n    %a@.%!" heap_pprinter sheap_noid;
+    (* TODO: Introduce curr_abduct_abs_rules? *)
+    let frames_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_form sheap_noid) in
+    let antiframes_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_af sheap_noid) in
+    let antiframes_abs =
+      if frames_abs != [] && antiframes_abs = [] then [ empty_inner_form ] else antiframes_abs in
+    if Config.symb_debug() then
+      (List.iter (fun heap -> Format.printf "@\nPost-abstraction heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
+      match !exec_type with
+      | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstraction antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
+      | _ -> ());
+    (* Obtain abstract values of abstracted heaps using abstract interpretation *)
+    let frames_abs = List.map (fun heap -> Sepprover.abstract_val heap) frames_abs in
+    let antiframes_abs = List.map (fun heap -> Sepprover.abstract_val heap) antiframes_abs in
+    if Config.symb_debug() then
+      (List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
+      match !exec_type with
+      | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstract_val antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
+      | _ -> ());
 
-      explore_node (snd sheap);
-      let heaps_abs = List.map (fun (if1,if2) -> combine if1 if2) (cross_product frames_abs antiframes_abs) in
-      let sheaps_abs = add_id_abs_formset n heaps_abs in
-      List.iter
-        (fun sheap2 ->
-          ignore (add_edge_with_proof (snd sheap) (snd sheap2) AbsE
-            ("Abstract@"^(Debug.toString Pp_core.pp_ast_core n.skind))))
-        sheaps_abs;
+    explore_node (snd sheap);
+    let heaps_abs = List.map (fun (if1,if2) -> combine if1 if2) (cross_product frames_abs antiframes_abs) in
+    let sheaps_abs = add_id_abs_formset n heaps_abs in
+    List.iter
+      (fun sheap2 ->
+        ignore (add_edge_with_proof (snd sheap) (snd sheap2) AbsE
+          ("Abstract@"^(Debug.toString Pp_core.pp_ast_core n.skind))))
+      sheaps_abs;
 
-      if Config.symb_debug() then
-        (Format.printf "\nAbstracted heaps before filtering: \n%!";
-        List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
-      let formset = (formset_table_find id) in
-      if Config.symb_debug() then
-        (Format.printf "\nPreviously abstracted heaps: \n%!";
-        List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) formset;);
-      let sheaps_abs = map_option
-        (fun (sheap2,id2) ->
-          (let s = ref [] in
-            (if (List.for_all
-              (fun (sheap1,id1) ->
-                let sheap1_form = inner_form_af_to_form sheap1 in
-                let sheap1_af = inner_form_af_to_af sheap1 in
-                let sheap2_form = inner_form_af_to_form sheap2 in
-                let sheap2_af = inner_form_af_to_af sheap2 in
-                let sheap1_form,sheap2_form =
-                  if Config.abs_int_join() then join_over_numeric sheap1_form sheap2_form
-                  else sheap1_form,sheap2_form in
-                let sheap1_af,sheap2_af =
-                  if Config.abs_int_join() then join_over_numeric sheap1_af sheap2_af
-                  else sheap1_af,sheap2_af in
-                if ((frame_inner !curr_logic sheap2_form sheap1_form <> None) ||
-                  (frame_inner !curr_logic sheap2_af sheap1_af <> None))
-                then
-                  (ignore (add_edge_with_proof id2 id1 ContE
-                    ("Contains@"^(Debug.toString Pp_core.pp_ast_core n.skind))); false)
-                else (s := ("\n---------------------------------------------------------\n" ^
-                  (string_of_proof ())) :: !s; true))
-              formset)
-            then
-              (if !s <> [] then (add_url_to_node id2 !s);
-              Some (sheap2,id2))
-            else
-              None)
-          )
+    if Config.symb_debug() then
+      (Format.printf "\nAbstracted heaps before filtering: \n%!";
+      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
+    let formset = (formset_table_find id) in
+    if Config.symb_debug() then
+      (Format.printf "\nPreviously abstracted heaps: \n%!";
+      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) formset;);
+    let sheaps_abs = map_option
+      (fun (sheap2,id2) ->
+        (let s = ref [] in
+          (if (List.for_all
+            (fun (sheap1,id1) ->
+              let sheap1_form = inner_form_af_to_form sheap1 in
+              let sheap1_af = inner_form_af_to_af sheap1 in
+              let sheap2_form = inner_form_af_to_form sheap2 in
+              let sheap2_af = inner_form_af_to_af sheap2 in
+              let sheap1_form,sheap2_form =
+                if Config.abs_int_join() then join_over_numeric sheap1_form sheap2_form
+                else sheap1_form,sheap2_form in
+              let sheap1_af,sheap2_af =
+                if Config.abs_int_join() then join_over_numeric sheap1_af sheap2_af
+                else sheap1_af,sheap2_af in
+              if ((frame_inner !curr_logic sheap2_form sheap1_form <> None) ||
+                (frame_inner !curr_logic sheap2_af sheap1_af <> None))
+              then
+                (ignore (add_edge_with_proof id2 id1 ContE
+                  ("Contains@"^(Debug.toString Pp_core.pp_ast_core n.skind))); false)
+              else (s := ("\n---------------------------------------------------------\n" ^
+                (string_of_proof ())) :: !s; true))
+            formset)
+          then
+            (if !s <> [] then (add_url_to_node id2 !s);
+            Some (sheap2,id2))
+          else
+            None)
         )
-        sheaps_abs in
-      if Config.symb_debug() then
-        (Format.printf "\nAbstracted heaps after filtering: \n%!";
-        List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
+      )
+      sheaps_abs in
+    if Config.symb_debug() then
+      (Format.printf "\nAbstracted heaps after filtering: \n%!";
+      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
 
-      formset_table_replace id (sheaps_abs @ formset);
-      execs_one n sheaps_abs
-    with Contained ->
-      if Config.symb_debug() then Format.printf "Formula contained.\n%!"; [])
+    formset_table_replace id (sheaps_abs @ formset);
+    execs_one n sheaps_abs)
 
   | Core.Goto_stmt_core _ -> execs_one n [sheap]
 
@@ -545,6 +561,7 @@ and execute_core_stmt
         | Check ->
           (match hs with | None -> false | Some _ -> false)
         | _ -> false
+      (* TODO(rgrig): This looks wrong: [abort] is always [false]. *)
       in
       if abort then
         [ (empty_inner_form_af, add_good_node "Abort") ]
