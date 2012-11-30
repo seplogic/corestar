@@ -12,6 +12,10 @@ let singleton e =
   let h = create 1 in
   add h e; h
 
+let of_list es =
+  let h = create (2 * List.length es) in
+  List.iter (add h) es; h
+
 let mem = Hashtbl.mem
 
 let iter f h = Hashtbl.iter (fun x _ -> f x) h
@@ -45,6 +49,7 @@ module type S = sig
   val mem : t -> elt -> bool
   val remove : t -> elt -> unit
   val singleton : elt -> t
+  val of_list : elt list -> t
 end
 
 module Make (E : HashedType) = struct
@@ -59,6 +64,8 @@ module Make (E : HashedType) = struct
   let mem = H.mem
   let remove = H.remove
   let singleton e = let h = create 1 in add h e; h
+  let of_list es =
+    let h = create (2 * List.length es) in List.iter (add h) es; h
 
   (* Depend on [iter]/[fold]. *)
   let choose = choose_gen iter

@@ -15,18 +15,18 @@ module Cfg = DG.Make (struct type t = cfg_vertex end) (DG.UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
 module CfgVHashSet = HashSet.Make (Cfg.V)
 
-(* If [ss_missing_heap] is star-joined to the initial heap, then
-  [ss_current_heap] is reached without fault.
-  INV: [ss_missing_heap] must not mention program variables, only logical ones
+(* If [missing_heap] is star-joined to the initial heap, then
+  [current_heap] is reached without fault.
+  INV: [missing_heap] must not mention program variables, only logical ones
 *)
-type symbolic_state =
-  { ss_current_heap : P.inner_form
-  ; ss_missing_heap : P.inner_form }
+type configuration =
+  { current_heap : P.inner_form
+  ; missing_heap : P.inner_form }
 
-module StateGraph =
-  DG.Make (struct type t = symbolic_state end) (DG.UnlabeledEdge)
-module SgVHashtbl = Hashtbl.Make (StateGraph.V)
-module SgVHashSet = HashSet.Make (StateGraph.V)
+module ConfigurationGraph =
+  DG.Make (struct type t = configuration end) (DG.UnlabeledEdge)
+module CVHashtbl = Hashtbl.Make (ConfigurationGraph.V)
+module CVHashSet = HashSet.Make (ConfigurationGraph.V)
 
 module MakeProcedure (Cfg : DG.IM) = struct
   type t =

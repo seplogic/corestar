@@ -222,32 +222,68 @@ let output_sccs cs =
 
 (* symbolic execution for one procedure {{{ *)
 
-type interpret_procedure_result =
-  | IPR_ok
-  | IPR_spec_updated
-  | IPR_nok
+module ProcedureInterpreter = struct
 
-(* Builds a graph of formulae, in BFS order. *)
-let generic_interpreter exec cfg start_statement start_state_list =
-  (* Short names for Statement/Formula Set/Dictionary *)
-  let module SS = G.CfgVHashSet in let module SD = G.CfgVHashtbl in
-  let module FS = G.SgVHashSet in let module FD = G.SgVHashtbl in
-  let fg = G.StateGraph.create () in (* formula graph *)
-  let fsos = SD.create 1 in (* formulas of statement *)
-  let sof = FD.create 1 in (* statement of formula *)
-  failwith "todo"
+  type interpret_procedure_result =
+    | NOK
+    | OK
+    | Spec_updated
+    | Unknown
 
-let interpret_procedure proc_of_name p =
-  failwith "TODO"
+  (* Short names for Statement/Configuration Set/Dictionary *)
+  module SS = G.CfgVHashSet
+  module SD = G.CfgVHashtbl
+  module CS = G.CVHashSet
+  module CD = G.CVHashtbl
 
+  (* Other short names. *)
+  module CG = G.ConfigurationGraph
+
+  let update _ =
+    failwith "TODO"
+    (* TODO: build set of old pre-configurations, build set of new pre-confs,
+    for each new pre-conf find the post-conf and add it, simplify the new set
+    of post-confs (if abstraction). *)
+
+  (* Builds a graph of configurations, in BFS order. *)
+  (* XXX: refactor; horrible now *)
+  let interpret_cfg cfg v cs =
+    let cg = CG.create () in
+    let post_of = SD.create 1 in
+    let statement_of = CD.create 1 in
+    let cs = List.map CG.V.create cs in
+    let cs_set = CS.of_list cs in
+    List.iter (CG.add_vertex cg) cs;
+    List.iter (fun c -> CD.add statement_of c v) cs;
+    SD.add post_of v cs_set;
+    let dirty_que, dirty_set = Queue.create (), SS.create 1 in
+    let make_dirty v =
+      if not (SS.mem dirty_set v) then begin
+        SS.add dirty_set v; Queue.push v dirty_que
+      end in
+    G.Cfg.iter_succ make_dirty cfg v;
+    let budget = ref (1 lsl 20) in
+    while not (Queue.is_empty dirty_que) && !budget > 0 do begin
+      decr budget;
+      let v = Queue.pop dirty_que in SS.remove dirty_set v;
+      if update cg cfg post_of statement_of v then
+        G.Cfg.iter_succ make_dirty cfg v
+    end done
+
+  let interpret proc_of_name p =
+    (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
+    failwith "TODO"
+
+end
 (* }}} *)
 
 (* Assumes that components come in reversed topological order. *)
 let rec interpret_one_scc proc_of_name ps =
-  let rs = List.map (interpret_procedure proc_of_name) ps in
-  if List.exists ((=) IPR_spec_updated) rs
+  let module PI = ProcedureInterpreter in
+  let rs = List.map (PI.interpret proc_of_name) ps in
+  if List.exists ((=) PI.Spec_updated) rs
   then interpret_one_scc proc_of_name ps
-  else List.for_all ((=) IPR_ok) rs
+  else List.for_all ((=) PI.OK) rs
 
 let interpret gs =
   let cg, von = compute_call_graph gs in
