@@ -239,6 +239,12 @@ module ProcedureInterpreter = struct
   (* Other short names. *)
   module CG = G.ConfigurationGraph
 
+  type interpreter_state =
+    { flow_graph : G.Cfg.t (* input, unchanged *)
+    ; configuration_graph : CG.t
+    ; post_of : CS.t SD.t
+    ; statement_of : G.Cfg.V.t CD.t }
+
   let update _ =
     failwith "TODO"
     (* TODO: build set of old pre-configurations, build set of new pre-confs,
