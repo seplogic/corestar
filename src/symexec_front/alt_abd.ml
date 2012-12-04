@@ -5,6 +5,7 @@ open Debug
 open Format
 module C = Core
 module G = Cfg
+module P = Cfg.Procedure
 
 exception Fatal of string
 
@@ -140,13 +141,13 @@ let simplify_cfg { ProcedureH.cfg; start; stop } =
       G.Cfg.add_vertex s_cfg w; HVHashtbl.add nv v w in
   CfgH.iter_vertex add_vertex cfg;
   CfgH.iter_vertex (sc_add_edges cfg nv s_cfg) cfg;
-  { G.Procedure.cfg = s_cfg
+  { P.cfg = s_cfg
   ; start = HVHashtbl.find nv start
   ; stop = HVHashtbl.find nv stop }
 
 (* POST: Only abstraction nodes have in-degree bigger than 1. *)
 let insert_abstraction_nodes p =
-  let module P = G.Procedure in let module H = G.CfgVHashtbl in
+  let module H = G.CfgVHashtbl in
   let g = p.P.cfg in
   assert (G.Cfg.in_degree g p.P.start <= 1);
   let xs = H.create 1 in
@@ -171,12 +172,12 @@ let mk_cfg q =
   if !verbose >= 3 then maybe () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
   ignore (option_map insert_abstraction_nodes g);
-  if !verbose >= 2 then maybe () (fun g -> output_cfg n g.G.Procedure.cfg) g;
+  if !verbose >= 2 then maybe () (fun g -> output_cfg n g.P.cfg) g;
   { q with C.proc_body = g }
 
 (* helpers for [compute_call_graph] {{{ *)
 module CallGraph = Digraph.Make
-  (struct type t = (G.Procedure.t, C.inner_spec) C.procedure end)
+  (struct type t = (P.t, C.inner_spec) C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
   include Digraph.DotDefault (CallGraph)
@@ -193,7 +194,7 @@ let ccg_add_edges cg von p =
         with Not_found ->
           raise (Fatal ("undefined procedure: " ^ c.C.call_name)))
     | _ -> () in
-  let pb b = G.Cfg.iter_vertex add_outgoing b.G.Procedure.cfg in
+  let pb b = G.Cfg.iter_vertex add_outgoing b.P.cfg in
   maybe () pb p.C.proc_body
 
 (* }}} *)
@@ -239,44 +240,52 @@ module ProcedureInterpreter = struct
   (* Other short names. *)
   module CG = G.ConfigurationGraph
 
-  type interpreter_state =
-    { flow_graph : G.Cfg.t (* input, unchanged *)
-    ; configuration_graph : CG.t
+  type interpreter_context =
+    { flowgraph : G.Cfg.t (* input, unchanged *)
+    ; confgraph : CG.t
     ; post_of : CS.t SD.t
-    ; statement_of : G.Cfg.V.t CD.t }
+    ; statement_of : G.Cfg.vertex CD.t }
 
-  let update _ =
+  let confs context s =
+    try SD.find context.post_of s with Not_found -> CS.create 1
+
+  let update s v =
     failwith "TODO"
     (* TODO: build set of old pre-configurations, build set of new pre-confs,
     for each new pre-conf find the post-conf and add it, simplify the new set
     of post-confs (if abstraction). *)
 
-  (* Builds a graph of configurations, in BFS order. *)
-  (* XXX: refactor; horrible now *)
-  let interpret_cfg cfg v cs =
-    let cg = CG.create () in
+  let initialize procedure conf =
+    let flowgraph = procedure.P.cfg in
+    let confgraph = CG.create () in
     let post_of = SD.create 1 in
     let statement_of = CD.create 1 in
-    let cs = List.map CG.V.create cs in
-    let cs_set = CS.of_list cs in
-    List.iter (CG.add_vertex cg) cs;
-    List.iter (fun c -> CD.add statement_of c v) cs;
-    SD.add post_of v cs_set;
-    let dirty_que, dirty_set = Queue.create (), SS.create 1 in
-    let make_dirty v =
-      if not (SS.mem dirty_set v) then begin
-        SS.add dirty_set v; Queue.push v dirty_que
-      end in
-    G.Cfg.iter_succ make_dirty cfg v;
-    let budget = ref (1 lsl 20) in
-    while not (Queue.is_empty dirty_que) && !budget > 0 do begin
-      decr budget;
-      let v = Queue.pop dirty_que in SS.remove dirty_set v;
-      if update cg cfg post_of statement_of v then
-        G.Cfg.iter_succ make_dirty cfg v
-    end done
+    let conf = CG.V.create conf in
+    CG.add_vertex confgraph conf;
+    CD.add statement_of conf procedure.P.start;
+    SD.add post_of procedure.P.start (CS.singleton conf);
+    { flowgraph; confgraph; post_of; statement_of }
 
-  let interpret proc_of_name p =
+  (* Builds a graph of configurations, in BFS order. *)
+  let interpret_flowgraph procedure conf =
+    let context = initialize procedure conf in
+    let dirty_que, dirty_set = Queue.create (), SS.create 1 in
+    let make_dirty s =
+      if not (SS.mem dirty_set s) then begin
+        SS.add dirty_set s; Queue.push s dirty_que
+      end in
+    G.Cfg.iter_succ make_dirty context.flowgraph procedure.P.start;
+    let rec bfs budget =
+      if budget = 0 then None else
+      if Queue.is_empty dirty_que then
+        Some (confs context procedure.P.stop)
+      else
+        let s = Queue.pop dirty_que in SS.remove dirty_set s;
+        if update context s then G.Cfg.iter_succ make_dirty context.flowgraph s;
+        bfs (budget - 1) in
+    bfs (1 lsl 20)
+
+  let rec interpret proc_of_name p =
     (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
     failwith "TODO"
 
