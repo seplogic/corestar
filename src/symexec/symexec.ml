@@ -485,8 +485,8 @@ and execute_core_stmt
       | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstraction antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
       | _ -> ());
     (* Obtain abstract values of abstracted heaps using abstract interpretation *)
-    let frames_abs = List.map (fun heap -> Sepprover.abstract_val heap) frames_abs in
-    let antiframes_abs = List.map (fun heap -> Sepprover.abstract_val heap) antiframes_abs in
+    let frames_abs = List.map Sepprover.abstract_val frames_abs in
+    let antiframes_abs = List.map Sepprover.abstract_val antiframes_abs in
     if Config.symb_debug() then
       (List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
       match !exec_type with

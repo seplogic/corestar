@@ -246,7 +246,7 @@ module ProcedureInterpreter = struct
     ; post_of : CS.t SD.t
     ; statement_of : G.Cfg.vertex CD.t }
 
-  let confs context s =
+  let get_conf_set context s =
     try SD.find context.post_of s with Not_found -> CS.create 1
 
   let update s v =
@@ -266,24 +266,41 @@ module ProcedureInterpreter = struct
     SD.add post_of procedure.P.start (CS.singleton conf);
     { flowgraph; confgraph; post_of; statement_of }
 
+  type bfs_state =
+    { bfs_que : G.Cfg.vertex Queue.t
+    ; bfs_set : SS.t }
+
+  let bfs_state_init () =
+    { bfs_que = Queue.create ()
+    ; bfs_set = SS.create 1 }
+
+  let bfs_state_enque { bfs_que; bfs_set } s =
+    if not (SS.mem bfs_set s) then begin
+      SS.add bfs_set s;
+      Queue.push s bfs_que
+    end
+
+  let bfs_state_deque { bfs_que; bfs_set } =
+    let r = Queue.pop bfs_que in
+    SS.remove bfs_set r;
+    r
+
+  let bfs_state_done q = Queue.is_empty q.bfs_que
+
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph procedure conf =
     let context = initialize procedure conf in
-    let dirty_que, dirty_set = Queue.create (), SS.create 1 in
-    let make_dirty s =
-      if not (SS.mem dirty_set s) then begin
-        SS.add dirty_set s; Queue.push s dirty_que
-      end in
-    G.Cfg.iter_succ make_dirty context.flowgraph procedure.P.start;
+    let q = bfs_state_init () in
+    let enque_succ = G.Cfg.iter_succ (bfs_state_enque q) context.flowgraph in
+    enque_succ procedure.P.start;
     let rec bfs budget =
-      if budget = 0 then None else
-      if Queue.is_empty dirty_que then
-        Some (confs context procedure.P.stop)
-      else
-        let s = Queue.pop dirty_que in SS.remove dirty_set s;
-        if update context s then G.Cfg.iter_succ make_dirty context.flowgraph s;
-        bfs (budget - 1) in
-    bfs (1 lsl 20)
+      if budget = 0 || bfs_state_done q then budget else begin
+        let s = bfs_state_deque q in
+        if update context s then enque_succ s;
+        bfs (budget - 1)
+      end in
+    if bfs (1 lsl 20) = 0 then None
+    else Some (get_conf_set context procedure.P.stop)
 
   let rec interpret proc_of_name p =
     (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
