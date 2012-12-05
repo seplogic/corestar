@@ -241,30 +241,50 @@ module ProcedureInterpreter = struct
   module CG = G.ConfigurationGraph
 
   type interpreter_context =
-    { flowgraph : G.Cfg.t (* input, unchanged *)
-    ; confgraph : CG.t
-    ; post_of : CS.t SD.t
+    { confgraph : CG.t
+    ; flowgraph : G.Cfg.t (* input, unchanged *)
+    ; post_of : CS.t SD.t (* maps a statement to its post-configurations *)
+    ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
     ; statement_of : G.Cfg.vertex CD.t }
 
-  let get_conf_set context s =
-    try SD.find context.post_of s with Not_found -> CS.create 1
+  let confs d s = try SD.find d s with Not_found -> CS.create 1
+  let post_confs context = confs context.post_of
+  let pre_confs context = confs context.pre_of
 
-  let update s v =
-    failwith "TODO"
-    (* TODO: build set of old pre-configurations, build set of new pre-confs,
-    for each new pre-conf find the post-conf and add it, simplify the new set
-    of post-confs (if abstraction). *)
+  let update execute abstract context s =
+    (* Make set of new preconditions. *)
+    let old_pre = pre_confs context s in
+    let new_pre = CS.create 1 in
+    let add_new_pre c = if not (CS.mem old_pre c) then CS.add new_pre c in
+    let add_posts_of s = CS.iter add_new_pre (post_confs context s) in
+    G.Cfg.iter_pred add_posts_of context.flowgraph s;
+
+    (* Update preconditions. *)
+    CS.iter (CS.add old_pre) new_pre;
+    SD.replace context.pre_of s old_pre;
+
+    (* Update postconditions. *)
+    let posts = post_confs context s in
+    let add_post pre =
+      CS.add posts (execute (CG.V.label pre) (G.Cfg.V.label s)) in
+    CS.iter add_post new_pre;
+
+    (* Abstract. *)
+    let posts = abstract posts in
+    SD.replace context.post_of s posts;
+    CS.length new_pre > 0
 
   let initialize procedure conf =
-    let flowgraph = procedure.P.cfg in
     let confgraph = CG.create () in
+    let flowgraph = procedure.P.cfg in
     let post_of = SD.create 1 in
+    let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
     let conf = CG.V.create conf in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
     SD.add post_of procedure.P.start (CS.singleton conf);
-    { flowgraph; confgraph; post_of; statement_of }
+    { confgraph; flowgraph; post_of; pre_of; statement_of }
 
   type bfs_state =
     { bfs_que : G.Cfg.vertex Queue.t
@@ -288,7 +308,7 @@ module ProcedureInterpreter = struct
   let bfs_state_done q = Queue.is_empty q.bfs_que
 
   (* Builds a graph of configurations, in BFS order. *)
-  let interpret_flowgraph procedure conf =
+  let interpret_flowgraph update procedure conf =
     let context = initialize procedure conf in
     let q = bfs_state_init () in
     let enque_succ = G.Cfg.iter_succ (bfs_state_enque q) context.flowgraph in
@@ -300,7 +320,7 @@ module ProcedureInterpreter = struct
         bfs (budget - 1)
       end in
     if bfs (1 lsl 20) = 0 then None
-    else Some (get_conf_set context procedure.P.stop)
+    else Some (post_confs context procedure.P.stop)
 
   let rec interpret proc_of_name p =
     (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
