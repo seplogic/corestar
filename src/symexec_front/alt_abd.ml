@@ -251,6 +251,10 @@ module ProcedureInterpreter = struct
   let post_confs context = confs context.post_of
   let pre_confs context = confs context.pre_of
 
+  (* XXX: This is way too long. *)
+  (* NOTE: For now, it assumes that different pre-confs never execute to
+    the same post-conf. Otherwise (e.g., with hash-consing), some optimizations
+    would probably help. *)
   let update execute abstract context s =
     (* Make set of new preconditions. *)
     let old_pre = pre_confs context s in
@@ -263,14 +267,19 @@ module ProcedureInterpreter = struct
     CS.iter (CS.add old_pre) new_pre;
     SD.replace context.pre_of s old_pre;
 
-    (* Update postconditions. *)
+    (* Add new postconditions, and update configuration graph. *)
     let posts = post_confs context s in
-    let add_post pre =
-      CS.add posts (execute (CG.V.label pre) (G.Cfg.V.label s)) in
-    CS.iter add_post new_pre;
+    let add_post_of pv =
+      let q = execute (CG.V.label pv) (G.Cfg.V.label s) in
+      let qv = CG.V.create q in
+      CD.add context.statement_of qv s;
+      CG.add_vertex context.confgraph qv;
+      CG.add_edge context.confgraph pv qv;
+      CS.add posts qv in
+    CS.iter add_post_of new_pre;
 
     (* Abstract. *)
-    let posts = abstract posts in
+    let posts = abstract context.confgraph posts in
     SD.replace context.post_of s posts;
     CS.length new_pre > 0
 
