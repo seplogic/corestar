@@ -262,9 +262,10 @@ module ProcedureInterpreter = struct
     SD.replace context.pre_of s old_pre;
     new_pre
 
-  (* NOTE: For now, it assumes that different pre-confs never execute to
-    the same post-conf. Otherwise (e.g., with hash-consing), some optimizations
-    would probably help. *)
+  (* Updates [post_of s].  It [execute]s starting from [new_pre] to generate
+  some new post-confs.  (The new post-confs are assumed to be fresh, for now.)
+  Then it calls [abstract] on the whole set of post-confs.  The [confgraph] is
+  updated. *)
   let update_post_confs execute abstract context new_pre s =
     let posts = post_confs context s in
     let add_post_of pv =
@@ -315,6 +316,15 @@ module ProcedureInterpreter = struct
     r
 
   let bfs_state_done q = Queue.is_empty q.bfs_que
+
+  let execute pre = function
+    | G.Call_cfg { C.call_rets; call_name; call_args } ->
+        (* XXX: execute from current_heap, apply substitution to anti-frame,
+        star-join it to the missing_heap, return the new conf *)
+        failwith "TODO"
+    | G.Abs_cfg | G.Nop_cfg -> pre
+
+  let abstract context confs = confs (* XXX *)
 
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph update procedure conf =
