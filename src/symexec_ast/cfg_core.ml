@@ -28,14 +28,14 @@ let cfg_debug () = false
 (* A node in the flowgraph. The fields [succs] and [preds] are filled
   by [Cfg_core.stmts_to_cfg]. *)
 type cfg_node = {
-  skind: Core.ast_spec core_statement;
+  skind: Core.ast_core;
   sid: int;
   mutable succs: cfg_node list;
   mutable preds: cfg_node list }
 
 (* data structure to represent (core) flowgraphs }}} *)
 (* {{{ utils for building flowgraphs *)
-let mk_node : Core.ast_spec core_statement -> cfg_node =
+let mk_node : Core.ast_core -> cfg_node =
   let x = ref 0 in
   fun stmt ->
     incr x;

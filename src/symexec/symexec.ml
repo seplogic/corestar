@@ -554,7 +554,6 @@ and execute_core_stmt
   | Core.Call_core _ -> failwith "TODO, perhaps"
   | Core.Assignment_core {Core.asgn_rets=vl; asgn_spec=spec; asgn_args=il} ->
     (
-      let spec = HashSet.choose spec in
       let hs = call_jsr_static sheap spec il n in
       let abort =
         match !exec_type with

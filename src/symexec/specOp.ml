@@ -17,11 +17,6 @@ let spec2str ppf spec  =
   let po s = fprintf ppf "@\n@[<4>{%a}@]" Psyntax.string_form s in
   po spec.Spec.pre; po spec.Spec.post
 
-let specSet2str ppf specs =
-  fprintf ppf "@\n@[<4>{";
-  Debug.list_format ", " spec2str ppf (HashSet.elements specs);
-  fprintf ppf "}@]"
-
 let pprinter_core_spec2str = Debug.toString spec2str
 
 let name_ret_v1 = "$ret_v1"

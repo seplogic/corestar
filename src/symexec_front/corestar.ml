@@ -62,13 +62,11 @@ let main () : unit =
       List.iter (
       fun {proc_name=mname; proc_spec=spec; proc_body=core} ->
         let core = match core with None -> assert false | Some core -> core in
-        Format.printf "Method: %s\nSpec: %a"  mname SpecOp.specSet2str spec;
+        Format.printf "Method: %s\nSpec: %a"  mname SpecOp.spec2str spec;
         let stmts_core = map Cfg_core.mk_node core in
         let verify_one spec =
           Symexec.verify mname stmts_core spec lo abs_rules in
-        let all_ok =
-          HashSet.fold (fun spec ok -> ok && verify_one spec) spec true in
-        if all_ok then
+        if verify_one spec then
         Format.printf "\nGood specification!\n\n" else Format.printf "\nBad specification!\n\n"
       ) question_list
     else
@@ -78,13 +76,11 @@ let main () : unit =
       List.iter (
       fun {proc_name=mname; proc_spec=spec; proc_body=core} ->
         let core = match core with None -> assert false | Some core -> core in
-        Format.printf "\nMethod: %s\nSpec: %a"  mname  SpecOp.specSet2str spec;
+        Format.printf "\nMethod: %s\nSpec: %a"  mname  SpecOp.spec2str spec;
         let stmts_core = map Cfg_core.mk_node core in
         let start_from spec =
           Symexec.bi_abduct mname stmts_core spec lo abduct_lo abs_rules in
-        let specs =
-          HashSet.fold (fun spec r -> start_from spec :: r) spec [] in
-        let specs = List.concat specs in
+        let specs = start_from spec in
         Format.printf "\nDiscovered specs:\n";
         List.iter (fun (spec_pre, spec_post) ->
           Format.printf "@\npre:@\n    %a@." Sepprover.string_inner_form spec_pre;

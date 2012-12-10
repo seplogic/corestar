@@ -72,9 +72,7 @@ let main () : unit =
       let cfg = map Cfg_core.mk_node core in
       let verify_one spec =
         Symexec.verify mname cfg spec lo abs_rules in
-      let all_ok =
-        HashSet.fold (fun spec ok -> ok && verify_one spec) spec true in
-      if all_ok = result
+      if verify_one spec = result
       then printf "."
       else printf "@\nTest %s wrongly %s.@\n" mname
         (if result then "fails" else "passes")
