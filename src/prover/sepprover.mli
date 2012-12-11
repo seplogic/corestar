@@ -47,6 +47,8 @@ val string_of_proof : unit -> string
 val get_counter_example : unit -> string
 val implies_list : inner_form list -> form -> bool
 
+val get_equal_evars : var -> inner_form -> var list
+
 (* TODO(rgrig): Remove these. It's wrong to share equalities. *)
 type inner_form_af
 val lift_inner_form : inner_form -> inner_form_af
