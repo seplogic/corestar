@@ -171,6 +171,8 @@ open Psyntax
     let frame_inner (l : logic) (i1 : inner_form) (i2 : inner_form) : inner_form list option =
       Prover.check_frame l i1 i2
 
+    let abduct_inner = Prover.abduct
+
     let abs : logic -> inner_form -> inner_form list
       = Prover.abs
 

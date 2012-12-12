@@ -11,16 +11,14 @@
       LICENSE.txt
  ********************************************************)
 
-
-
-open Backtrack
-open Clogic
-open Cterm
+open Corestar_std
 open Debug
 open Format
+
+open Clogic
+open Cterm
 open Misc
 open Psyntax
-open Backtrack
 open Smt
 open Vars
 
@@ -71,7 +69,7 @@ let rec sequent_ass_reps sequent reps =
 let contains ts form pat : bool  =
   try
     match_form true ts form pat (||) (fun (ts2,_) -> if Cterm.ts_eq ts ts2 (*This checks that no unification has occured in the contains*) then true else  raise Backtrack.No_match)
-  with No_match ->
+  with Backtrack.No_match ->
     false
 
 
@@ -169,7 +167,7 @@ let check wheres seq : bool  =
                pp_ts_formula (mk_ts_form ts f) pp_sequent seq;
             Smt.finish_him ts seq.assumption f
           end
-        else raise No_match
+        else raise Backtrack.No_match
   ) wheres
 
 
@@ -199,14 +197,14 @@ let apply_rule
             (@)
 	    (fun (ts,_) ->
 	      if (not (is_sempty sr.without_left) && contains ts ass_f sr.without_left) then
-		raise No_match
+		raise Backtrack.No_match
 	      else if (not (is_sempty sr.without_right) && contains ts ob sr.without_right) then
-		raise No_match
+		raise Backtrack.No_match
 	      else if (not (check sr.where {seq with  (* TODO: do we want to use the old asm / ob here for the SMT guard? *)
 					    ts = ts;
 					    obligation = ob;
 					    assumption = ass})) then
-		  raise No_match
+		  raise Backtrack.No_match
 	      else begin
 		fprintf !(Debug.proof_dump) "Match rule %s@\n" sr.name;
 		let seq =
@@ -355,12 +353,12 @@ let rec apply_rule_list_once
    : Clogic.sequent list list
    =
   match rules with
-    [] -> raise No_match
+    [] -> raise Backtrack.No_match
   | rule::rules ->
       try
       apply_rule (Clogic.convert_rule rule) seq
       with
-      | No_match -> apply_rule_list_once rules seq
+      | Backtrack.No_match -> apply_rule_list_once rules seq
 
 
 let rec sequents_backtrack
@@ -405,37 +403,28 @@ let apply_rule_list
 	   else
 	   try
 	     search (apply_rule_list_once logic.seq_rules seq)
-	   with No_match ->
+	   with Backtrack.No_match ->
 	   try
 		 if may_finish seq then
 		   [seq]
 		 else
 		   search ([Clogic.apply_or_left seq])
-	       with No_match ->
+	       with Backtrack.No_match ->
 		 try
 		   search (Clogic.apply_or_right seq)
-		 with No_match ->
+		 with Backtrack.No_match ->
                  try
 	             let ts' = Smt.ask_the_audience seq.ts seq.assumption in
 	             search [[ {seq with ts = ts'} ]]
                    with
                    | Assm_Contradiction -> []
-                   | No_match -> raise (Failed_eg [seq])
+                   | Backtrack.No_match -> raise (Failed_eg [seq])
 	 ) sequents
       )
   in let res = apply_rule_list_inner sequents n in
   if log log_prove then
     fprintf !proof_dump "@\nEnd time :%f@ " (Sys.time ());
   res
-
-let check_imp (logic : logic) (seq : sequent) : bool =
-    try
-      let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.ts in
-      let seq = {seq with ts = ts} in
-      ignore (apply_rule_list logic [seq] Smt.true_sequent_smt Smt.true_sequent_smt); true
-    with
-      Failed -> false
-    | Failed_eg x -> prover_counter_example := x ; false
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.F.ts_formula list option =
   try
@@ -447,6 +436,9 @@ let check_frm (logic : logic) (seq : sequent) : Clogic.F.ts_formula list option 
     Failed -> fprintf !proof_dump "Frame failed\n"; None
   | Failed_eg x -> fprintf !proof_dump "Frame failed\n"; prover_counter_example := x; None
 
+let check_imp logic sequent = is_some (check_frm logic sequent)
+
+let abduct logic hypothesis conclusion = failwith "TODO"
 
 let check_abduct logic seq : Clogic.AF.ts_formula list option =
   try

@@ -30,7 +30,9 @@ let empty_inner_form =
 let empty_inner_form_af =
   P.lift_inner_form empty_inner_form
 
-let spec_conjunction { Spec.pre = p1; post = q1 } { Spec.pre = p2; post = q2} =
+let spec_conjunction
+  { Spec.pre = p1; post = q1 } { Spec.pre = p2; post = q2 }
+=
   let v = PS.Arg_var (Vars.freshe ()) in
   let one = PS.mkEQ (v, PS.Arg_string "case*one") in
   let two = PS.mkEQ (v, PS.Arg_string "case*two") in
@@ -102,8 +104,8 @@ let refinement_extra logic spec1 spec2 extra =
   let stronger q = P.implies logic q spec2.S.post in
   let all_stronger qs = List.for_all stronger qs in
   let run_from state =
-    maybe false all_stronger (simple_jsr logic state spec1) in
-  maybe true run_from (P.convert (PS.mkStar extra spec2.S.pre))
+    option false all_stronger (simple_jsr logic state spec1) in
+  option true run_from (P.convert (PS.mkStar extra spec2.S.pre))
 
 (*  spec2 ==> spec1
 That is

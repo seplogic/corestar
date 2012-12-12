@@ -61,7 +61,7 @@ type sequent = {
   ts : Cterm.term_structure;
   assumption : formula;
   obligation : formula;
-  antiframe : formula;
+  antiframe : formula; (* TODO(rgrig): Wat? Remove! *)
 }
 val plain : formula -> bool
 val pp_sequent : Format.formatter -> sequent -> unit

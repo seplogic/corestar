@@ -3,6 +3,7 @@
 open Corestar_std
 open Debug
 open Format
+
 module C = Core
 module G = Cfg
 module P = Cfg.Procedure
@@ -169,10 +170,10 @@ let output_cfgH n g =
 let mk_cfg q =
   let n = q.C.proc_name in
   let g = option_map mk_intermediate_cfg q.C.proc_body in
-  if !verbose >= 3 then maybe () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
+  if !verbose >= 3 then option () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
   ignore (option_map insert_abstraction_nodes g);
-  if !verbose >= 2 then maybe () (fun g -> output_cfg n g.P.cfg) g;
+  if !verbose >= 2 then option () (fun g -> output_cfg n g.P.cfg) g;
   { q with C.proc_body = g }
 
 (* helpers for [compute_call_graph] {{{ *)
@@ -195,7 +196,7 @@ let ccg_add_edges cg von p =
           raise (Fatal ("undefined procedure: " ^ c.C.call_name)))
     | _ -> () in
   let pb b = G.Cfg.iter_vertex add_outgoing b.P.cfg in
-  maybe () pb p.C.proc_body
+  option () pb p.C.proc_body
 
 (* }}} *)
 
@@ -225,6 +226,8 @@ let output_sccs cs =
 
 module ProcedureInterpreter = struct
 
+  exception Execution_failed
+
   type interpret_procedure_result =
     | NOK
     | OK
@@ -245,11 +248,16 @@ module ProcedureInterpreter = struct
     ; flowgraph : G.Cfg.t (* input, unchanged *)
     ; post_of : CS.t SD.t (* maps a statement to its post-configurations *)
     ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
-    ; statement_of : G.Cfg.vertex CD.t }
+    ; statement_of : G.Cfg.vertex CD.t (* inverse of [post_of] *) }
 
   let confs d s = try SD.find d s with Not_found -> CS.create 1
   let post_confs context = confs context.post_of
   let pre_confs context = confs context.pre_of
+
+  let abduct logic assumption obligation =
+    match Sepprover.abduct_inner logic assumption obligation with
+    | Some xs -> xs
+    | None -> raise Execution_failed
 
   (* Updates the [pre_of s] by adding new confs, and returns what is added. *)
   let update_pre_confs context s =
@@ -317,12 +325,14 @@ module ProcedureInterpreter = struct
 
   let bfs_state_done q = Queue.is_empty q.bfs_que
 
-  let execute pre = function
+  let execute logic spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
+        let { Spec.pre; post } = spec_of call_name in
+        let afs = abduct logic pre_conf.G.current_heap pre in
+        failwith "TODO"
         (* XXX: execute from current_heap, apply substitution to anti-frame,
         star-join it to the missing_heap, return the new conf *)
-        failwith "TODO"
-    | G.Abs_cfg | G.Nop_cfg -> pre
+    | G.Abs_cfg | G.Nop_cfg -> pre_conf
 
   let abstract context confs = confs (* XXX *)
 

@@ -41,13 +41,19 @@ val curry : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
 val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 
 (** Like in Haskell. *)
-val maybe : 'b -> ('a -> 'b) -> 'a option -> 'b
+val option : 'b -> ('a -> 'b) -> 'a option -> 'b
 
 (** Map for options. *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
 (** Like in Haskell. *)
 val from_option : 'a -> ('a option) -> 'a
+
+(** Like in Haskell. *)
+val is_some : 'a option -> bool
+
+(** Like in Haskell. *)
+val is_none : 'a option -> bool
 
 (** Flip the first two arguments of a function. *)
 val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)

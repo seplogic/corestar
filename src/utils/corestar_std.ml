@@ -28,7 +28,7 @@ let ( !* ) = Lazy.force
 let curry f a b = f (a, b)
 let uncurry f (a, b) = f a b
 
-let maybe n f = function
+let option n f = function
   | None -> n
   | Some x -> f x
 
@@ -39,6 +39,9 @@ let option_map f = function
 let from_option d = function
   | None -> d
   | Some x -> x
+
+let is_some = function Some _ -> true | _ -> false
+let is_none = function None -> true | _ -> false
 
 let flip f x y = f y x
 

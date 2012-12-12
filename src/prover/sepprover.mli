@@ -38,6 +38,8 @@ val inconsistent_opt : logic -> inner_form option -> bool
 val frame : logic -> inner_form -> form -> inner_form list option
 val frame_opt : logic -> inner_form option -> form -> inner_form list option
 val frame_inner : logic -> inner_form -> inner_form -> inner_form list option
+val abduct_inner
+  : logic -> inner_form -> inner_form -> (inner_form * inner_form) list option
 val abs : logic -> inner_form -> inner_form list
 val abs_opt : logic -> inner_form option -> inner_form list
 val pprint_proof : Format.formatter -> unit
