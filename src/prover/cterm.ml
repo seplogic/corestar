@@ -701,3 +701,9 @@ let add_constructor
       {ts with cc = cc; function_symbols = SMap.add fn c ts.function_symbols}
     end
 
+let get_equal_evars ts pvar =
+  let pvar_c = VarMap.find pvar ts.pvars in
+  let others_cs = CC.others ts.cc pvar_c in
+  let is_other c = List.mem c others_cs in
+  let collect_other evar c l = if is_other c then evar::l else l in
+  VarMap.fold collect_other ts.evars []

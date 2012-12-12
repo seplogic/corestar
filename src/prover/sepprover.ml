@@ -182,6 +182,11 @@ open Psyntax
     let implies_list : inner_form list -> form -> bool
       = Prover.check_implies_list
 
+    let get_equal_evars : var -> inner_form -> var list
+      = fun v form ->
+        let eq_evars = Cterm.get_equal_evars form.Clogic.F.ts v in
+	eq_evars
+
     let abduction_opt (l : logic) (i1 : inner_form option) (f2 : form) : inner_form_af list option =
       match i1 with
         None -> Prover.check_abduction_pform l (Clogic.convert_with_eqs false []) f2
