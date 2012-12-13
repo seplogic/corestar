@@ -35,7 +35,7 @@ let desugar_assignments ps =
   List.rev_append ps !qs
 
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
-  let proc_spec = Spec.ast_to_inner_spec proc_spec in
+  let proc_spec = Core.ast_to_inner_spec proc_spec in
   let proc_body = option_map (List.map Core.ast_to_inner_core) proc_body in
   { C.proc_name; proc_spec; proc_body }
 
@@ -178,7 +178,7 @@ let mk_cfg q =
 
 (* helpers for [compute_call_graph] {{{ *)
 module CallGraph = Digraph.Make
-  (struct type t = (P.t, Spec.inner_spec) C.procedure end)
+  (struct type t = (P.t, C.inner_spec) C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
   include Digraph.DotDefault (CallGraph)

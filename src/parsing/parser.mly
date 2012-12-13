@@ -142,10 +142,10 @@ let parse_warning s =
 %type <Psyntax.test list> test_file
 
 %start symb_question_file
-%type <Spec.ast_spec Core.symb_question list> symb_question_file
+%type <Core.ast_spec Core.symb_question list> symb_question_file
 
 %start symb_test_file
-%type <Spec.ast_spec Core.symb_test list> symb_test_file
+%type <Core.ast_spec Core.symb_test list> symb_test_file
 
 %% /* rules */
 
@@ -398,8 +398,8 @@ triple:
 ;
 
 spec:
-  | /* empty */ { { Spec.pre = Psyntax.mkFalse; post = Psyntax.mkFalse } }
-  | spec triple { Specification.spec_conjunction $1 $2 }
+  | /* empty */ { HashSet.create 1 }
+  | spec triple { HashSet.add $1 $2; $1 }
 ;
 
 

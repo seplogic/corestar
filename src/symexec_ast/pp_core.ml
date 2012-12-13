@@ -25,9 +25,10 @@ module S = Spec
 let pp_args_out = pp_list_sep "," Vars.pp_var
 let pp_args_in = pp_list_sep "," PS.string_args
 
-let pp_spec pf f { S.pre; post } =
+let pp_triple pf f { S.pre; post } =
   fprintf f "@[@[{%a}@]@[{%a}@]@]" pf pre pf post
 
+let pp_spec pf f ts = pp_list_sep " " (pp_triple pf) f (HashSet.elements ts)
 let pp_ast_spec = pp_spec PS.string_form
 let pp_inner_spec = pp_spec P.string_inner_form
 
