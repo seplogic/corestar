@@ -249,6 +249,7 @@ module ProcedureInterpreter = struct
     ; post_of : CS.t SD.t (* maps a statement to its post-configurations *)
     ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
     ; statement_of : G.Cfg.vertex CD.t (* inverse of [post_of] *) }
+  (* INV: The set [pre_of s] should never shrink, for all statements [s]. *)
 
   let confs d s = try SD.find d s with Not_found -> CS.create 1
   let post_confs context = confs context.post_of
