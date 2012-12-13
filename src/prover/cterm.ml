@@ -576,7 +576,7 @@ let kill_var ts v =
       match pp_term with
 	FArg_var (PVar (v',n)) when ((PVar (v',n))=v) ->
 	    CMap.add r (FArg_var (Vars.freshen_exists v)) originals
-      |  _ -> originals
+      |  _ -> originals (* RLP: Should this raise an exception? *)
       in
     {ts with pvars = pvars; cc=cc; originals=originals}
   with Not_found ->
@@ -701,9 +701,32 @@ let add_constructor
       {ts with cc = cc; function_symbols = SMap.add fn c ts.function_symbols}
     end
 
-let get_equal_evars ts pvar =
+let reconstruct ts c =
+  let get_arg h = CMap.find h ts.originals in
+  let rec reconstruct_arg = function
+  | FArg_var v -> Arg_var v
+  | FArg_string s -> Arg_string s
+  | FArg_op (s, hs) -> Arg_op (s, List.map reconstruct_handle hs)
+  | FArg_cons (s, hs) -> Arg_cons (s, List.map reconstruct_handle hs)
+  | FArg_record shs -> Arg_record (List.map (fun (s, h) -> (s, reconstruct_handle h)) shs)
+  and reconstruct_handle h = reconstruct_arg (get_arg h) in
+  reconstruct_arg (get_arg c)
+
+(* could we use rep_not_used_in? *)
+let is_pvar_free ts c =
+  let is_pvar v = VarMap.mem v ts.pvars in
+  let get_arg h = CMap.find h ts.originals in
+  let forall_handles p hs = List.for_all p (List.map get_arg hs) in 
+  let rec ok_arg = function
+  | FArg_var v -> not (is_pvar v)
+  | FArg_string _ -> true
+  | FArg_op (_, hs) -> forall_handles ok_arg hs
+  | FArg_cons (_, hs) -> forall_handles ok_arg hs
+  | FArg_record shs -> List.for_all (fun (_,h) -> ok_arg (get_arg h)) shs in
+  ok_arg (get_arg c)
+
+let get_equals_pvar_free ts pvar =
   let pvar_c = VarMap.find pvar ts.pvars in
-  let others_cs = CC.others ts.cc pvar_c in
-  let is_other c = List.mem c others_cs in
-  let collect_other evar c l = if is_other c then evar::l else l in
-  VarMap.fold collect_other ts.evars []
+  let equal_cs = CC.others ts.cc pvar_c in
+  let pvar_free_equals = List.filter (is_pvar_free ts) equal_cs in
+  List.map (reconstruct ts) pvar_free_equals
