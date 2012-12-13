@@ -404,7 +404,7 @@ let apply_rule_list
 	   try
 	     search (apply_rule_list_once logic.seq_rules seq)
 	   with Backtrack.No_match ->
-	   try
+	       try
 		 if may_finish seq then
 		   [seq]
 		 else
@@ -413,7 +413,7 @@ let apply_rule_list
 		 try
 		   search (Clogic.apply_or_right seq)
 		 with Backtrack.No_match ->
-                 try
+                   try
 	             let ts' = Smt.ask_the_audience seq.ts seq.assumption in
 	             search [[ {seq with ts = ts'} ]]
                    with
