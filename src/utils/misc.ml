@@ -13,12 +13,6 @@
 
 open Backtrack
 
-let map_option f l =
-  let f' acc x = match f x with
-    | None -> acc
-    | Some y -> y :: acc in
-  List.rev (List.fold_left f' [] l)
-
 let rec iter_pairs f = function
   | [] | [_] -> ()
   | x :: ((y :: _) as xs) -> f x y; iter_pairs f xs

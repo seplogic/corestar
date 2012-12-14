@@ -226,8 +226,6 @@ let output_sccs cs =
 
 module ProcedureInterpreter = struct
 
-  exception Execution_failed
-
   type interpret_procedure_result =
     | NOK
     | OK
@@ -255,10 +253,12 @@ module ProcedureInterpreter = struct
   let post_confs context = confs context.post_of
   let pre_confs context = confs context.pre_of
 
-  let abduct logic assumption obligation =
-    match Sepprover.abduct_inner logic assumption obligation with
-    | Some xs -> xs
-    | None -> raise Execution_failed
+  let conf_of_vertex v = match CG.V.label v with
+    | G.OkConf (c, _) -> c
+    | G.ErrorConf -> assert false
+
+  let make_angelic c = G.OkConf (c, G.Angelic)
+  let make_demonic c = G.OkConf (c, G.Demonic)
 
   (* Updates the [pre_of s] by adding new confs, and returns what is added. *)
   let update_pre_confs context s =
@@ -271,22 +271,29 @@ module ProcedureInterpreter = struct
     SD.replace context.pre_of s old_pre;
     new_pre
 
-  (* Updates [post_of s].  It [execute]s starting from [new_pre] to generate
-  some new post-confs.  (The new post-confs are assumed to be fresh, for now.)
-  Then it calls [abstract] on the whole set of post-confs.  The [confgraph] is
-  updated. *)
-  let update_post_confs execute abstract context new_pre s =
-    let posts = post_confs context s in
-    let add_post_of pv =
-      let q = execute (CG.V.label pv) (G.Cfg.V.label s) in
+  (* Helper for [update_post_confs]. *)
+  let update_post_confs_execute execute context sv posts pv =
+    let p = conf_of_vertex pv in
+    let av = CG.V.create (make_angelic p) in
+    let qs = execute p (G.Cfg.V.label sv) in
+    let qs = option [G.ErrorConf] (List.map make_demonic) qs in
+    let add_q q =
       let qv = CG.V.create q in
-      CD.add context.statement_of qv s;
-      CG.add_vertex context.confgraph qv;
-      CG.add_edge context.confgraph pv qv;
+      CD.add context.statement_of qv sv;
+      CG.add_edge context.confgraph av qv;
       CS.add posts qv in
-    CS.iter add_post_of new_pre;
+    CG.add_edge context.confgraph pv av;
+    List.iter add_q qs
+
+  (* Update [post_of sv]. For each pre-conf in [pvs], it executes
+  symbolically the statement [sv], using the helper [update_post_confs_execute].
+  Thet it calls [abstract] on the whole set of cost-confs. The [confgraph] is
+  updated. *)
+  let update_post_confs execute abstract context pvs sv =
+    let posts = post_confs context sv in
+    CS.iter (update_post_confs_execute execute context sv posts) pvs;
     let posts = abstract context.confgraph posts in
-    SD.replace context.post_of s posts
+    SD.replace context.post_of sv posts
 
   let update execute abstract context s =
     let new_pre = update_pre_confs context s in
@@ -328,12 +335,16 @@ module ProcedureInterpreter = struct
 
   let execute logic spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
-        let { Spec.pre; post } = spec_of call_name in
-        let afs = abduct logic pre_conf.G.current_heap pre in
-        failwith "TODO"
-        (* XXX: execute from current_heap, apply substitution to anti-frame,
-        star-join it to the missing_heap, return the new conf *)
-    | G.Abs_cfg | G.Nop_cfg -> pre_conf
+        let triples = spec_of call_name in
+        let use_triple { Spec.pre; post } =
+          let afs = Sepprover.abduct_inner logic pre_conf.G.current_heap pre in
+          (* XXX: execute from current_heap, apply substitution to anti-frame,
+          star-join it to the missing_heap, return the new conf *)
+          failwith "TODO" in
+        (match map_option use_triple (HashSet.elements triples) with
+        | [] -> None
+        | xs -> Some (List.concat xs))
+    | G.Abs_cfg | G.Nop_cfg -> Some [pre_conf]
 
   let abstract context confs = confs (* XXX *)
 

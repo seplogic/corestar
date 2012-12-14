@@ -13,7 +13,6 @@
 
 (** Utilities that do not clearly fit in any other module. *)
 
-val map_option : ('a -> 'b option) -> 'a list -> 'b list
 type ('a, 'b) sum = Inr of 'a | Inl of 'b
 val remove_duplicates : ('a -> 'a -> int) -> 'a list -> 'a list
 val intcmp : 'a -> 'a -> int

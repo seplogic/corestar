@@ -11,6 +11,8 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
+
 open Backtrack
 open Format
 open Misc

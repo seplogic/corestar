@@ -11,10 +11,11 @@
       LICENSE.txt
  ********************************************************)
 
+open Format
+
 open Backtrack
 open Congruence
 open Cterm
-open Format
 open Misc
 open Printing
 open Psyntax

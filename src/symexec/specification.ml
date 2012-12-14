@@ -68,7 +68,7 @@ let jsr logic state spec abduct =
     let star_post s = P.conjoin_af s spec.S.post faf_state in
     let star_post_opt s =
       try Some (star_post s) with PS.Contradiction -> None in
-    let r = Misc.map_option star_post_opt fafs in
+    let r = map_option star_post_opt fafs in
     List.map (VS.fold P.kill_var_af ev) r in
   option_map add_post frame_antiframe_list
 
@@ -81,7 +81,7 @@ let simple_jsr logic state spec =
   let add_post fs =
     let star_post = P.conjoin spec.S.post in
     let star_post f = try Some (star_post f) with PS.Contradiction -> None in
-    let r = Misc.map_option star_post fs in
+    let r = map_option star_post fs in
     List.map (VS.fold P.kill_var ev) r in
   option_map add_post frames
 

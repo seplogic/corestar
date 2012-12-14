@@ -5,8 +5,8 @@ module DG = Digraph
 module P = Sepprover
 
 type cfg_vertex =
-  | Call_cfg of C.call_core
   | Abs_cfg
+  | Call_cfg of C.call_core
   | Nop_cfg
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
@@ -19,9 +19,12 @@ module CfgVHashSet = HashSet.Make (Cfg.V)
   [current_heap] is reached without fault.
   INV: [missing_heap] must not mention program variables, only logical ones
 *)
-type configuration =
+type ok_configuration =
   { current_heap : P.inner_form
   ; missing_heap : P.inner_form }
+
+type split_type = Angelic | Demonic
+type configuration = ErrorConf | OkConf of ok_configuration * split_type
 
 module ConfigurationGraph =
   DG.Make (struct type t = configuration end) (DG.UnlabeledEdge)

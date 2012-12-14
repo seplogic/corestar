@@ -36,6 +36,12 @@ let option_map f = function
   | None -> None
   | Some x -> Some (f x)
 
+let map_option f l =
+  let f' acc x = match f x with
+    | None -> acc
+    | Some y -> y :: acc in
+  List.rev (List.fold_left f' [] l)
+
 let from_option d = function
   | None -> d
   | Some x -> x

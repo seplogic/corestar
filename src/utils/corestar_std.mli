@@ -47,6 +47,9 @@ val option : 'b -> ('a -> 'b) -> 'a option -> 'b
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
 (** Like in Haskell. *)
+val map_option : ('a -> 'b option) -> 'a list -> 'b list
+
+(** Like in Haskell. *)
 val from_option : 'a -> ('a option) -> 'a
 
 (** Like in Haskell. *)

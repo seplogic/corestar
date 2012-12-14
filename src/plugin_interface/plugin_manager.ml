@@ -11,6 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
 
 open Plugin
 
@@ -32,17 +33,17 @@ let abstract_val (pheap : Psyntax.pform) : Psyntax.pform =
 (* Runs join from abstract interpretation plugins on given pforms *)
 let join (pheap1 : Psyntax.pform) (pheap2 : Psyntax.pform) : Psyntax.pform list =
   List.map (fun join -> !join pheap1 pheap2)
-    (Misc.map_option (fun abs_int -> (!abs_int).join) !Registry.abs_int_registry)
+    (map_option (fun abs_int -> (!abs_int).join) !Registry.abs_int_registry)
 
 (* Runs meet from abstract interpretation plugins on given pforms *)
 let meet (pheap1 : Psyntax.pform) (pheap2 : Psyntax.pform) : Psyntax.pform list =
   List.map (fun meet -> !meet pheap1 pheap2)
-    (Misc.map_option (fun abs_int -> (!abs_int).meet) !Registry.abs_int_registry)
+    (map_option (fun abs_int -> (!abs_int).meet) !Registry.abs_int_registry)
 
 (* Runs widening from abstract interpretation plugins on given pforms *)
 let widening (pheap1 : Psyntax.pform) (pheap2 : Psyntax.pform) : Psyntax.pform list =
   List.map (fun widening -> !widening pheap1 pheap2)
-    (Misc.map_option (fun abs_int -> (!abs_int).widening) !Registry.abs_int_registry)
+    (map_option (fun abs_int -> (!abs_int).widening) !Registry.abs_int_registry)
 
 
 (* Force Plugin_callback.add_abs_int to be linked with plugin_interface;
