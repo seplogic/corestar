@@ -223,7 +223,6 @@ let output_sccs cs =
   close_out file
 
 (* symbolic execution for one procedure {{{ *)
-
 module ProcedureInterpreter = struct
 
   type interpret_procedure_result =
@@ -248,6 +247,15 @@ module ProcedureInterpreter = struct
     ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
     ; statement_of : G.Cfg.vertex CD.t (* inverse of [post_of] *) }
   (* INV: The set [pre_of s] should never shrink, for all statements [s]. *)
+
+  (* Executing one statement produces one [choice_tree], which is later
+  integrated into the confgraph by [update]. (Alternatively, the function
+  [execute] could know abouf confgraphs, rather than being just a local
+  operation.) *)
+  type choice_tree =
+    | CT_error
+    | CT_ok of G.ok_configuration
+    | CT_split of choice_tree list * G.split_type
 
   let confs d s = try SD.find d s with Not_found -> CS.create 1
   let post_confs context = confs context.post_of
@@ -333,17 +341,22 @@ module ProcedureInterpreter = struct
 
   let bfs_state_done q = Queue.is_empty q.bfs_que
 
+  (* Lifts binary operators to options, *but* treats [None] as the identity. *)
+  let bin_option f x y = match x, y with
+    | None, x | x, None -> x
+    | Some x, Some y -> Some (f x y)
+
+  let concat_lol xs = List.fold_left (bin_option (@)) None xs
+
   let execute logic spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
-        let triples = spec_of call_name in
         let use_triple { Spec.pre; post } =
           let afs = Sepprover.abduct_inner logic pre_conf.G.current_heap pre in
           (* XXX: execute from current_heap, apply substitution to anti-frame,
           star-join it to the missing_heap, return the new conf *)
           failwith "TODO" in
-        (match map_option use_triple (HashSet.elements triples) with
-        | [] -> None
-        | xs -> Some (List.concat xs))
+        spec_of call_name |> HashSet.elements |> map_option use_triple
+          |> concat_lol
     | G.Abs_cfg | G.Nop_cfg -> Some [pre_conf]
 
   let abstract context confs = confs (* XXX *)
