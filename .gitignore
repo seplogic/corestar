@@ -1,7 +1,8 @@
 *.core
 *.swp
 .depend
-_build
-tags
 .install.mk
+TODO
+_build
 rg.log
+tags
