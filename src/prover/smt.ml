@@ -460,7 +460,7 @@ let true_sequent_smt (seq : sequent) : bool =
   (Clogic.plain seq.assumption  &&  Clogic.plain seq.obligation
     &&
    ((if Config.smt_debug() then printf "@[Calling SMT to prove@\n %a@." Clogic.pp_sequent seq);
-    finish_him seq.ts seq.assumption seq.obligation)))
+    finish_him seq.seq_ts seq.assumption seq.obligation)))
 
 
 let frame_sequent_smt (seq : sequent) : bool =
@@ -471,7 +471,7 @@ let frame_sequent_smt (seq : sequent) : bool =
   (Clogic.plain seq.obligation
     &&
    ((if Config.smt_debug() then printf "@[Calling SMT to get frame from@\n %a@." Clogic.pp_sequent seq);
-    finish_him seq.ts seq.assumption seq.obligation)))
+    finish_him seq.seq_ts seq.assumption seq.obligation)))
 
 
 

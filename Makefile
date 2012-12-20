@@ -6,7 +6,7 @@ endif
 export CORESTAR_HOME
 
 SRC_DIRS=src
-MAINS=alt_abd corestar test_symb test_logic
+MAINS=alt_abd test_symb test_logic
 LIBS=dynlink str unix
 
 # section that shouldn't change often

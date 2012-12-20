@@ -50,17 +50,3 @@ val get_counter_example : unit -> string
 val implies_list : inner_form list -> form -> bool
 
 val get_equals_pvar_free : var -> inner_form -> Psyntax.args list
-
-(* TODO(rgrig): Remove these. It's wrong to share equalities. *)
-type inner_form_af
-val lift_inner_form : inner_form -> inner_form_af
-val inner_form_af_to_form : inner_form_af -> inner_form
-val inner_form_af_to_af : inner_form_af -> inner_form
-val conjoin_af : inner_form_af -> form -> inner_form -> inner_form_af
-val conjoin_inner_af : inner_form_af -> inner_form -> inner_form -> inner_form_af
-val combine : inner_form -> inner_form -> inner_form_af
-val kill_var_af : var -> inner_form_af -> inner_form_af
-val update_var_to_af : var -> term -> inner_form_af -> inner_form_af
-val string_inner_form_af : Format.formatter -> inner_form_af -> unit
-val abduction_opt : logic -> (inner_form option) -> form -> inner_form_af list option
-

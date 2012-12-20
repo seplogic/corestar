@@ -27,9 +27,6 @@ let empty_inner_form =
     None -> assert false;
   | Some emp -> emp
 
-let empty_inner_form_af =
-  P.lift_inner_form empty_inner_form
-
 let spec_conjunction
   { Spec.pre = p1; post = q1 } { Spec.pre = p2; post = q2 }
 =
@@ -51,28 +48,6 @@ let sub_spec sub { S.pre; post} =
 
 let ev_spec { S.pre; post } = PS.ev_form_acc post (PS.ev_form pre)
 
-(* if pre_antiframe = None then perform jsr, otherwise perform jsr with abduction *)
-let jsr logic state spec abduct =
-  let ev = ev_spec spec in
-  let subst = PS.subst_kill_vars_to_fresh_exist ev in
-  let spec = sub_spec subst spec in
-  let pre_form = P.inner_form_af_to_form state in
-  let frame_antiframe_list =
-    if abduct then
-      P.abduction_opt logic (Some pre_form) spec.S.pre
-    else
-      option_map (List.map P.lift_inner_form) (P.frame logic pre_form spec.S.pre)
-  in
-  let faf_state = P.inner_form_af_to_af state in
-  let add_post fafs =
-    let star_post s = P.conjoin_af s spec.S.post faf_state in
-    let star_post_opt s =
-      try Some (star_post s) with PS.Contradiction -> None in
-    let r = map_option star_post_opt fafs in
-    List.map (VS.fold P.kill_var_af ev) r in
-  option_map add_post frame_antiframe_list
-
-(* TODO(rgrig): This should replace [jsr] after the "_af" stuff is removed. *)
 let simple_jsr logic state spec =
   let ev = ev_spec spec in
   let sub = PS.subst_kill_vars_to_fresh_exist ev in

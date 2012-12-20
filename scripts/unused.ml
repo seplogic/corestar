@@ -22,7 +22,7 @@ let get_ids fn lexer =
   with Sys_error _ ->
     printf "@[Warning: missing %s@." fn; []
 
-let parse fn = { 
+let parse fn = {
   path = fn;
   declarations = get_ids (fn ^ "i") Id_extractor.id_decl;
   uses = get_ids fn Id_extractor.id
@@ -30,11 +30,11 @@ let parse fn = {
 
 module StringSet = Set.Make (String)
 
-let _ = 
-  let fis = 
+let () =
+  let fis =
     Utils.files_map (fun x->Filename.check_suffix x ".ml") parse "src" in
   let fis =
-    Utils.files_map 
+    Utils.files_map
       (fun x->Filename.check_suffix x ".mly" || Filename.check_suffix x ".mll")
       (fun fn->{path=fn;declarations=[];uses=get_ids fn Id_extractor.id})
       "src"
@@ -54,7 +54,7 @@ let _ =
       end in
   List.iter (fun {uses=uses;declarations=_;path=_} -> List.iter add_use uses) fis;
   let process {path=path; declarations=declarations; uses=_} =
-    let bd = List.fold_left 
+    let bd = List.fold_left
       (fun s d -> if Hashtbl.mem h1 d then StringSet.add d s else s)
       StringSet.empty
       declarations in

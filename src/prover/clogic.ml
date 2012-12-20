@@ -58,46 +58,22 @@ type formula =
     neqs : (term_handle * term_handle) list;
   }
 
-module F = struct
-  type ts_formula =
-    {
-      ts : Cterm.term_structure;
-      form : formula;
-    }
-end;;
+type ts_formula =
+  { ts : Cterm.term_structure
+  ; form : formula }
 
-module AF = struct
-  type ts_formula =
-    {
-      ts : Cterm.term_structure;
-      form : formula;
-      antiform : formula;
-    }
-end;;
 
 let mk_ts_form ts form =
-  {F.ts = ts; F.form = form;}
-
-let mk_ts_form_af ts form antiform =
-  {AF.ts = ts; AF.form = form; AF.antiform = antiform;}
+  {ts = ts; form = form;}
 
 let break_ts_form ts_form =
-  ts_form.F.ts, ts_form.F.form
-
-let break_ts_form_af ts_form =
-  ts_form.AF.ts, ts_form.AF.form, ts_form.AF.antiform
+  ts_form.ts, ts_form.form
 
 let kill_var ts_form v =
-  {ts_form with F.ts = Cterm.kill_var ts_form.F.ts v}
-
-let kill_var_af ts_form v =
-  {ts_form with AF.ts = Cterm.kill_var ts_form.AF.ts v}
+  {ts_form with ts = Cterm.kill_var ts_form.ts v}
 
 let update_var_to ts_form v e =
-  {ts_form with F.ts = Cterm.update_var_to ts_form.F.ts v e}
-
-let update_var_to_af ts_form v e =
-  {ts_form with AF.ts = Cterm.update_var_to ts_form.AF.ts v e}
+  {ts_form with ts = Cterm.update_var_to ts_form.ts v e}
 
 (* {{{ pretty printing
  * See
@@ -145,17 +121,11 @@ let rec pp_syntactic_form' pp ppf first
         (pp.separator (pp_disjunct pp_syntactic_form) ppf) first sdisjuncts
 and pp_syntactic_form ppf sform = pp_whole pp_syntactic_form' pp_star ppf sform
 
-let pp_ts_formula' pp ppf first {F.ts=ts; F.form=form} =
+let pp_ts_formula' pp ppf first {ts=ts; form=form} =
   let first = Cterm.pp_ts' pp ppf first ts in
   pp_formula' (pp_c ts) pp ppf first form
 
 let pp_ts_formula = pp_whole pp_ts_formula' pp_star
-
-let pp_ts_formula_af' pp ppf first {AF.ts=ts; AF.form=form; AF.antiform=antiform} =
-  let first = pp_ts_formula' pp ppf first {F.ts=ts; F.form=form;} in
-  (pp_sep " | ").separator pp_ts_formula ppf first {F.ts=ts; F.form=antiform;}
-
-let pp_ts_formula_af = pp_whole pp_ts_formula_af' pp_star
 
 (* }}} *)
 (* pretty printing }}} *)
@@ -434,25 +404,10 @@ let rec convert_ground (ts :term_structure) (sf : syntactic_form) : formula * te
   {spat = RMSet.empty; plain = RMSet.lift_list plain; disjuncts = []; eqs=eqs; neqs=neqs}, ts
 
 
-let conjoin fresh (f : F.ts_formula) (sf : syntactic_form) =
-  let nf,ts = convert_sf fresh f.F.ts sf in
-  let nf = conjunction nf f.F.form in
-  {F.ts = ts; F.form = nf;}
-
-
-(* Takes AF.ts_formula and conjoins frame with sf, and antiframe with saf *)
-let conjoin_af fresh (f : AF.ts_formula) (sf : syntactic_form) (saf : syntactic_form) =
-  let nf,ts = convert_sf fresh f.AF.ts sf in
-  let nf = conjunction nf f.AF.form in
-  let naf,ts = convert_sf fresh ts saf in
-  let naf = conjunction naf f.AF.antiform in
-  {AF.ts = ts; AF.form = nf; AF.antiform = naf;}
-
-
-(* Takes F.ts_formula and creates a AF.ts_formula with af as antiframe *)
-let combine fresh (f : F.ts_formula) (af : syntactic_form) =
-  let naf,ts = convert_sf fresh f.F.ts af in
-  {AF.ts = ts; AF.form = f.F.form; AF.antiform = naf;}
+let conjoin fresh (f : ts_formula) (sf : syntactic_form) =
+  let nf,ts = convert_sf fresh f.ts sf in
+  let nf = conjunction nf f.form in
+  {ts = ts; form = nf;}
 
 
 let make_syntactic' get_eqs get_neqs ts_form =
@@ -571,20 +526,19 @@ let match_and_remove
 type sequent =
    {
     matched : RMSet.multiset;
-    ts : term_structure;
+    seq_ts : term_structure;
     assumption : formula;
     obligation : formula;
     antiframe : formula;
   }
 
 
-let pp_sequent ppf
-  {matched=matched; ts=ts; assumption=assumption; obligation=obligation; antiframe=antiframe} =
-    let pp_term = pp_c ts in
+let pp_sequent ppf { matched; seq_ts; assumption; obligation; antiframe} =
+    let pp_term = pp_c seq_ts in
     let rmf = pp_star.separator (pp_rmset_element "" pp_term) ppf in
     ignore (RMSet.fold rmf true matched);
     fprintf ppf "@ | ";
-    let first = pp_ts' pp_star ppf true ts in
+    let first = pp_ts' pp_star ppf true seq_ts in
     ignore (pp_formula' pp_term pp_star ppf first assumption);
     fprintf ppf "@ |- ";
     pp_formula pp_term ppf obligation;
@@ -604,9 +558,6 @@ let true_sequent (seq : sequent) : bool =
 
 let frame_sequent (seq : sequent) : bool =
   (seq.obligation = empty) && (seq.antiframe = empty)
-
-let abductive_sequent (seq : sequent) : bool =
-  (seq.obligation = empty)
 
 (* Stolen from Prover just for refactor *)
 type sequent_rule = psequent * (psequent list list) * string * ((* without *) pform * pform) * (where list)
@@ -753,7 +704,7 @@ let apply_or_right seq : sequent list list =
 
 let get_frame seq =
   (*assert (frame_sequent seq);*) (* TODO: assertion broken by SMT, pick another *)
-  mk_ts_form seq.ts seq.assumption
+  mk_ts_form seq.seq_ts seq.assumption
 
 let rec get_frames seqs frms =
   match seqs with
@@ -762,20 +713,6 @@ let rec get_frames seqs frms =
 
 let get_frames seqs =
   get_frames seqs []
-
-
-let get_frame_antiframe seq =
-  assert (abductive_sequent seq);
-  mk_ts_form_af seq.ts seq.assumption seq.antiframe
-
-let rec get_frames_antiframes seqs frms =
-  match seqs with
-    [] -> frms
-  | seq::seqs ->  get_frames_antiframes seqs ((get_frame_antiframe seq)::frms)
-
-let get_frames_antiframes seqs =
-  get_frames_antiframes seqs []
-
 
 let convert_with_eqs fresh pform =
   let sf = convert_to_inner pform in
@@ -786,10 +723,10 @@ let convert_with_eqs fresh pform =
 let convert fresh ts pform =
   convert_sf_without_eqs fresh ts (convert_to_inner pform)
 
-let make_implies (heap : F.ts_formula) (pheap : pform) : sequent =
+let make_implies (heap : ts_formula) (pheap : pform) : sequent =
   let ts,form = break_ts_form heap in
   let rh,ts = convert false ts pheap in
-  {ts = ts;
+  {seq_ts = ts;
      assumption = form;
      obligation = rh;
      matched = RMSet.empty;
@@ -799,7 +736,7 @@ let make_implies_inner ts_form1 ts_form2 =
   let ts,form = break_ts_form ts_form1 in
   let sform = make_syntactic ts_form2 in
   let rform,ts = convert_sf_without_eqs false ts sform in
-  {ts = ts;
+  {seq_ts = ts;
     assumption = form;
     obligation = rform;
     matched = RMSet.empty;

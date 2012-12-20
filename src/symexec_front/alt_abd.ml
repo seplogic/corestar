@@ -348,10 +348,22 @@ module ProcedureInterpreter = struct
 
   let concat_lol xs = List.fold_left (bin_option (@)) None xs
 
-  let execute logic spec_of pre_conf = function
+  let make_nonempty = function
+    | [] -> let e = Specification.empty_inner_form in [(e,e)]
+    | xs -> xs
+
+  let abduct = Sepprover.abduct_inner
+
+  let frame logic p q =
+    option_map (List.map (fun x -> ([], x))) (Sepprover.frame_inner logic p q)
+
+  (* NOTE: This assumes that a proof of H |- P from assumptions F1 |- A1, ...,
+  Fn |- An, may be transformed into a proof of H*(A1∧...∧An) |- P*(F1∨...∨Fn),
+  without assumptions. *)
+  let execute abduct spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
         let use_triple { Spec.pre; post } =
-          let afs = Sepprover.abduct_inner logic pre_conf.G.current_heap pre in
+          let afs = abduct pre_conf.G.current_heap pre in
           (* XXX: execute from current_heap, apply substitution to anti-frame,
           star-join it to the missing_heap, return the new conf *)
           failwith "TODO" in

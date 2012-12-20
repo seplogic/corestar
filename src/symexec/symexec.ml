@@ -44,11 +44,8 @@ Some notes on algorithms:
 *)
 
 
-type execType = Abduct | Check | SymExec
-
 (* global variables *)
 
-let exec_type : execType ref = ref SymExec
 let curr_abduct_logic : Psyntax.logic ref = ref Psyntax.empty_logic
 let curr_logic : Psyntax.logic ref = ref Psyntax.empty_logic
 let curr_abs_rules : Psyntax.logic ref = ref Psyntax.empty_logic
@@ -200,28 +197,16 @@ let add_node_unexplored label cfg = add_node label UnExplored (Some cfg)
 let add_node label cfg = add_node label UnExplored (Some cfg)
 let explore_node src = if src.ntype = UnExplored then src.ntype <- Plain
 
-let add_abs_heap_node cfg (heap : inner_form_af) =
-  (match !exec_type with
-  | Abduct ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form_af heap;
-  | Check | SymExec ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form (inner_form_af_to_form heap););
+let add_abs_heap_node cfg heap =
+  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
   add_abs_node (Format.flush_str_formatter ()) cfg
 
-let add_heap_node cfg (heap : inner_form_af) =
-  (match !exec_type with
-  | Abduct ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form_af heap;
-  | Check | SymExec ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form (inner_form_af_to_form heap););
+let add_heap_node cfg heap =
+  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
   add_node (Format.flush_str_formatter ()) cfg
 
-let add_error_heap_node (heap : inner_form_af) =
-  (match !exec_type with
-  | Abduct ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form_af heap;
-  | Check | SymExec ->
-    Format.fprintf (Format.str_formatter) "%a" string_inner_form (inner_form_af_to_form heap););
+let add_error_heap_node heap =
+  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
   add_error_node (Format.flush_str_formatter ())
 
 let add_edge_common src dst typ lbl f=
@@ -280,10 +265,10 @@ let add_id_formset_edge src label sheaps cfg =
 (* ================  work list algorithm ==================  *)
 
  (* this type has support for creating a transition system
-   (inner_form_af, id)
+   (inner_form, id)
    id is a unique identifier of the formula
  *)
-type formset_entry = inner_form_af * node
+type formset_entry = inner_form * node
 
 (* eventually this should be a more efficient data structure than list*)
 type formset = formset_entry list
@@ -328,35 +313,25 @@ let call_jsr_static (sheap,id) spec il node =
   let sub' = param_sub il in
   let sub'' = (*freshening_subs*) sub' in
   let spec' = Specification.sub_spec sub'' spec in
-  let res =
-    match !exec_type with
-    | Abduct ->
-      jsr !curr_abduct_logic sheap spec' true
-    | Check | SymExec ->
-      jsr !curr_logic sheap spec' false
-  in
-  (match !exec_type with
-  | Abduct | SymExec ->
-    (match res with
-      None ->
-        let idd = add_error_node "ERROR" in
-        let proof_file = add_edge_with_proof id idd ExecE
-          (fprintf str_formatter "@[%a:@\n %a@]"
-            Pp_core.pp_ast_core node.skind
-            Sepprover.pprint_counter_example ();
-            flush_str_formatter ())
-        in
-        printf "@[<2>@{<b>ERROR@}: While executing node %d:@\n%a@.%!"
-          node.sid
-          Pp_core.pp_ast_core node.skind;
-        Sepprover.print_counter_example ();
-        printf "Proof file: %s@\n" proof_file;
-        printf "%s(end of error)%s@.%!"
-          System.terminal_red System.terminal_white;
-        Printing.pp_json_node node.sid
-          (sprintf "Error while executing %d." node.sid) (Sepprover.get_counter_example());
-    | Some r -> ())
-  | Check -> ());
+  let res = simple_jsr !curr_logic sheap spec' in
+  if res = None then begin
+    let idd = add_error_node "ERROR" in
+    let proof_file = add_edge_with_proof id idd ExecE
+      (fprintf str_formatter "@[%a:@\n %a@]"
+        Pp_core.pp_ast_core node.skind
+        Sepprover.pprint_counter_example ();
+        flush_str_formatter ())
+    in
+    printf "@[<2>@{<b>ERROR@}: While executing node %d:@\n%a@.%!"
+      node.sid
+      Pp_core.pp_ast_core node.skind;
+    Sepprover.print_counter_example ();
+    printf "Proof file: %s@\n" proof_file;
+    printf "%s(end of error)%s@.%!"
+      System.terminal_red System.terminal_white;
+    Printing.pp_json_node node.sid
+      (sprintf "Error while executing %d." node.sid) (Sepprover.get_counter_example());
+  end;
   res
 
 
@@ -367,7 +342,7 @@ let check_postcondition (heaps : formset_entry list) (sheap : formset_entry) =
     let heap,id =
       List.find
         (fun (heap,id) ->
-          (frame_inner !curr_logic (inner_form_af_to_form sheap_noid) (inner_form_af_to_form heap)) <> None)
+          (frame_inner !curr_logic sheap_noid heap) <> None)
         heaps in
     if Config.symb_debug() then
       printf "\n\nPost okay \n%!";
@@ -375,10 +350,8 @@ let check_postcondition (heaps : formset_entry list) (sheap : formset_entry) =
     ignore (add_edge_with_proof node id ExitE "exit");
     true
     (* add_edge id idd "";*)
-  with Not_found ->
-    (match !exec_type with
-    | Abduct | SymExec ->
-      (let et = "Cannot prove postcondition" in
+  with Not_found -> begin
+      let et = "Cannot prove postcondition" in
       printf "@{<b>ERROR@}: %s.@.!" et;
       Sepprover.print_counter_example ();
       printf "@{<b>(end of error)@}@.%!";
@@ -392,34 +365,29 @@ let check_postcondition (heaps : formset_entry list) (sheap : formset_entry) =
               Sepprover.pprint_counter_example ();
               Format.flush_str_formatter ())))
          heaps;
-      )
-      | Check -> ());
-    false
-
+      false
+  end
 
 (* extract the return value into variable v *)
 let eliminate_ret_var
       ( name_ret_var : string)
       ( v : Vars.var)
-      ( h : inner_form_af ) : inner_form_af =
+      ( h : inner_form ) : inner_form =
    let ret_var = Vars.concretep_str name_ret_var in
-   let h = update_var_to_af v (Arg_var ret_var) h in
-   kill_var_af ret_var h
+   let h = update_var_to v (Arg_var ret_var) h in
+   kill_var ret_var h
 
 
 (* extract return values called 'name_template' into variables vs *)
 let eliminate_ret_vs
       ( name_template : string )
       ( vs : Vars.var list )
-      ( h : inner_form_af ) : inner_form_af  =
+      ( h : inner_form ) : inner_form  =
   let vs_i = Misc.add_index vs 1 in
   List.fold_right (fun (v,i) -> eliminate_ret_var (name_template ^ string_of_int i) v) vs_i h
 
 
-let heap_pprinter f h =
-  match !exec_type with
-  | Abduct -> string_inner_form_af f h
-  | Check | SymExec -> string_inner_form f (inner_form_af_to_form h)
+let heap_pprinter = string_inner_form
 
 
 let rec exec (n : cfg_node) (sheap : formset_entry) =
@@ -476,27 +444,16 @@ and execute_core_stmt
     if Config.symb_debug() then
       Format.printf "@\nPre-abstraction heap:@\n    %a@.%!" heap_pprinter sheap_noid;
     (* TODO: Introduce curr_abduct_abs_rules? *)
-    let frames_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_form sheap_noid) in
-    let antiframes_abs = Sepprover.abs !curr_abs_rules (inner_form_af_to_af sheap_noid) in
-    let antiframes_abs =
-      if frames_abs != [] && antiframes_abs = [] then [ empty_inner_form ] else antiframes_abs in
+    let frames_abs = Sepprover.abs !curr_abs_rules sheap_noid in
     if Config.symb_debug() then
-      (List.iter (fun heap -> Format.printf "@\nPost-abstraction heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-      match !exec_type with
-      | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstraction antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
-      | _ -> ());
+      List.iter (fun heap -> Format.printf "@\nPost-abstraction heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
     (* Obtain abstract values of abstracted heaps using abstract interpretation *)
     let frames_abs = List.map Sepprover.abstract_val frames_abs in
-    let antiframes_abs = List.map Sepprover.abstract_val antiframes_abs in
     if Config.symb_debug() then
-      (List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-      match !exec_type with
-      | Abduct -> List.iter (fun saf -> Format.printf "@\nPost-abstract_val antiheap:@\n    %a@.%!" string_inner_form saf) antiframes_abs;
-      | _ -> ());
+      List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
 
     explore_node (snd sheap);
-    let heaps_abs = List.map (fun (if1,if2) -> combine if1 if2) (cross_product frames_abs antiframes_abs) in
-    let sheaps_abs = add_id_abs_formset n heaps_abs in
+    let sheaps_abs = add_id_abs_formset n frames_abs in
     List.iter
       (fun sheap2 ->
         ignore (add_edge_with_proof (snd sheap) (snd sheap2) AbsE
@@ -515,19 +472,10 @@ and execute_core_stmt
         (let s = ref [] in
           (if (List.for_all
             (fun (sheap1,id1) ->
-              let sheap1_form = inner_form_af_to_form sheap1 in
-              let sheap1_af = inner_form_af_to_af sheap1 in
-              let sheap2_form = inner_form_af_to_form sheap2 in
-              let sheap2_af = inner_form_af_to_af sheap2 in
-              let sheap1_form,sheap2_form =
-                if Config.abs_int_join() then join_over_numeric sheap1_form sheap2_form
-                else sheap1_form,sheap2_form in
-              let sheap1_af,sheap2_af =
-                if Config.abs_int_join() then join_over_numeric sheap1_af sheap2_af
-                else sheap1_af,sheap2_af in
-              if ((frame_inner !curr_logic sheap2_form sheap1_form <> None) ||
-                (frame_inner !curr_logic sheap2_af sheap1_af <> None))
-              then
+              let sheap1,sheap2 =
+                if Config.abs_int_join() then join_over_numeric sheap1 sheap2
+                else sheap1,sheap2 in
+              if frame_inner !curr_logic sheap2 sheap1 <> None then
                 (ignore (add_edge_with_proof id2 id1 ContE
                   ("Contains@"^(Debug.toString Pp_core.pp_ast_core n.skind))); false)
               else (s := ("\n---------------------------------------------------------\n" ^
@@ -557,15 +505,10 @@ and execute_core_stmt
     (
       let spec = HashSet.choose spec in
       let hs = call_jsr_static sheap spec il n in
-      let abort =
-        match !exec_type with
-        | Check ->
-          (match hs with | None -> false | Some _ -> false)
-        | _ -> false
-      (* TODO(rgrig): This looks wrong: [abort] is always [false]. *)
+      let abort = false (* TODO(rgrig): What is this supposed to be? *)
       in
       if abort then
-        [ (empty_inner_form_af, add_good_node "Abort") ]
+        [ (empty_inner_form, add_good_node "Abort") ]
       else
         let hs = match hs with | None -> [] | Some hs -> hs in
         let hs =
@@ -577,12 +520,7 @@ and execute_core_stmt
         execs_one n hs
     )
 
-  | Core.End ->
-    (match !exec_type with
-    | Abduct ->
-      ignore (add_edge_with_proof (snd sheap) (add_good_node ("Exit")) ExitE "exit")
-    | _ -> ());
-    execs_one n [sheap]
+  | Core.End -> execs_one n [sheap]
   )
 
 
@@ -597,7 +535,6 @@ let verify
     =
   flush_cache ();
   (* remove methods that are declared abstraction *)
-  exec_type := SymExec;
   curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
@@ -612,14 +549,14 @@ let verify
           false
       |	Some spec_pre ->
           proof_succeeded := true;
-          let pre = lift_inner_form spec_pre in
+          let pre = spec_pre in
           let posts = execute_core_stmt s (pre, id) in
           let post =
             match Sepprover.convert (spec.Spec.post) with
               None ->
                 printf "@[@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" mname;
-                empty_inner_form_af
-            | Some spec_post -> lift_inner_form spec_post
+                empty_inner_form
+            | Some spec_post -> spec_post
           in
           let id_exit = add_good_node ("Exit") in
           let ret = List.for_all (check_postcondition [(post, id_exit)]) posts in
@@ -656,15 +593,13 @@ let verify_ensures
               (Arg_var(Vars.concretep_str (SpecOp.name_ret_v1^"_post")))
               empty)
             post in
-	let ensures_preconds = List.map
-    (fun oldexp_result -> lift_inner_form (Sepprover.conjoin post oldexp_result)) oldexp_results in
+	let ensures_preconds = List.map (Sepprover.conjoin post) oldexp_results in
   let ensures_postcond =
     match Sepprover.convert (conjoin_with_res_true post) with
-      None -> printf "@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" name; empty_inner_form_af
-    | Some post -> lift_inner_form post
+      None -> printf "@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" name; empty_inner_form
+    | Some post -> post
   in
 	(* now do the verification *)
-  exec_type := SymExec;
 	curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
@@ -684,7 +619,7 @@ let verify_ensures
 let check_and_get_frame (pre_heap,id) post_sheap =
   let post_sheap_noid = fst post_sheap in
   let node = snd post_sheap in
-  let frame = frame_inner !curr_logic (inner_form_af_to_form post_sheap_noid) (inner_form_af_to_form pre_heap) in
+  let frame = frame_inner !curr_logic post_sheap_noid pre_heap in
   match frame with
     Some frame ->
                  if Config.symb_debug() then
@@ -709,7 +644,6 @@ let check_and_get_frame (pre_heap,id) post_sheap =
       [])
 
 
-(* TODO: Is this unused? What about the functions it calls? *)
 let get_frame
      (stmts : cfg_node list)
      (pre : Psyntax.pform)
@@ -718,7 +652,6 @@ let get_frame
      : inner_form list
      =
   flush_cache ();
-  exec_type := SymExec;
   curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
@@ -731,7 +664,7 @@ let get_frame
       match rlogic_pre with
         None -> printf "@{<b>WARNING:@} False precondition in spec.@.%!"; []
       |	Some rlogic_pre ->
-        let pre = lift_inner_form rlogic_pre in
+        let pre = rlogic_pre in
         let post =
           match execute_core_stmt s (pre, id) with
           | [p] -> p
@@ -741,6 +674,7 @@ let get_frame
         let id_exit = add_good_node ("Exit") in
         check_and_get_frame (pre,id_exit) post
 
+(*
 let verify_inner
     (mname : string)
     (stmts : cfg_node list)
@@ -750,7 +684,6 @@ let verify_inner
     (abs_rules : logic)
     : bool
     =
-  exec_type := Check;
   curr_logic := lo;
   curr_abs_rules := abs_rules;
   stmts_to_cfg stmts;
@@ -819,3 +752,4 @@ let bi_abduct
           Hashtbl.clear formset_table;
           verify_inner (mname^".check("^(string_of_int !cnt)^")") stmts spec_pre spec_post lo abs_rules) specs in
         specs'
+        *)

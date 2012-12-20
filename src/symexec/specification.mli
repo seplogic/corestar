@@ -13,13 +13,9 @@
 
 
 val empty_inner_form : Sepprover.inner_form
-val empty_inner_form_af : Sepprover.inner_form_af
 val sub_spec : Psyntax.varmap -> Spec.ast_spec -> Spec.ast_spec
-val jsr :
-  Psyntax.logic ->
-  Sepprover.inner_form_af ->
-  Spec.ast_spec ->
-  bool -> (Sepprover.inner_form_af list) option
+val simple_jsr : Psyntax.logic ->
+  Sepprover.inner_form -> Spec.ast_spec -> Sepprover.inner_form list option
 
 (* These are not used by coreStar itself, but mey be useful to the frontend. *)
 val spec_conjunction : Spec.ast_spec -> Spec.ast_spec -> Spec.ast_spec
