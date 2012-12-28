@@ -255,7 +255,7 @@ module ProcedureInterpreter = struct
   type choice_tree =
     | CT_error
     | CT_ok of G.ok_configuration
-    | CT_split of choice_tree list * G.split_type
+    | CT_split of G.split_type * choice_tree list
 
   let confs d s = try SD.find d s with Not_found -> CS.create 1
   let post_confs context = confs context.post_of
@@ -267,6 +267,16 @@ module ProcedureInterpreter = struct
 
   let make_angelic c = G.OkConf (c, G.Angelic)
   let make_demonic c = G.OkConf (c, G.Demonic)
+
+  let make_angelic_choice = function
+    | [] -> CT_error
+    | [c] -> c
+    | cs -> CT_split (G.Angelic, cs)
+
+  let make_demonic_choice = function
+    | [] -> failwith "INTERNAL: empty demonic choice"
+    | [c] -> c
+    | cs -> CT_split (G.Demonic, cs)
 
   (* Updates the [pre_of s] by adding new confs, and returns what is added. *)
   let update_pre_confs context s =
@@ -281,17 +291,20 @@ module ProcedureInterpreter = struct
 
   (* Helper for [update_post_confs]. *)
   let update_post_confs_execute execute context sv posts pv =
-    let p = conf_of_vertex pv in
-    let av = CG.V.create (make_angelic p) in
-    let qs = execute p (G.Cfg.V.label sv) in
-    let qs = option [G.ErrorConf] (List.map make_demonic) qs in
-    let add_q q =
+    let new_post q =
       let qv = CG.V.create q in
-      CD.add context.statement_of qv sv;
-      CG.add_edge context.confgraph av qv;
-      CS.add posts qv in
-    CG.add_edge context.confgraph pv av;
-    List.iter add_q qs
+      CS.add posts qv; CD.add context.statement_of qv sv;
+      qv in
+    let rec graph_of_tree parent =
+      let add_child = CG.add_edge context.confgraph parent in
+      let ok_vertex t = G.OkConf (conf_of_vertex parent, t) in
+      function
+        | CT_error -> add_child (new_post G.ErrorConf)
+        | CT_ok c -> add_child (new_post (ok_vertex G.Demonic))
+        | CT_split (t, qs) ->
+            let child = CG.V.create (ok_vertex t) in add_child child;
+            List.iter (graph_of_tree child) qs in
+    execute (conf_of_vertex pv) (G.Cfg.V.label sv) |> graph_of_tree pv
 
   (* Update [post_of sv]. For each pre-conf in [pvs], it executes
   symbolically the statement [sv], using the helper [update_post_confs_execute].
@@ -348,28 +361,45 @@ module ProcedureInterpreter = struct
 
   let concat_lol xs = List.fold_left (bin_option (@)) None xs
 
+  let emp = Specification.empty_inner_form
+
   let make_nonempty = function
-    | [] -> let e = Specification.empty_inner_form in [(e,e)]
+    | [] -> [(emp, emp)]
     | xs -> xs
 
-  let abduct = Sepprover.abduct_inner
+  let abduct logic p q =
+    Sepprover.abduct_inner logic p q |> option_map make_nonempty
 
   let frame logic p q =
-    option_map (List.map (fun x -> ([], x))) (Sepprover.frame_inner logic p q)
+    Sepprover.frame_inner logic p q
+    |> option_map (List.map (fun x -> (emp, x)))
+    |> option_map make_nonempty
 
-  (* NOTE: This assumes that a proof of H |- P from assumptions F1 |- A1, ...,
-  Fn |- An, may be transformed into a proof of H*(A1∧...∧An) |- P*(F1∨...∨Fn),
-  without assumptions. *)
+  (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
+  that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
+  sufficient to demonically split on the frames Fk, and then angelically on the
+  antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
+  frame) pairs (Ak, Fk). *)
+  let execute_one_triple abduct pre_conf { Spec.pre; post } =
+    let pre, post = failwith "XXX: substitutions" in
+    let afs = abduct pre_conf.G.current_heap pre in
+    assert (afs <> Some []);
+    let branch afs =
+      let mk_post_conf (a, f) =
+        let ( * ) = Sepprover.conjoin_inner in
+        let a = failwith "XXX: substitutions" in
+        CT_ok
+          { G.missing_heap = pre_conf.G.missing_heap * a
+          ; current_heap = post * f } in
+      afs |> List.map mk_post_conf |> make_demonic_choice in
+    option CT_error branch afs
+
   let execute abduct spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
-        let use_triple { Spec.pre; post } =
-          let afs = abduct pre_conf.G.current_heap pre in
-          (* XXX: execute from current_heap, apply substitution to anti-frame,
-          star-join it to the missing_heap, return the new conf *)
-          failwith "TODO" in
-        spec_of call_name |> HashSet.elements |> map_option use_triple
-          |> concat_lol
-    | G.Abs_cfg | G.Nop_cfg -> Some [pre_conf]
+        spec_of call_name |> HashSet.elements
+          |> List.map (execute_one_triple abduct pre_conf)
+          |> make_angelic_choice
+    | G.Abs_cfg | G.Nop_cfg -> CT_ok pre_conf
 
   let abstract context confs = confs (* XXX *)
 
