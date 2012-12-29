@@ -362,17 +362,14 @@ let rec apply_rule_list_once
 
 
 let rec sequents_backtrack
-    f (seqss : Clogic.sequent list list) xs
-    : Clogic.sequent list =
+    f (best_ss, score) (seqss : Clogic.sequent list list)
+    : Clogic.sequent list * int =
   match seqss with
-    [] -> raise (Failed_eg xs)
+    [] -> (best_ss, score)
   | seqs::seqss ->
-      try f seqs
-      with
-	Failed ->
-	  fprintf !proof_dump "Backtracking!@\n"; sequents_backtrack f seqss xs
-      | Failed_eg x ->
-	  fprintf !proof_dump "Backtracking!@\n"; sequents_backtrack f seqss (x @ xs)
+    let (ss, new_score) = f seqs in
+    let new_best = if new_score > score then (ss, new_score) else (best_ss, score) in
+    sequents_backtrack f new_best seqss
 
 let apply_rule_list
     (logic : logic)
@@ -388,40 +385,43 @@ let apply_rule_list
   if log log_prove then
     (List.iter (fun seq -> fprintf !proof_dump "Goal@ %a@\n@\n" Clogic.pp_sequent seq) sequents;
      fprintf !proof_dump "Start time :%f @\n" (Sys.time ()));
-  let rec apply_rule_list_inner sequents n : Clogic.sequent list =
-    let search seqss : Clogic.sequent list =
+  let rec apply_rule_list_inner sequents n best : Clogic.sequent list * int =
+    let search seqss =
       sequents_backtrack
-	(fun seqs->apply_rule_list_inner seqs (n+1)) seqss [] in
+	(fun seqs->apply_rule_list_inner seqs (n+1) best) best seqss in
     let sequents = map_option (simplify_sequent logic.rw_rules) sequents in
-  (* Apply rules lots *)
-    List.flatten
-      (List.map
-	 (fun seq ->
-	   fprintf !proof_dump "%s>@[%a@]@\n@." (String.make n '-') Clogic.pp_sequent  seq;
-	   if must_finish seq then
-	     [seq]
-	   else
-	   try
-	     search (apply_rule_list_once logic.seq_rules seq)
-	   with Backtrack.No_match ->
-	       try
-		 if may_finish seq then
-		   [seq]
-		 else
-		   search ([Clogic.apply_or_left seq])
-	       with Backtrack.No_match ->
-		 try
-		   search (Clogic.apply_or_right seq)
-		 with Backtrack.No_match ->
-                   try
-	             let ts' = Smt.ask_the_audience seq.seq_ts seq.assumption in
-	             search [[ {seq with seq_ts = ts'} ]]
-                   with
-                   | Assm_Contradiction -> []
-                   | Backtrack.No_match -> raise (Failed_eg [seq])
-	 ) sequents
-      )
-  in let res = apply_rule_list_inner sequents n in
+    (* Apply rules lots to one sequent *)
+    (* Return list of needed assumptions together with a score 0..100; high is good *)
+    let solve_seq seq =
+      fprintf !proof_dump "%s>@[%a@]@\n@." (String.make n '-') Clogic.pp_sequent seq;
+      if must_finish seq then
+	([seq], 100)
+      else
+	try
+	  search (apply_rule_list_once logic.seq_rules seq)
+	with Backtrack.No_match ->
+	  try
+	    if may_finish seq then
+	      ([seq], 98)
+	    else
+	      search ([Clogic.apply_or_left seq])
+	  with Backtrack.No_match ->
+	    try
+	      search (Clogic.apply_or_right seq)
+	    with Backtrack.No_match ->
+              try
+	        let ts' = Smt.ask_the_audience seq.seq_ts seq.assumption in
+	        search [[ {seq with seq_ts = ts'} ]]
+              with
+                | Assm_Contradiction -> ([],100)
+                | Backtrack.No_match -> let score = 0 in ([seq], score) in
+    (* Collect solutions and combine scores (using minimum, high score is good) *)
+    let collect_solutions =
+      List.fold_left (fun (acc_seqs, acc_score) (seqs, score) -> (acc_seqs@seqs, min acc_score score)) ([], 100) in
+    (* Apply rules lots *)
+    collect_solutions (List.map solve_seq sequents) in
+  let (res, score) = apply_rule_list_inner sequents n (sequents, 0) in
+  if score < 90 then raise Failed;
   if log log_prove then
     fprintf !proof_dump "@\nEnd time :%f@ " (Sys.time ());
   res
