@@ -22,6 +22,7 @@ type call_core =
   ; call_rets : args_out
   ; call_args : args_in }
 
+(* XXX: This must have [proc_args] and [proc_rets]. What types, thou? *)
 type ('body, 'spec) procedure =
   { proc_name : string
   ; mutable proc_spec : 'spec

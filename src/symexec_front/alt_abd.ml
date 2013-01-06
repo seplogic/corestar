@@ -375,13 +375,19 @@ module ProcedureInterpreter = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
+  let substitute_list _ = failwith "XXX"
+
+  let substitute_args args pre = failwith "XXX"
+  let substitute_rets rets post = failwith "XXX"
+
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
   sufficient to demonically split on the frames Fk, and then angelically on the
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
-  let execute_one_triple abduct pre_conf { Spec.pre; post } =
-    let pre, post = failwith "XXX: substitutions" in
+  let execute_one_triple abduct pre_conf args rets { Spec.pre; post } =
+    let pre = substitute_args args pre in
+    let post = substitute_args args (substitute_rets rets post) in
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
@@ -396,8 +402,9 @@ module ProcedureInterpreter = struct
 
   let execute abduct spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
+        let call_rets = List.map (fun v -> Psyntax.Arg_var v) call_rets in
         spec_of call_name |> HashSet.elements
-          |> List.map (execute_one_triple abduct pre_conf)
+          |> List.map (execute_one_triple abduct pre_conf call_args call_rets)
           |> make_angelic_choice
     | G.Abs_cfg | G.Nop_cfg -> CT_ok pre_conf
 
