@@ -44,18 +44,19 @@ let predeclared = ref StringSet.empty
 let send_custom_commands =
   let decl_re = Str.regexp "[ \t]*([ \t]*declare-fun[ \t]+\\([^ \t()]+\\)" in
   fun () ->
-  if !Config.smt_custom_commands = "" then ();
-  let cc = open_in !Config.smt_custom_commands in
-  try while true do begin
-    let cmd = input_line cc in
-    if Config.smt_debug() then printf "@[%s@." cmd;
-    if Str.string_match decl_re cmd 0 then
-      predeclared := StringSet.add (Str.matched_group 1 cmd) !predeclared;
-    output_string !smtin cmd;
-    output_char !smtin '\n'
-  end done
-  with End_of_file -> close_in cc
-
+    if !Config.smt_custom_commands <> "" then (
+      let cc = open_in !Config.smt_custom_commands in
+      try while true do begin
+	let cmd = input_line cc in
+	if Config.smt_debug() then printf "@[%s@." cmd;
+	if Str.string_match decl_re cmd 0 then
+	  predeclared := StringSet.add (Str.matched_group 1 cmd) !predeclared;
+	output_string !smtin cmd;
+	output_char !smtin '\n'
+      end done
+      with End_of_file -> close_in cc
+    )
+      
 let smt_init () : unit =
   smtpath :=
     if (!Config.solver_path <> "")

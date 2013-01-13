@@ -687,26 +687,30 @@ let rec match_foo op ts form seqs cont =
 	f ts form []
 
 
-let match_eqs ts eqs seqs cont =
-  match_foo unify_patterns ts eqs seqs cont
-
-let match_neqs ts neqs sneqs cont =
-  match_foo unify_not_equal_pattern ts neqs sneqs cont
-
+let match_eqs ts use_ts eqs seqs cont =
+  let u = if use_ts then unify_patterns
+    else (fun _ _ _ _ -> raise No_match) in
+  match_foo u ts eqs seqs cont
 
 
-let rec match_form remove ts form pat combine (cont : term_structure * formula -> 'a) : 'a =
+let match_neqs ts use_ts neqs sneqs cont =
+  let u = if use_ts then unify_not_equal_pattern
+    else (fun _ _ _ _ -> raise No_match) in
+  match_foo u ts neqs sneqs cont
+
+
+let rec match_form remove ts_is_from_form ts form pat combine (cont : term_structure * formula -> 'a) : 'a =
   match_and_remove remove ts form.spat pat.sspat
     combine
     (fun (ts,nspat) ->
       match_and_remove remove ts form.plain pat.splain
         combine
 	(fun (ts,nplain) ->
-	  match_eqs ts form.eqs pat.seqs
+	  match_eqs ts ts_is_from_form form.eqs pat.seqs
 	    (fun (ts,eqs) ->
-	      match_neqs ts form.neqs pat.sneqs
+	      match_neqs ts ts_is_from_form form.neqs pat.sneqs
 		(fun (ts,neqs) ->
-		  match_disjunct remove ts {form with
+		  match_disjunct remove ts_is_from_form ts {form with
 			      spat = nspat;
 			      plain = nplain;
 			      eqs = eqs;
@@ -717,16 +721,16 @@ let rec match_form remove ts form pat combine (cont : term_structure * formula -
 	    )
 	)
     )
-and match_disjunct remove ts form pat_disj combine cont =
+and match_disjunct remove ts_is_from_form ts form pat_disj combine cont =
   match pat_disj with
     [] -> cont (ts,form)
   | (x,y)::pat_disj ->
       try
-	match_form remove ts form x combine
-          (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
+	match_form remove ts_is_from_form ts form x combine
+          (fun (ts,form) -> match_disjunct remove ts_is_from_form ts form pat_disj combine cont)
       with No_match ->
-	match_form remove ts form y combine
-          (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
+	match_form remove ts_is_from_form ts form y combine
+          (fun (ts,form) -> match_disjunct remove ts_is_from_form ts form pat_disj combine cont)
 
 
 

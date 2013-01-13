@@ -1,0 +1,4 @@
+Implication:
+        f(x,y) = numeric_const("1") |- 
+? True
+

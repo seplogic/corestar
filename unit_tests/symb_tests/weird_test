@@ -1,0 +1,4 @@
+SpecTest trivial3: 
+{f(x,y) = numeric_const("1")}{} ? True
+end; 
+
