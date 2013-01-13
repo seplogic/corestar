@@ -1,0 +1,6 @@
+rule toto:
+ | |- f(?x,?y) = numeric_const("1")
+without |- ?x = ?y
+if
+ | |- ?x = ?y
+
