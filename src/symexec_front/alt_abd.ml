@@ -375,10 +375,15 @@ module ProcedureInterpreter = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-  let substitute_list _ = failwith "XXX"
+(*   let substitute_list = List.fold_right (uncurry Sepprover.update_var_to) *)
 
-  let substitute_args args pre = failwith "XXX"
-  let substitute_rets rets post = failwith "XXX"
+  let substitute_list var =
+    let gen = let x = ref 0 in fun () -> incr x; var !x in
+    let sub = Sepprover.update_var_to (gen ()) in
+    List.fold_right sub
+
+  let substitute_args = substitute_list SpecOp.parameter_var
+  let substitute_rets = substitute_list SpecOp.return_var
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is

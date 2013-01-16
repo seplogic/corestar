@@ -26,6 +26,7 @@ let pprinter_core_spec2str = Debug.toString spec2str
 
 let name_ret_v1 = "$ret_v1"
 let ret_v1 = Vars.concretep_str name_ret_v1
+let return_var n = Vars.concretep_str (Printf.sprintf "$ret_v%d" n)
 
 let parameter n = "@parameter"^(string_of_int n)^":"
 let parameter_var n = (Vars.concretep_str (parameter n))

@@ -16,5 +16,6 @@ val specSet2str : Format.formatter -> Core.ast_spec -> unit
 val pprinter_core_spec2str : Spec.ast_spec -> string
 val name_ret_v1 : string
 val ret_v1 : Vars.var
+val return_var : int -> Vars.var
 val parameter : int -> string
 val parameter_var : int -> Vars.var
