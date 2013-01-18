@@ -612,21 +612,6 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
     let unifiable_merge ts a b : t =
       let vt =
         match A.get ts.unifiable a , A.get ts.unifiable b with
-(*
-	| _, Standard -> Standard
-	| Standard, _ -> Deleted
-	| _, Deleted
-	| Deleted, _ -> Deleted
-	| Unifiable, Unifiable -> Unifiable
-	| Unifiable, UnifiableExists
-	| UnifiableExists, Unifiable
-	| UnifiableExists, UnifiableExists -> UnifiableExists
-	| Exists, UnifiableExists
-	| UnifiableExists, Exists
-	| Exists, Exists
-	| Exists, Unifiable
-	| Unifiable, Exists -> Exists
-*)
         | Unifiable, Unifiable -> Unifiable
         | Unifiable, UnifiableExists
         | UnifiableExists, Unifiable

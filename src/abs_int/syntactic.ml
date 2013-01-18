@@ -83,7 +83,7 @@ let kill_unused_existentials syn_form =
     let can_kill vs =
       (vs_is_empty vs <> true) &&  (* the set of free variables must be non empty *)
       (vs_is_empty (vs_inter ev_sp vs)) &&  (* the intersection with existentials in spatials must be empty *)
-      (vs_for_all (fun v -> match v with Vars.EVar _ -> true | _ -> false) vs) (* in there should be only existential vars *)
+      (vs_for_all Vars.is_evar vs) (* in there should be only existential vars *)
     in
     (* filters terms in a multiset *)
     let rec filter_args_mset ms : SMSet.multiset =

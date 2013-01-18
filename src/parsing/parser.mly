@@ -22,17 +22,11 @@ open Psyntax
 open Spec
 open Vars
 
-(* TODO(rgrig): Functions in Vars should be used instead of new*Var. *)
-let newPVar x = concretep_str x
-
-let newAnyVar x = AnyVar(0,x)
-
-let newEVar x = EVar(0,x)
-
 let newVar x =
-  if x = "_" then freshe()
-  else if String.get x 0 = '_' then newEVar (String.sub x 1 ((String.length x) -1))
-  else newPVar x
+  if x.[0] = '_' then begin
+    let x = String.sub x 1 (String.length x - 1) in
+    if x = "" then Vars.freshe () else Vars.concretee_str x
+  end else Vars.concretep_str x
 
 let file_name = ref None
 
@@ -183,7 +177,7 @@ cmpop:
 
 lvariable:
   | identifier { newVar($1) }
-  | QUESTIONMARK identifier { newAnyVar($2) }
+  | QUESTIONMARK identifier { Vars.concretea_str $2 }
 ;
 lvariable_list_ne:
   |  lvariable    { [$1] }

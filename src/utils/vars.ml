@@ -17,11 +17,17 @@ open Format
 type var =
   | PVar of int * string
   | EVar of int * string
-  | AnyVar of int * string 
+  | AnyVar of int * string
 
-let mk_pvar i s = PVar (i, s)
-let mk_evar i s = EVar (i, s)
-let mk_anyvar i s = AnyVar (i, s)
+let is_avar = function AnyVar _ -> true | _ -> false
+let is_evar = function EVar _ -> true | _ -> false
+let is_pvar = function PVar _ -> true | _ -> false
+
+let check_name s = if s = "" then invalid_arg "empty var name"
+
+let mk_pvar i s = check_name s; PVar (i, s)
+let mk_evar i s = check_name s; EVar (i, s)
+let mk_anyvar i s = check_name s; AnyVar (i, s)
 
 let gensym = ref 0
 let fresh mk s = incr gensym; mk !gensym s
@@ -32,8 +38,10 @@ let freshp () = freshp_str "v"
 let freshe () = freshe_str "v"
 let fresha () = fresha_str "v"
 
-module StrVarHash = 
-  Hashtbl.Make(struct 
+let is_fresh = function PVar (n, _) | EVar (n, _) | AnyVar (n, _) -> n <> 0
+
+module StrVarHash =
+  Hashtbl.Make(struct
     type t = string
     let equal = (=)
     let hash = Hashtbl.hash
@@ -50,22 +58,23 @@ let concrete mk vn =
 
 let concretep_str = concrete mk_pvar
 let concretee_str = concrete mk_evar
+let concretea_str = concrete mk_anyvar
 
-let freshen = function 
+let freshen = function
   | PVar (_,v) -> freshp_str v
   | EVar (_,v) -> freshe_str v
-  | AnyVar (_,v) -> fresha_str v 
+  | AnyVar (_,v) -> fresha_str v
 
-let freshen_exists = function 
-  | PVar (_,v) 
-  | AnyVar (_,v) 
+let freshen_exists = function
+  | PVar (_,v)
+  | AnyVar (_,v)
   | EVar (_,v) -> freshe_str v
 
 
 
 let pp_var f =
   let p = function 0 -> "" | n -> sprintf "_%d" n in
-  function 
+  function
     | PVar (n,vn) -> fprintf f "%s%s" vn (p n)
     | EVar (n,vn) -> fprintf f "_%s%s" vn (p n)
     | AnyVar (n,vn) -> fprintf f "a_%s%s" vn (p n)

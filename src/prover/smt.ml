@@ -390,7 +390,7 @@ let smt_test_eq (a1 : Psyntax.args) (a2 : Psyntax.args) : bool =
 
 let decl_evars (types : smttypeset) (s : string) : string =
   let v2s = function
-    | SMT_Var (Vars.EVar (i, e) as v) ->
+    | SMT_Var v when Vars.is_evar v ->
         "(" ^ id_munge (Vars.string_var v) ^ " Int)"
     | _ -> "" in
   let prefix = SMTTypeSet.fold (fun v p -> v2s v ^ p) types "" in

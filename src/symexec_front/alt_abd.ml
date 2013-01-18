@@ -375,8 +375,6 @@ module ProcedureInterpreter = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-(*   let substitute_list = List.fold_right (uncurry Sepprover.update_var_to) *)
-
   let substitute_list var =
     let gen = let x = ref 0 in fun () -> incr x; var !x in
     let sub = Sepprover.update_var_to (gen ()) in
@@ -384,6 +382,10 @@ module ProcedureInterpreter = struct
 
   let substitute_args = substitute_list SpecOp.parameter_var
   let substitute_rets = substitute_list SpecOp.return_var
+
+  let collect_assignables _ = failwith "TODO"
+
+  let replace_assignables _ = failwith "XXX"
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -398,9 +400,8 @@ module ProcedureInterpreter = struct
     let branch afs =
       let mk_post_conf (a, f) =
         let ( * ) = Sepprover.conjoin_inner in
-        let a = failwith "XXX: substitutions" in
         CT_ok
-          { G.missing_heap = pre_conf.G.missing_heap * a
+          { G.missing_heap = pre_conf.G.missing_heap * replace_assignables a
           ; current_heap = post * f } in
       afs |> List.map mk_post_conf |> make_demonic_choice in
     option CT_error branch afs

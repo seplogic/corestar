@@ -86,7 +86,7 @@ let local_debug = false
 let is_good_rep ts rep =
 		 try
 		   (match CMap.find rep ts.originals with
-                   | FArg_var (PVar _)
+                   | FArg_var v when Vars.is_pvar v -> true
 		   | FArg_op(_,[])
                    | FArg_cons(_,[])
                    | FArg_string _ -> true
@@ -96,7 +96,7 @@ let is_good_rep ts rep =
 let is_evar ts rep =
 		 try
 		   (match CMap.find rep ts.originals with
-                   | FArg_var (EVar _) -> true
+                   | FArg_var v -> Vars.is_evar v
                    | _ -> false )
                  with Not_found -> false
 
@@ -118,13 +118,9 @@ let find_good_rep ts rep =
 let has_pp_c ts c : bool =
   try
     match CMap.find c ts.originals with
-      FArg_var v ->
-	begin
-	  match v with
-	    AnyVar _ -> local_debug
-	  | EVar _ -> (find_good_rep ts c) = c
-	  | PVar _ -> VarMap.mem v ts.pvars
-	end
+    | FArg_var v when Vars.is_avar v -> local_debug
+    | FArg_var v when Vars.is_evar v -> find_good_rep ts c = c
+    | FArg_var v when Vars.is_pvar v -> VarMap.mem v ts.pvars
     | FArg_op ("tuple",_)
     | FArg_record _
       -> false
@@ -150,22 +146,17 @@ let rec get_pargs norm ts rs rep : Psyntax.args =
           else rep) ts.originals
     in
     let fpt = match fpt with
-        | FArg_var (EVar _)
+        | FArg_var v when Vars.is_evar v
             -> CMap.find (find_good_rep ts rep) ts.originals
         | _ -> fpt in
     match fpt with
-      FArg_var v ->
-	begin
-	  match v with
-	    EVar _ -> Arg_var v
-    	  | PVar _ -> Arg_var v
-	  | AnyVar _ ->
-	      let nrep = if local_debug then rep else (CC.normalise ts.cc rep) in
-	      if nrep <> rep then
-		get_pargs norm ts (rep::rs) (CC.normalise ts.cc rep)
-	      else
-		Arg_var v
-	end
+    | FArg_var v ->
+        if Vars.is_avar v then begin
+            let nrep = if local_debug then rep else (CC.normalise ts.cc rep) in
+            if nrep <> rep then
+              get_pargs norm ts (rep :: rs) (CC.normalise ts.cc rep)
+            else Arg_var v
+        end else Arg_var v
     | FArg_op (n,ops) ->
 	Arg_op(n, List.map (get_pargs true ts (rep::rs)) ops)
     | FArg_cons (n,ops) ->
@@ -201,22 +192,17 @@ let rec get_pargs_norecs norm ts rs rep : Psyntax.args =
           else rep) ts.originals
     in
     let fpt = match fpt with
-        | FArg_var (EVar _)
+        | FArg_var v when Vars.is_evar v
             -> CMap.find (find_good_rep ts rep) ts.originals
         | _ -> fpt in
     match fpt with
       FArg_var v ->
-	begin
-	  match v with
-	    EVar _ -> Arg_var v
-	  | PVar _ -> Arg_var v
-	  | AnyVar _ ->
-	      let nrep = if local_debug then rep else (CC.normalise ts.cc rep) in
-	      if nrep <> rep then
-		get_pargs_norecs norm ts (rep::rs) (CC.normalise ts.cc rep)
-	      else
-		Arg_var v
-	end
+        if Vars.is_avar v then begin
+            let nrep = if local_debug then rep else (CC.normalise ts.cc rep) in
+            if nrep <> rep then
+              get_pargs_norecs norm ts (rep :: rs) (CC.normalise ts.cc rep)
+            else Arg_var v
+        end else Arg_var v
     | FArg_op (n,ops) ->
 	Arg_op(n, List.map (get_pargs_norecs true ts (rep::rs)) ops)
     | FArg_cons (n,ops) ->
@@ -257,48 +243,45 @@ let rec add_term params pt ts : 'a * term_structure =
 (*  Format.printf "Adding term %a.@\n" string_args pt;*)
   let c,ts =
     match pt with
-    | Arg_var (v) ->
-	begin
-	  match v with
-	    AnyVar _ ->
-	      begin
-		try
-		  lift(VarMap.find (v) ts.avars), ts
-		with Not_found ->
-		  (*assert (unif);   FIX this later.*)
-		  (* if not add to ts, and return constant to it *)
-		  let c,cc = CC.fresh_unifiable ts.cc in
-		  lift(c), {ts with cc = cc; avars = VarMap.add (v) c ts.avars; originals = CMap.add c (FArg_var (Vars.freshen_exists v))  ts.originals }
-	      end
-          | PVar (n,_) ->
-	      (* Check if variable is in current map *)
-	      begin
-		try
-		  lift(VarMap.find v (if fresh && n<>0 then ts.apvars else ts.pvars)), ts
-		with Not_found ->
-		  (* if not add to ts, and return constant to it *)
-		  let c,cc = CC.fresh ts.cc in
-		  (*let c,cc = app cc lift(ts.var) lift(c) in  *)
-		  if fresh && n<>0 then
-		    lift c,{ts with cc = cc; apvars = VarMap.add (v) c ts.apvars; originals = CMap.add c (FArg_var (freshen_exists v))  ts.originals }
-		  else
-		    lift c, {ts with cc = cc; pvars = VarMap.add (v) c ts.pvars; originals = CMap.add c (FArg_var v)  ts.originals }
-	      end
-	  | EVar _ ->
-	      (* Check if variable is in current map *)
-	      begin
-		try
-		  lift (VarMap.find v (if fresh then ts.aevars else ts.evars)), ts
-		with Not_found ->
-		  let c,cc =
-		    if unif then CC.fresh_unifiable_exists ts.cc
-		    else CC.fresh_exists ts.cc in
-		  if fresh then
-		    lift(c), {ts with cc = cc; aevars = VarMap.add v c ts.aevars; originals = CMap.add c (FArg_var (Vars.freshen_exists v))  ts.originals }
-		  else
-		    lift(c), {ts with cc = cc; evars = VarMap.add v c ts.evars; originals = CMap.add c (FArg_var v)  ts.originals }
-	      end
-	end
+    | Arg_var v when Vars.is_avar v ->
+        begin
+          try
+            lift(VarMap.find (v) ts.avars), ts
+          with Not_found ->
+            (*assert (unif);   FIX this later.*)
+            (* if not add to ts, and return constant to it *)
+            let c,cc = CC.fresh_unifiable ts.cc in
+            lift(c), {ts with cc = cc; avars = VarMap.add (v) c ts.avars; originals = CMap.add c (FArg_var (Vars.freshen_exists v))  ts.originals }
+        end
+    | Arg_var v when Vars.is_pvar v ->
+        (* Check if variable is in current map *)
+        begin
+          try
+            lift(VarMap.find v (if fresh && Vars.is_fresh v then ts.apvars else ts.pvars)), ts
+          with Not_found ->
+            (* if not add to ts, and return constant to it *)
+            let c,cc = CC.fresh ts.cc in
+            (*let c,cc = app cc lift(ts.var) lift(c) in  *)
+            if fresh && Vars.is_fresh v then
+              lift c,{ts with cc = cc; apvars = VarMap.add (v) c ts.apvars; originals = CMap.add c (FArg_var (freshen_exists v))  ts.originals }
+            else
+              lift c, {ts with cc = cc; pvars = VarMap.add (v) c ts.pvars; originals = CMap.add c (FArg_var v)  ts.originals }
+        end
+    | Arg_var v when Vars.is_evar v ->
+        (* Check if variable is in current map *)
+        begin
+          try
+            lift (VarMap.find v (if fresh then ts.aevars else ts.evars)), ts
+          with Not_found ->
+            let c,cc =
+              if unif then CC.fresh_unifiable_exists ts.cc
+              else CC.fresh_exists ts.cc in
+            if fresh then
+              lift(c), {ts with cc = cc; aevars = VarMap.add v c ts.aevars; originals = CMap.add c (FArg_var (Vars.freshen_exists v))  ts.originals }
+            else
+              lift(c), {ts with cc = cc; evars = VarMap.add v c ts.evars; originals = CMap.add c (FArg_var v)  ts.originals }
+        end
+    | Arg_var _ -> failwith "The guarded cases above should have matched."
     | Arg_string s ->
 	begin
 	  try
@@ -574,8 +557,8 @@ let kill_var ts v =
     let originals = CMap.remove r ts.originals in
     let originals =
       match pp_term with
-	FArg_var (PVar (v',n)) when ((PVar (v',n))=v) ->
-	    CMap.add r (FArg_var (Vars.freshen_exists v)) originals
+      | FArg_var v' when Vars.is_pvar v' && v' = v
+	   -> CMap.add r (FArg_var (Vars.freshen_exists v)) originals
       |  _ -> originals (* RLP: Should this raise an exception? *)
       in
     {ts with pvars = pvars; cc=cc; originals=originals}
@@ -659,9 +642,7 @@ let ts_eq ts1 ts2 =
 
 
 let var_not_used_in ts var reps : bool =
-  match var with
-    EVar _ ->
-      begin
+  if Vars.is_evar var then begin
 	try
 	  CC.rep_not_used_in ts.cc (VarMap.find var ts.aevars) reps
 	with Not_found ->
@@ -669,10 +650,10 @@ let var_not_used_in ts var reps : bool =
 	     Printf.printf "Could not find existential! Impossible!";
 	    assert false *)
 	  false
-      end
-  | _ ->
+  end else begin
       Printf.printf "Don't use non-existential variables in notincontext stuff.";
       assert false
+  end
 
 let var_not_used_in_term ts var term : bool =
   (* TODO: This ts is not return, potentially dangerous. Further review required. *)

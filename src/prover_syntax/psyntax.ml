@@ -227,7 +227,7 @@ and fv_fld_list fldlist set =
 
 let rec ev_args args set =
   match args with
-    Arg_var var -> (match var with EVar _ -> vs_add var set | _ -> set )
+    Arg_var var -> if Vars.is_evar var then vs_add var set else set
   | Arg_string _ -> set
   | Arg_op (name,argsl) -> ev_args_list argsl set
   | Arg_cons (name,argsl) -> ev_args_list argsl set
