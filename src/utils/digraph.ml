@@ -52,6 +52,7 @@ module type IM = sig
   val out_degree : t -> vertex -> int
   val in_degree : t -> vertex -> int
   val iter_vertex : (vertex -> unit) -> t -> unit
+  val fold_vertex : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
@@ -112,6 +113,10 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
   let iter_vertex f g =
     let f x _ = f x in
     VMap.iter f g.out_edges
+
+  let fold_vertex f g =
+    let f x _ = f x in
+    VMap.fold f g.out_edges
 
   let iter_edges_e f g =
     let f _ es = ESet.iter f es in

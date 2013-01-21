@@ -42,6 +42,7 @@ module type IM =
     val out_degree : t -> vertex -> int
     val in_degree : t -> vertex -> int
     val iter_vertex : (vertex -> unit) -> t -> unit
+    val fold_vertex : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
     val iter_edges : (vertex -> vertex -> unit) -> t -> unit
     val iter_edges_e : (edge -> unit) -> t -> unit
     val iter_succ : (vertex -> unit) -> t -> vertex -> unit

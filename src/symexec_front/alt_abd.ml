@@ -7,6 +7,7 @@ open Format
 module C = Core
 module G = Cfg
 module P = Cfg.Procedure
+module PS = Psyntax
 
 exception Fatal of string
 
@@ -383,7 +384,11 @@ module ProcedureInterpreter = struct
   let substitute_args = substitute_list SpecOp.parameter_var
   let substitute_rets = substitute_list SpecOp.return_var
 
-  let collect_assignables _ = failwith "TODO"
+  let collect_assignables fg =
+    let f v acc = match G.Cfg.V.label v with
+      | G.Abs_cfg | G.Nop_cfg -> acc
+      | G.Call_cfg c -> List.fold_right PS.vs_add c.C.call_rets acc in
+    G.Cfg.fold_vertex f fg PS.vs_empty
 
   let replace_assignables _ = failwith "XXX"
 
@@ -408,7 +413,7 @@ module ProcedureInterpreter = struct
 
   let execute abduct spec_of pre_conf = function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
-        let call_rets = List.map (fun v -> Psyntax.Arg_var v) call_rets in
+        let call_rets = List.map (fun v -> PS.Arg_var v) call_rets in
         spec_of call_name |> HashSet.elements
           |> List.map (execute_one_triple abduct pre_conf call_args call_rets)
           |> make_angelic_choice
