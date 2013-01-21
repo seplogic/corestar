@@ -390,14 +390,22 @@ module ProcedureInterpreter = struct
       | G.Call_cfg c -> List.fold_right PS.vs_add c.C.call_rets acc in
     G.Cfg.fold_vertex f fg PS.vs_empty
 
-  let replace_assignables _ = failwith "XXX"
+  (* Used as the [make_framable] argument of the generic [execute]. *)
+  let replace_assignables =
+    let replace_one v f =
+      match Sepprover.get_equals_pvar_free v f with
+      | [] -> Sepprover.kill_var v f
+      | t :: _ -> Sepprover.update_var_to v t f in
+    PS.vs_fold replace_one
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
   sufficient to demonically split on the frames Fk, and then angelically on the
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
-  let execute_one_triple abduct pre_conf args rets { Spec.pre; post } =
+  let execute_one_triple
+      abduct make_framable pre_conf args rets { Spec.pre; post }
+  =
     let pre = substitute_args args pre in
     let post = substitute_args args (substitute_rets rets post) in
     let afs = abduct pre_conf.G.current_heap pre in
@@ -406,16 +414,18 @@ module ProcedureInterpreter = struct
       let mk_post_conf (a, f) =
         let ( * ) = Sepprover.conjoin_inner in
         CT_ok
-          { G.missing_heap = pre_conf.G.missing_heap * replace_assignables a
+          { G.missing_heap = pre_conf.G.missing_heap * make_framable a
           ; current_heap = post * f } in
       afs |> List.map mk_post_conf |> make_demonic_choice in
     option CT_error branch afs
 
-  let execute abduct spec_of pre_conf = function
+  let execute abduct make_framable =
+    let execute_one_triple = execute_one_triple abduct make_framable in
+    fun spec_of pre_conf -> function
     | G.Call_cfg { C.call_rets; call_name; call_args } ->
         let call_rets = List.map (fun v -> PS.Arg_var v) call_rets in
         spec_of call_name |> HashSet.elements
-          |> List.map (execute_one_triple abduct pre_conf call_args call_rets)
+          |> List.map (execute_one_triple pre_conf call_args call_rets)
           |> make_angelic_choice
     | G.Abs_cfg | G.Nop_cfg -> CT_ok pre_conf
 
