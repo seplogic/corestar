@@ -248,6 +248,7 @@ module ProcedureInterpreter = struct
     ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
     ; statement_of : G.Cfg.vertex CD.t (* inverse of [post_of] *) }
   (* INV: The set [pre_of s] should never shrink, for all statements [s]. *)
+  (* NOTE: Be careful, these are imperative data structures. *)
 
   (* Executing one statement produces one [choice_tree], which is later
   integrated into the confgraph by [update]. (Alternatively, the function
@@ -261,6 +262,12 @@ module ProcedureInterpreter = struct
   let confs d s = try SD.find d s with Not_found -> CS.create 1
   let post_confs context = confs context.post_of
   let pre_confs context = confs context.pre_of
+
+  let remove_conf context c =
+    let s = CD.find context.statement_of c in
+    CS.remove (post_confs context s) c;
+    let f t = CS.remove (pre_confs context t) c in
+    G.Cfg.iter_succ f context.flowgraph s
 
   let conf_of_vertex v = match CG.V.label v with
     | G.OkConf (c, _) -> c
@@ -334,26 +341,8 @@ module ProcedureInterpreter = struct
     SD.add post_of procedure.P.start (CS.singleton conf);
     { confgraph; flowgraph; post_of; pre_of; statement_of }
 
-  type bfs_state =
-    { bfs_que : G.Cfg.vertex Queue.t
-    ; bfs_set : SS.t }
-
-  let bfs_state_init () =
-    { bfs_que = Queue.create ()
-    ; bfs_set = SS.create 1 }
-
-  let bfs_state_enque { bfs_que; bfs_set } s =
-    if not (SS.mem bfs_set s) then begin
-      SS.add bfs_set s;
-      Queue.push s bfs_que
-    end
-
-  let bfs_state_deque { bfs_que; bfs_set } =
-    let r = Queue.pop bfs_que in
-    SS.remove bfs_set r;
-    r
-
-  let bfs_state_done q = Queue.is_empty q.bfs_que
+  module StatementBfs = Bfs.Make (SS)
+  module ConfBfs = Bfs.Make (CS)
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
   let bin_option f x y = match x, y with
@@ -431,23 +420,50 @@ module ProcedureInterpreter = struct
 
   let abstract context confs = confs (* XXX *)
 
+  let prune_error_confs context =
+    let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
+    let q = ConfBfs.initialize true in
+    let init_vertex v = match CG.V.label v with
+      | G.ErrorConf -> ConfBfs.enque q v
+      | G.OkConf (_, G.Angelic) ->
+          let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
+          let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in
+          CD.add ne_succ_cnt v cnt
+      | _ -> () in
+    CG.iter_vertex init_vertex context.confgraph;
+    let process_vertex v =
+      let process_pred u =
+        if not (ConfBfs.is_seen q u) then begin
+          match CG.V.label u with
+            | G.OkConf (_, G.Angelic) ->
+                let n = CD.find ne_succ_cnt u - 1 in
+                CD.replace ne_succ_cnt u n;
+                if n = 0 then ConfBfs.enque q u
+            | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
+            | _ -> assert false
+        end in
+      CG.iter_pred process_pred context.confgraph v in
+    while not (ConfBfs.is_done q) do process_vertex (ConfBfs.deque q) done;
+    List.iter (remove_conf context) (ConfBfs.get_seen q)
+
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph update procedure conf =
     let context = initialize procedure conf in
-    let q = bfs_state_init () in
-    let enque_succ = G.Cfg.iter_succ (bfs_state_enque q) context.flowgraph in
+    let q = StatementBfs.initialize false in
+    let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
     enque_succ procedure.P.start;
     let rec bfs budget =
-      if budget = 0 || bfs_state_done q then budget else begin
-        let s = bfs_state_deque q in
+      if budget = 0 || StatementBfs.is_done q then budget else begin
+        let s = StatementBfs.deque q in
         if update context s then enque_succ s;
         bfs (budget - 1)
       end in
     if bfs (1 lsl 20) = 0 then None
-    else Some (post_confs context procedure.P.stop)
+    else Some (prune_error_confs context; post_confs context procedure.P.stop)
 
   let rec interpret proc_of_name p =
     (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
+    (* TODO: add assertion at the end of p, for checking the postcondition *)
     failwith "TODO"
 
 end

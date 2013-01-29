@@ -51,6 +51,7 @@ module type IM =
     val fold_pred : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
     val create : ?size:int -> unit -> t
     val add_vertex : t -> vertex -> unit
+    val remove_vertex : t -> vertex -> unit
     val add_edge : t -> vertex -> vertex -> unit
     val remove_edge : t -> vertex -> vertex -> unit
   end

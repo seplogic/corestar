@@ -61,6 +61,7 @@ module type IM = sig
   val fold_pred : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
   val create : ?size:int -> unit -> t
   val add_vertex : t -> vertex -> unit
+  val remove_vertex : t -> vertex -> unit
   val add_edge : t -> vertex -> vertex -> unit
   val remove_edge : t -> vertex -> vertex -> unit
 end
@@ -147,6 +148,10 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     let add x h = if not (VMap.mem h x) then VMap.add h x ESet.empty in
     add x g.out_edges;
     add x g.in_edges
+
+  let remove_vertex g x =
+    VMap.remove g.out_edges x;
+    VMap.remove g.in_edges x
 
   let add_edge g x y =
     add_vertex g x;
