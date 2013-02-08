@@ -460,7 +460,7 @@ let make_list_equal
     : term_structure =
   match xs with
   | x::xs -> List.fold_left (fun ts' y -> make_equal ts' x y) ts xs
-  | _ -> ts
+  | [] -> ts
 
 
 let compress ts =

@@ -267,7 +267,8 @@ module ProcedureInterpreter = struct
     let s = CD.find context.statement_of c in
     CS.remove (post_confs context s) c;
     let f t = CS.remove (pre_confs context t) c in
-    G.Cfg.iter_succ f context.flowgraph s
+    G.Cfg.iter_succ f context.flowgraph s;
+    CG.remove_vertex context.confgraph c
 
   let conf_of_vertex v = match CG.V.label v with
     | G.OkConf (c, _) -> c
@@ -344,13 +345,6 @@ module ProcedureInterpreter = struct
   module StatementBfs = Bfs.Make (SS)
   module ConfBfs = Bfs.Make (CS)
 
-  (* Lifts binary operators to options, *but* treats [None] as the identity. *)
-  let bin_option f x y = match x, y with
-    | None, x | x, None -> x
-    | Some x, Some y -> Some (f x y)
-
-  let concat_lol xs = List.fold_left (bin_option (@)) None xs
-
   let emp = Specification.empty_inner_form
 
   let make_nonempty = function
@@ -420,30 +414,39 @@ module ProcedureInterpreter = struct
 
   let abstract context confs = confs (* XXX *)
 
+  (* helpers for [prune_error_confs] {{{ *)
+
+  let pec_init context ne_succ_cnt q v = match CG.V.label v with
+    | G.ErrorConf -> ConfBfs.enque q v
+    | G.OkConf (_, G.Angelic) ->
+        let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
+        let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in
+        CD.add ne_succ_cnt v cnt
+    | _ -> ()
+
+  let pec_process context ne_succ_cnt q =
+    let process_pred u =
+      if not (ConfBfs.is_seen q u) then begin
+        match CG.V.label u with
+          | G.OkConf (_, G.Angelic) ->
+              let n = CD.find ne_succ_cnt u - 1 in
+              CD.replace ne_succ_cnt u n;
+              assert (n >= 0);
+              if n = 0 then ConfBfs.enque q u
+          | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
+          | G.ErrorConf -> failwith "ErrorConf has no successors"
+      end in
+    CG.iter_pred process_pred context.confgraph
+
+  (* }}} *)
+
   let prune_error_confs context =
     let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
     let q = ConfBfs.initialize true in
-    let init_vertex v = match CG.V.label v with
-      | G.ErrorConf -> ConfBfs.enque q v
-      | G.OkConf (_, G.Angelic) ->
-          let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
-          let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in
-          CD.add ne_succ_cnt v cnt
-      | _ -> () in
-    CG.iter_vertex init_vertex context.confgraph;
-    let process_vertex v =
-      let process_pred u =
-        if not (ConfBfs.is_seen q u) then begin
-          match CG.V.label u with
-            | G.OkConf (_, G.Angelic) ->
-                let n = CD.find ne_succ_cnt u - 1 in
-                CD.replace ne_succ_cnt u n;
-                if n = 0 then ConfBfs.enque q u
-            | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
-            | _ -> assert false
-        end in
-      CG.iter_pred process_pred context.confgraph v in
-    while not (ConfBfs.is_done q) do process_vertex (ConfBfs.deque q) done;
+    CG.iter_vertex (pec_init context ne_succ_cnt q) context.confgraph;
+    while not (ConfBfs.is_done q) do
+      pec_process context ne_succ_cnt q (ConfBfs.deque q)
+    done;
     List.iter (remove_conf context) (ConfBfs.get_seen q)
 
   (* Builds a graph of configurations, in BFS order. *)
@@ -464,7 +467,7 @@ module ProcedureInterpreter = struct
   let rec interpret proc_of_name p =
     (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
     (* TODO: add assertion at the end of p, for checking the postcondition *)
-    failwith "TODO"
+    failwith "TODO a"
 
 end
 (* }}} *)

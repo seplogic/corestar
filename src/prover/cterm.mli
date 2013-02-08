@@ -83,7 +83,6 @@ val make_tuple_pattern : Psyntax.args list -> term_structure -> pattern * term_s
 val make_equal_t : bool -> term_structure -> Psyntax.args -> Psyntax.args -> term_structure
 val make_not_equal_t : bool -> term_structure -> Psyntax.args -> Psyntax.args -> term_structure
 
-
 val blank_pattern_vars : term_structure -> term_structure
 
 val pp_ts' : Printing.sep_wrapper -> formatter -> bool -> term_structure -> bool
