@@ -214,9 +214,7 @@ let compute_call_graph ps =
   cg, Hashtbl.find von
 
 let output_sccs cs =
-  let pp_procedure f v =
-    let p = CallGraph.V.label v in
-    fprintf f "@ %s" p.C.proc_name in
+  let pp_procedure f p = fprintf f "@ %s" p.C.proc_name in
   let pp_component f ps = fprintf f "@[[%a ]@]@\n" (pp_list pp_procedure) ps in
   let file = open_out "sccs.txt" in
   let f = make_formatter (output file) (fun () -> flush file) in
@@ -224,7 +222,15 @@ let output_sccs cs =
   close_out file
 
 (* symbolic execution for one procedure {{{ *)
-module ProcedureInterpreter = struct
+module ProcedureInterpreter : sig
+  type interpret_procedure_result =
+    | NOK
+    | OK
+    | Spec_updated
+    | Unknown
+  val interpret
+    : (string -> CallGraph.V.label) -> CallGraph.V.label -> interpret_procedure_result
+end = struct
 
   type interpret_procedure_result =
     | NOK
@@ -485,6 +491,7 @@ let interpret gs =
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
+  let sccs = List.map (List.map CallGraph.V.label) sccs in
   if !verbose >= 3 then output_sccs sccs;
   let proc_of_name n = CallGraph.V.label (von n) in
   List.for_all (interpret_one_scc proc_of_name) sccs
