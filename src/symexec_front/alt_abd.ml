@@ -470,10 +470,23 @@ end = struct
     if bfs (1 lsl 20) = 0 then None
     else Some (prune_error_confs context; post_confs context procedure.P.stop)
 
-  let rec interpret proc_of_name p =
-    (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
-    (* TODO: add assertion at the end of p, for checking the postcondition *)
-    failwith "TODO a"
+  let rec interpret proc_of_name p = match p.C.proc_body with
+    | None -> OK
+    | Some body ->
+        (* XXX: load logics *)
+        let assignables = collect_assignables body.P.cfg in
+        let spec_of n = (proc_of_name n).C.proc_spec in
+        let update =
+          update
+            (execute
+              (abduct Psyntax.empty_logic)
+              (replace_assignables assignables)
+              spec_of)
+            abstract in
+        (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
+        (* TODO: add assertion at the end of p, for checking the postcondition *)
+        failwith "TODO a";
+        NOK
 
 end
 (* }}} *)
