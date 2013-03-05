@@ -146,8 +146,7 @@ open Psyntax
 
     let get_equals_pvar_free : var -> inner_form -> Psyntax.args list
       = fun v form ->
-        let eq_evars = Cterm.get_equals_pvar_free form.Clogic.ts v in
-	eq_evars
+        Cterm.get_equals_pvar_free form.Clogic.ts v
 
 
    let pprint_proof = Prover.pprint_proof

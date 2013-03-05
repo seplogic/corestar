@@ -336,13 +336,16 @@ end = struct
     update_post_confs execute abstract context new_pre s;
     CS.length new_pre > 0
 
-  let initialize procedure conf =
+  let emp = Specification.empty_inner_form
+
+  let initialize procedure pre =
     let confgraph = CG.create () in
     let flowgraph = procedure.P.cfg in
     let post_of = SD.create 1 in
     let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
-    let conf = CG.V.create conf in
+    let conf = CG.V.create
+      (G.OkConf ({ G.current_heap = pre; missing_heap = emp }, G.Demonic)) in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
     SD.add post_of procedure.P.start (CS.singleton conf);
@@ -350,8 +353,6 @@ end = struct
 
   module StatementBfs = Bfs.Make (SS)
   module ConfBfs = Bfs.Make (CS)
-
-  let emp = Specification.empty_inner_form
 
   let make_nonempty = function
     | [] -> [(emp, emp)]
@@ -408,6 +409,7 @@ end = struct
       afs |> List.map mk_post_conf |> make_demonic_choice in
     option CT_error branch afs
 
+  (* XXX: Add check for postcondition. *)
   let execute abduct make_framable =
     let execute_one_triple = execute_one_triple abduct make_framable in
     fun spec_of pre_conf -> function
@@ -456,8 +458,8 @@ end = struct
     List.iter (remove_conf context) (ConfBfs.get_seen q)
 
   (* Builds a graph of configurations, in BFS order. *)
-  let interpret_flowgraph update procedure conf =
-    let context = initialize procedure conf in
+  let interpret_flowgraph update procedure pre =
+    let context = initialize procedure pre in
     let q = StatementBfs.initialize false in
     let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
     enque_succ procedure.P.start;
@@ -470,19 +472,28 @@ end = struct
     if bfs (1 lsl 20) = 0 then None
     else Some (prune_error_confs context; post_confs context procedure.P.stop)
 
-  let rec interpret proc_of_name p = match p.C.proc_body with
+  let update_infer proc_of_name body =
+    let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
+    let assignables = collect_assignables body.P.cfg in
+    let make_framable = replace_assignables assignables in
+    let spec_of n = (proc_of_name n).C.proc_spec in
+    let execute = execute abduct make_framable spec_of in
+    update execute abstract
+
+  let update_check proc_of_name =
+    let abduct = frame Psyntax.empty_logic in (* XXX: load rules *)
+    let check_emp x = assert (x = emp); emp in
+    let spec_of n = (proc_of_name n).C.proc_spec in
+    let execute = execute abduct check_emp spec_of in
+    update execute abstract
+
+  let interpret proc_of_name p = match p.C.proc_body with
     | None -> OK
     | Some body ->
-        (* XXX: load logics *)
-        let assignables = collect_assignables body.P.cfg in
-        let spec_of n = (proc_of_name n).C.proc_spec in
-        let update =
-          update
-            (execute
-              (abduct Psyntax.empty_logic)
-              (replace_assignables assignables)
-              spec_of)
-            abstract in
+        let process_triple triple =
+          let inferred =
+            interpret_flowgraph (update_infer proc_of_name body) body triple in
+          failwith "TODO" in
         (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
         (* TODO: add assertion at the end of p, for checking the postcondition *)
         failwith "TODO a";
