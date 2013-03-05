@@ -40,9 +40,11 @@ let arg_list = Config.args_default @
 let main () : unit =
   let usage_msg = "Usage: -l <logic_file_name>  -a <abstraction_file_name>  -f <question_file_name>" in
   Arg.parse arg_list (fun s ->()) usage_msg;
-  let args_ok, check_fn = let x = ref false in x, fun (f, m) ->
-    if f = "" then eprintf "@[%s file name missing.@." m;
-    x := false in
+  let args_ok = ref true in
+  let check_fn = fun (f, m) ->
+    if f = "" then (
+      eprintf "@[%s file name missing.@." m;
+      args_ok := false) in
   List.iter check_fn [
     (!question_file_name, "Question");
     (!logic_file_name, "Logic");
