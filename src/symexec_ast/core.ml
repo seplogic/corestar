@@ -44,13 +44,8 @@ type inner_core = inner_spec core_statement
 type 'spec symb_question = ('spec core_statement list, 'spec) procedure
 type 'spec symb_test = 'spec symb_question * bool (* snd is expected answer *)
 
-let ast_to_inner_spec : ast_spec -> inner_spec =
-  let mh f h =
-    let xs = HashSet.elements h in
-    let xs = List.map f xs in
-    let h = HashSet.create 1 in
-    List.iter (HashSet.add h) xs; h in
-  mh Spec.ast_to_inner_spec
+let ast_to_inner_spec : ast_spec -> inner_spec = fun xs ->
+  HashSet.of_list (List.map Spec.ast_to_inner_spec (HashSet.elements xs))
 
 let ast_to_inner_core : ast_core -> inner_core = function
   | Nop_stmt_core -> Nop_stmt_core

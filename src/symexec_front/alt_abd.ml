@@ -487,13 +487,22 @@ end = struct
     let execute = execute abduct check_emp spec_of in
     update execute abstract
 
+  (* Lifts binary operators to options, *but* treats [None] as the identity. *)
+  let bin_option f x y = match x, y with
+    | None, x | x, None -> x
+    | Some x, Some y -> Some (f x y)
+
+  let concat_lol xs = List.fold_left (bin_option (@)) None xs
+
+  let concat_sos xs = HashSet.fold
+
   let interpret proc_of_name p = match p.C.proc_body with
     | None -> OK
     | Some body ->
         let process_triple triple =
-          let inferred =
-            interpret_flowgraph (update_infer proc_of_name body) body triple in
-          failwith "TODO" in
+          option_map CS.elements
+          (interpret_flowgraph (update_infer proc_of_name body) body triple.Spec.pre) in
+        concat_lol (List.map process_triple (HashSet.elements p.C.proc_spec));
         (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
         (* TODO: add assertion at the end of p, for checking the postcondition *)
         failwith "TODO a";
