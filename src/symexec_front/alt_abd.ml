@@ -472,6 +472,19 @@ end = struct
     if bfs (1 lsl 20) = 0 then None
     else Some (prune_error_confs context; post_confs context procedure.P.stop)
 
+  let spec_of post =
+    let post = HashSet.singleton { Spec.pre = post; post } in
+    let nop = HashSet.singleton { Spec.pre = emp; post = emp } in
+    fun stop statement ->
+    if statement = stop
+    then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
+    else begin match G.Cfg.V.label statement with
+      | G.Abs_cfg | G.Nop_cfg -> nop
+      | G.Spec_cfg s -> s
+      | G.Call_cfg { C.call_rets; call_name; call_args } ->
+          assert false (* should have called [inline_calls] before *)
+    end
+
   let update_infer proc_of_name body =
     let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
     let assignables = collect_assignables body.P.cfg in
@@ -494,7 +507,8 @@ end = struct
 
   let concat_lol xs = List.fold_left (bin_option (@)) None xs
 
-  let concat_sos xs = HashSet.fold
+  let inline_calls proc_of_name procedure =
+    failwith "TODO"
 
   let interpret proc_of_name p = match p.C.proc_body with
     | None -> OK
@@ -508,6 +522,11 @@ end = struct
         failwith "TODO a";
         NOK
 
+  let interpret proc_of_name procedure = match procedure.C.proc_body with
+    | None -> OK
+    | Some body ->
+        let body = inline_calls proc_of_name body in
+        failwith "TODO"
 end
 (* }}} *)
 

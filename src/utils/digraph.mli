@@ -45,6 +45,7 @@ module type IM =
     val fold_vertex : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
     val iter_edges : (vertex -> vertex -> unit) -> t -> unit
     val iter_edges_e : (edge -> unit) -> t -> unit
+    val map_vertex : (vertex -> vertex) -> t -> t
     val iter_succ : (vertex -> unit) -> t -> vertex -> unit
     val iter_pred : (vertex -> unit) -> t -> vertex -> unit
     val fold_succ : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a

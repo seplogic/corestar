@@ -7,6 +7,7 @@ module P = Sepprover
 type cfg_vertex =
   | Abs_cfg
   | Call_cfg of C.call_core
+  | Spec_cfg of C.inner_spec
   | Nop_cfg
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)

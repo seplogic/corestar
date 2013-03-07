@@ -55,6 +55,7 @@ module type IM = sig
   val fold_vertex : (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
+  val map_vertex : (vertex -> vertex) -> t -> t
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
   val iter_pred : (vertex -> unit) -> t -> vertex -> unit
   val fold_succ : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
@@ -126,6 +127,9 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
   let iter_edges f g =
     let f e = f (E.src e) (E.dst e) in
     iter_edges_e f g
+
+  let map_vertex f g =
+    failwith "XXX"
 
   (* NOTE: Succs/Preds may be iterated multiple times in multigraphs. *)
   let iter_pred_or_succ f es tip x =
