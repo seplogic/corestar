@@ -34,6 +34,8 @@ let choose h = choose_gen iter h
 
 let length h = Hashtbl.length h
 
+let map f = of_list @@ List.map f @@ elements
+
 module type HashedType = Hashtbl.HashedType
 
 module type S = sig

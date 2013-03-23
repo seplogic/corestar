@@ -711,3 +711,6 @@ let get_equals_pvar_free ts pvar =
   let equal_cs = CC.others ts.cc pvar_c in
   let pvar_free_equals = List.filter (is_pvar_free ts) equal_cs in
   List.map (reconstruct ts) pvar_free_equals
+
+let get_pvars ts =
+  VarMap.fold (fun k _ ks -> k :: ks) ts.pvars []
