@@ -16,24 +16,20 @@ let verbose = ref 0
 let parse fn =
   System.parse_file Parser.symb_question_file Lexer.token fn "core"
 
-let fresh_asgn_proc =
-  let fi = Misc.fresh_int () in
-  fun () -> sprintf "@[assignment %d@]" (fi ())
-  (* NOTE: the space in the ID is intended: it should be unparseable *)
+let substitute_list var =
+  let gen = let x = ref 0 in fun () -> incr x; var !x in
+  let sub = Sepprover.update_var_to (gen ()) in
+  List.fold_right sub
 
-let desugar_assignments ps =
-  let qs = ref [] in (* dummy procedures that simulate assignments *)
-  let d_stmt = function
-    | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
-        let name = fresh_asgn_proc () in
-        qs =:: { C.proc_name = name; proc_spec = asgn_spec; proc_body = None };
-        C.Call_core
-          { C.call_name = name; call_rets = asgn_rets; call_args = asgn_args }
-    | s -> s in
-  let d_body = List.map d_stmt in
-  let d_proc p = { p with C.proc_body = option_map d_body p.C.proc_body } in
-  let ps = List.map d_proc ps in
-  List.rev_append ps !qs
+let substitute_args = substitute_list SpecOp.parameter_var
+let substitute_rets = substitute_list SpecOp.return_var
+
+let specialize_spec rets args =
+  let rets = List.map (fun v -> PS.Arg_var v) rets in
+  let f { Spec.pre; post } =
+    { Spec.pre = substitute_args args pre
+    ; post = substitute_args args (substitute_rets rets post) } in
+  HashSet.map f
 
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
   let proc_spec = Core.ast_to_inner_spec proc_spec in
@@ -112,8 +108,8 @@ let sc_interesting_label = function
   | _ -> false
 
 let sc_new_label = function
-  | C.Assignment_core s ->
-      failwith "INTERNAL: Assignments should already be turned into calls."
+  | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
+      G.Spec_cfg (specialize_spec asgn_rets asgn_args asgn_spec)
   | C.Call_core c -> G.Call_cfg c
   | C.Nop_stmt_core -> G.Nop_cfg
   | _ -> assert false
@@ -366,14 +362,6 @@ end = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-  let substitute_list var =
-    let gen = let x = ref 0 in fun () -> incr x; var !x in
-    let sub = Sepprover.update_var_to (gen ()) in
-    List.fold_right sub
-
-  let substitute_args = substitute_list SpecOp.parameter_var
-  let substitute_rets = substitute_list SpecOp.return_var
-
   let collect_assignables fg =
     let f v acc = match G.Cfg.V.label v with
       | G.Abs_cfg | G.Nop_cfg -> acc
@@ -478,7 +466,7 @@ end = struct
       | G.Abs_cfg | G.Nop_cfg -> nop
       | G.Spec_cfg s -> s
       | G.Call_cfg { C.call_rets; call_name; call_args } ->
-          assert false (* should have called [inline_calls] before *)
+          assert false (* should have called [inline_call_specs] before *)
     end
 
   let update_infer body post =
@@ -506,12 +494,7 @@ end = struct
     let call_to_spec v = match G.Cfg.V.label v with
       | G.Call_cfg { C.call_name; call_rets; call_args } ->
           let p = proc_of_name call_name in
-          let call_rets = List.map (fun v -> PS.Arg_var v) call_rets in
-          let subst_in_triple { Spec.pre; post } =
-            { Spec.pre = substitute_args call_args pre
-            ; post = substitute_args call_args (substitute_rets call_rets post) }
-          in
-          let spec = HashSet.map subst_in_triple p.C.proc_spec in
+          let spec = specialize_spec call_rets call_args  p.C.proc_spec in
           G.Cfg.V.create (G.Spec_cfg spec)
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
