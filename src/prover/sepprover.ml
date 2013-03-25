@@ -148,6 +148,10 @@ open Psyntax
       = fun v form ->
         Cterm.get_equals_pvar_free form.Clogic.ts v
 
+    let get_pvars : inner_form -> Psyntax.var list
+      = fun form ->
+        Cterm.get_pvars form.Clogic.ts
+
 
    let pprint_proof = Prover.pprint_proof
    let pprint_counter_example = Prover.pprint_counter_example

@@ -64,6 +64,7 @@ module type IM = sig
   val add_vertex : t -> vertex -> unit
   val remove_vertex : t -> vertex -> unit
   val add_edge : t -> vertex -> vertex -> unit
+  val add_edge_e : t -> edge -> unit
   val remove_edge : t -> vertex -> vertex -> unit
 end
 
@@ -128,8 +129,6 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     let f e = f (E.src e) (E.dst e) in
     iter_edges_e f g
 
-  let map_vertex f g =
-    failwith "XXX"
 
   (* NOTE: Succs/Preds may be iterated multiple times in multigraphs. *)
   let iter_pred_or_succ f es tip x =
@@ -157,13 +156,15 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     VMap.remove g.out_edges x;
     VMap.remove g.in_edges x
 
-  let add_edge g x y =
-    add_vertex g x;
-    add_vertex g y;
-    let e = E.create x El.default y in
+  let add_edge_e g e =
+    add_vertex g (E.src e);
+    add_vertex g (E.dst e);
     let add x h = VMap.replace h x (ESet.add e (VMap.find h x)) in
-    add x g.out_edges;
-    add y g.in_edges
+    add (E.src e) g.out_edges;
+    add (E.dst e) g.in_edges
+
+  let add_edge g x y =
+    add_edge_e g (E.create x El.default y)
 
   let remove_edge g x y =
     try
@@ -174,6 +175,18 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
       VMap.replace g.out_edges x woy;
       VMap.replace g.in_edges y wox
     with Not_found -> invalid_arg "remove_edge"
+
+  let map_vertex f g =
+    let nv =
+      let h = VMap.create (VMap.length g.out_edges) in
+      fun x ->
+        try VMap.find h x
+        with Not_found -> let y = f x in VMap.add h x y; y in
+    let ne e = E.create (nv (E.src e)) (E.label e) (nv (E.dst e)) in
+    let r = create () in
+    iter_vertex (add_vertex r @@ nv) g;
+    iter_edges_e (add_edge_e r @@ ne) g;
+    r
 end
 
 module DotAttributes = struct

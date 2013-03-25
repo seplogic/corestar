@@ -54,6 +54,7 @@ module type IM =
     val add_vertex : t -> vertex -> unit
     val remove_vertex : t -> vertex -> unit
     val add_edge : t -> vertex -> vertex -> unit
+    val add_edge_e : t -> edge -> unit
     val remove_edge : t -> vertex -> vertex -> unit
   end
 module Make :

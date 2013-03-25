@@ -10,6 +10,7 @@ val mem : 'a t -> 'a -> bool
 val remove : 'a t -> 'a -> unit
 val singleton : 'a -> 'a t
 val of_list : 'a list -> 'a t
+val map : ('a -> 'b) -> 'a t -> 'b t
 
 module type HashedType = Hashtbl.HashedType
 module type S = sig
@@ -26,5 +27,6 @@ module type S = sig
   val remove : t -> elt -> unit
   val singleton : elt -> t
   val of_list : elt list -> t
+(* XXX:  val map : (elt -> 'a) -> t -> (S with type elt = 'a).t *)
 end
 module Make : functor (E : HashedType) -> S with type elt = E.t

@@ -16,24 +16,20 @@ let verbose = ref 0
 let parse fn =
   System.parse_file Parser.symb_question_file Lexer.token fn "core"
 
-let fresh_asgn_proc =
-  let fi = Misc.fresh_int () in
-  fun () -> sprintf "@[assignment %d@]" (fi ())
-  (* NOTE: the space in the ID is intended: it should be unparseable *)
+let substitute_list var =
+  let gen = let x = ref 0 in fun () -> incr x; var !x in
+  let sub = Sepprover.update_var_to (gen ()) in
+  List.fold_right sub
 
-let desugar_assignments ps =
-  let qs = ref [] in (* dummy procedures that simulate assignments *)
-  let d_stmt = function
-    | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
-        let name = fresh_asgn_proc () in
-        qs =:: { C.proc_name = name; proc_spec = asgn_spec; proc_body = None };
-        C.Call_core
-          { C.call_name = name; call_rets = asgn_rets; call_args = asgn_args }
-    | s -> s in
-  let d_body = List.map d_stmt in
-  let d_proc p = { p with C.proc_body = option_map d_body p.C.proc_body } in
-  let ps = List.map d_proc ps in
-  List.rev_append ps !qs
+let substitute_args = substitute_list SpecOp.parameter_var
+let substitute_rets = substitute_list SpecOp.return_var
+
+let specialize_spec rets args =
+  let rets = List.map (fun v -> PS.Arg_var v) rets in
+  let f { Spec.pre; post } =
+    { Spec.pre = substitute_args args pre
+    ; post = substitute_args args (substitute_rets rets post) } in
+  HashSet.map f
 
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
   let proc_spec = Core.ast_to_inner_spec proc_spec in
@@ -112,8 +108,8 @@ let sc_interesting_label = function
   | _ -> false
 
 let sc_new_label = function
-  | C.Assignment_core s ->
-      failwith "INTERNAL: Assignments should already be turned into calls."
+  | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
+      G.Spec_cfg (specialize_spec asgn_rets asgn_args asgn_spec)
   | C.Call_core c -> G.Call_cfg c
   | C.Nop_stmt_core -> G.Nop_cfg
   | _ -> assert false
@@ -236,7 +232,7 @@ end = struct
     | NOK
     | OK
     | Spec_updated
-    | Unknown
+    | Unknown  (* timeout *)
 
   (* Short names for Statement/Configuration Set/Dictionary *)
   module SS = G.CfgVHashSet
@@ -319,7 +315,7 @@ end = struct
         | CT_split (t, qs) ->
             let child = CG.V.create (ok_vertex t) in add_child child;
             List.iter (graph_of_tree child) qs in
-    execute (conf_of_vertex pv) (G.Cfg.V.label sv) |> graph_of_tree pv
+    execute (conf_of_vertex pv) sv |> graph_of_tree pv
 
   (* Update [post_of sv]. For each pre-conf in [pvs], it executes
   symbolically the statement [sv], using the helper [update_post_confs_execute].
@@ -366,14 +362,6 @@ end = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-  let substitute_list var =
-    let gen = let x = ref 0 in fun () -> incr x; var !x in
-    let sub = Sepprover.update_var_to (gen ()) in
-    List.fold_right sub
-
-  let substitute_args = substitute_list SpecOp.parameter_var
-  let substitute_rets = substitute_list SpecOp.return_var
-
   let collect_assignables fg =
     let f v acc = match G.Cfg.V.label v with
       | G.Abs_cfg | G.Nop_cfg -> acc
@@ -394,10 +382,8 @@ end = struct
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
   let execute_one_triple
-      abduct make_framable pre_conf args rets { Spec.pre; post }
+      abduct make_framable pre_conf { Spec.pre; post }
   =
-    let pre = substitute_args args pre in
-    let post = substitute_args args (substitute_rets rets post) in
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
@@ -409,16 +395,14 @@ end = struct
       afs |> List.map mk_post_conf |> make_demonic_choice in
     option CT_error branch afs
 
-  (* XXX: Add check for postcondition. *)
   let execute abduct make_framable =
     let execute_one_triple = execute_one_triple abduct make_framable in
-    fun spec_of pre_conf -> function
-    | G.Call_cfg { C.call_rets; call_name; call_args } ->
-        let call_rets = List.map (fun v -> PS.Arg_var v) call_rets in
-        spec_of call_name |> HashSet.elements
-          |> List.map (execute_one_triple pre_conf call_args call_rets)
-          |> make_angelic_choice
-    | G.Abs_cfg | G.Nop_cfg -> CT_ok pre_conf
+    fun spec_of pre_conf statement ->
+      statement
+      |> spec_of
+      |> HashSet.elements
+      |> List.map (execute_one_triple pre_conf)
+      |> make_angelic_choice
 
   let abstract context confs = confs (* XXX *)
 
@@ -482,22 +466,20 @@ end = struct
       | G.Abs_cfg | G.Nop_cfg -> nop
       | G.Spec_cfg s -> s
       | G.Call_cfg { C.call_rets; call_name; call_args } ->
-          assert false (* should have called [inline_calls] before *)
+          assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_infer proc_of_name body =
+  let update_infer body post =
     let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
     let assignables = collect_assignables body.P.cfg in
     let make_framable = replace_assignables assignables in
-    let spec_of n = (proc_of_name n).C.proc_spec in
-    let execute = execute abduct make_framable spec_of in
+    let execute = execute abduct make_framable (spec_of post body.P.stop) in
     update execute abstract
 
-  let update_check proc_of_name =
+  let update_check body post =
     let abduct = frame Psyntax.empty_logic in (* XXX: load rules *)
     let check_emp x = assert (x = emp); emp in
-    let spec_of n = (proc_of_name n).C.proc_spec in
-    let execute = execute abduct check_emp spec_of in
+    let execute = execute abduct check_emp (spec_of post body.P.stop) in
     update execute abstract
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
@@ -507,25 +489,25 @@ end = struct
 
   let concat_lol xs = List.fold_left (bin_option (@)) None xs
 
-  let inline_calls proc_of_name procedure =
-    failwith "TODO"
-
-  let interpret proc_of_name p = match p.C.proc_body with
-    | None -> OK
-    | Some body ->
-        let process_triple triple =
-          option_map CS.elements
-          (interpret_flowgraph (update_infer proc_of_name body) body triple.Spec.pre) in
-        concat_lol (List.map process_triple (HashSet.elements p.C.proc_spec));
-        (* TODO: call interpret_cfg, abstract missing heaps, call again to check *)
-        (* TODO: add assertion at the end of p, for checking the postcondition *)
-        failwith "TODO a";
-        NOK
+  (* PRE: procedure.P.[start&stop] <> G.Call_cfg _. *)
+  let inline_call_specs proc_of_name procedure =
+    let call_to_spec v = match G.Cfg.V.label v with
+      | G.Call_cfg { C.call_name; call_rets; call_args } ->
+          let p = proc_of_name call_name in
+          let spec = specialize_spec call_rets call_args  p.C.proc_spec in
+          G.Cfg.V.create (G.Spec_cfg spec)
+      | _ -> v in
+    { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
 
   let interpret proc_of_name procedure = match procedure.C.proc_body with
     | None -> OK
     | Some body ->
-        let body = inline_calls proc_of_name body in
+        let body = inline_call_specs proc_of_name body in
+        let update_infer = update_infer body in
+        let process_triple triple =
+          option_map CS.elements
+          (interpret_flowgraph (update_infer triple.Spec.post) body triple.Spec.pre) in
+        concat_lol (List.map process_triple (HashSet.elements procedure.C.proc_spec));
         failwith "TODO"
 end
 (* }}} *)
@@ -549,7 +531,7 @@ let interpret gs =
   List.for_all (interpret_one_scc proc_of_name) sccs
 
 let verify ps =
-  let ps = desugar_assignments ps in
+(*   let ps = desugar_assignments ps in *)
   let ps = List.map ast_to_inner_procedure ps in
   let gs = List.map mk_cfg ps in
   interpret gs
