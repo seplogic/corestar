@@ -26,8 +26,6 @@ val buffer_dump : Buffer.t
 val proof_dump : Format.formatter ref
 val unsupported : unit -> 'a
 val unsupported_s : string -> 'a
-val string_of : (Format.formatter -> 'a -> 'b) -> 'a -> string
 val list_format :
   string ->
   (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
-val toString : (Format.formatter -> 'a -> unit) -> 'a -> string

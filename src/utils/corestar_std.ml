@@ -103,6 +103,8 @@ end
 
 let cons x xs = x :: xs
 
+type 'a pretty_printer = formatter -> 'a -> unit
+
 let pp_string f s = fprintf f "%s" s
 
 let pp_list pp f = List.iter (pp f)
@@ -112,3 +114,10 @@ let pp_list_sep sep pp f = function
   | x :: xs ->
       let pp f x = fprintf f "%s%a" sep pp x in
       fprintf f "%a@,%a" pp x (pp_list pp) xs
+
+let string_of pp x =
+  let b = Buffer.create 1 in
+  let f = formatter_of_buffer b in
+  pp f x;
+  pp_print_flush f ();
+  Buffer.contents b

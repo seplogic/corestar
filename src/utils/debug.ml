@@ -122,10 +122,6 @@ let unsupported_s s = raise (Unsupported2 s)
 let unsupported () = failwith "Assert false"
 F#*)
 
-(* TODO(rgrig): Move this out of debug. *)
-(* TODO(rgrig): Use a local buffer instead of the global str_formatter. *)
-let string_of pp x = pp str_formatter x; flush_str_formatter ()
-
 let rec form_format sep emp f ppf list =
   match list with
     [] -> Format.fprintf ppf "%s" emp
@@ -144,6 +140,3 @@ let rec list_format sep f ppf = function
 let rec list_format_optional start sep f ppf = function
   | [] -> ()
   | xs -> fprintf ppf "%s@ %a" start (list_format sep f) xs
-
-let toString  f a : string =
-  fprintf (str_formatter) "%a" f a ; flush_str_formatter ()

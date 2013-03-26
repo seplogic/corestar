@@ -79,7 +79,7 @@ let print_icfg_dotty
       "\t\t%i [label=\"%i: %s\"]\n"
       s.sid
       s.sid
-      (Dot.escape_for_label (Debug.toString Pp_core.pp_ast_core s.skind));
+      (Dot.escape_for_label (string_of CoreOps.pp_ast_core s.skind));
     List.iter (d_cfgedge chan s) s.succs  in
 
   if cfg_debug () then ignore (Printf.printf "\n\nPrinting iCFG as dot file...");
@@ -103,6 +103,6 @@ let print_core fn mn (cs : cfg_node list) =
     fprintf logf "@[Printing core file for method %s.@." mn;
   let c = open_out (fn ^ mn ^ ".core") in
   let f = formatter_of_out_channel c in
-  let pp f cmd = fprintf f "@[%a@]@\n" Pp_core.pp_ast_core cmd.skind in
+  let pp f cmd = fprintf f "@[%a@]@\n" CoreOps.pp_ast_core cmd.skind in
   fprintf f "@[%a@." (pp_list pp) cs;
   close_out c

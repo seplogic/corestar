@@ -130,15 +130,13 @@ end
 val cons : 'a -> 'a list -> 'a list
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
-val pp_string : Format.formatter -> string -> unit
+type 'a pretty_printer = Format.formatter -> 'a -> unit
 
-val pp_list :
-  (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
+val pp_string : string pretty_printer
 
-val pp_list_sep :
-  string
-  -> (Format.formatter -> 'a -> unit)
-  -> Format.formatter
-  -> 'a list
-  -> unit
+val pp_list : 'a pretty_printer -> 'a list pretty_printer
+
+val pp_list_sep : string -> 'a pretty_printer -> 'a list pretty_printer
+
+val string_of : 'a pretty_printer -> 'a -> string
 (* }}} *)

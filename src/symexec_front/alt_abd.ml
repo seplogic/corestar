@@ -32,8 +32,8 @@ let specialize_spec rets args =
   HashSet.map f
 
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
-  let proc_spec = Core.ast_to_inner_spec proc_spec in
-  let proc_body = option_map (List.map Core.ast_to_inner_core) proc_body in
+  let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
+  let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
   { C.proc_name; proc_spec; proc_body }
 
 (* helpers for [mk_intermediate_cfg] {{{ *)

@@ -39,19 +39,8 @@ type 'spec core_statement =
   | Call_core of call_core
   | Goto_stmt_core of string list
   | End
+
 type ast_core = ast_spec core_statement
 type inner_core = inner_spec core_statement
 type 'spec symb_question = ('spec core_statement list, 'spec) procedure
 type 'spec symb_test = 'spec symb_question * bool (* snd is expected answer *)
-
-let ast_to_inner_spec : ast_spec -> inner_spec = fun xs ->
-  HashSet.of_list (List.map Spec.ast_to_inner_spec (HashSet.elements xs))
-
-let ast_to_inner_core : ast_core -> inner_core = function
-  | Nop_stmt_core -> Nop_stmt_core
-  | Label_stmt_core l -> Label_stmt_core l
-  | Assignment_core c ->
-      Assignment_core { c with asgn_spec = ast_to_inner_spec c.asgn_spec }
-  | Call_core c -> Call_core c
-  | Goto_stmt_core ls -> Goto_stmt_core ls
-  | End -> End

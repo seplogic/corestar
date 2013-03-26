@@ -11,7 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
-
+open Corestar_std
 open Format
 
 type var =
@@ -79,4 +79,4 @@ let pp_var f =
     | EVar (n,vn) -> fprintf f "_%s%s" vn (p n)
     | AnyVar (n,vn) -> fprintf f "a_%s%s" vn (p n)
 
-let string_var = Debug.string_of pp_var
+let string_var = string_of pp_var

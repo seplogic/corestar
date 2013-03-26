@@ -1,3 +1,4 @@
+open Corestar_std
 open Format
 
 module C = Core
@@ -7,8 +8,8 @@ module P = Sepprover
 type cfg_vertex =
   | Abs_cfg
   | Call_cfg of C.call_core
-  | Spec_cfg of C.inner_spec
   | Nop_cfg
+  | Spec_cfg of C.inner_spec
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
@@ -43,10 +44,13 @@ module Procedure = MakeProcedure (Cfg)
 
 module Dot = DG.Dot (struct
   include DG.DotDefault (Cfg)
-  let vertex_attributes v = match V.label v with
-    | Call_cfg c -> [`Label c.C.call_name]
-    | Abs_cfg -> [`Label "ABS"]
-    | Nop_cfg -> [`Label "NOP"]
+  let vertex_attributes v =
+    let l x = [ `Label x ] in
+    match V.label v with
+    | Abs_cfg -> l "ABS"
+    | Call_cfg c -> l c.C.call_name
+    | Nop_cfg -> l "NOP"
+    | Spec_cfg s -> l (string_of CoreOps.pp_inner_spec s)
 end)
 
 let fileout file_name f =
