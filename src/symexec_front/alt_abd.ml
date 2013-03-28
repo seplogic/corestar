@@ -36,7 +36,7 @@ let specialize_spec rets args =
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
   let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
   let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
-  { C.proc_name; proc_spec; proc_body }
+  { C.proc_name; proc_spec; proc_body; proc_rules = Psyntax.empty_logic (*XXX*) }
 
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
@@ -548,8 +548,8 @@ let interpret gs =
   let proc_of_name n = CallGraph.V.label (von n) in
   List.for_all (interpret_one_scc proc_of_name) sccs
 
-let verify ps =
-  let ps = List.map ast_to_inner_procedure ps in
+let verify q =
+  let ps = List.map ast_to_inner_procedure q.C.q_procs in
   let gs = List.map mk_cfg ps in
   interpret gs
 
@@ -563,6 +563,10 @@ let () =
   try
     procedures := [];
     Arg.parse args parse_file "alt_abd [options] <files>";
-    if not (verify (List.concat !procedures)) then
+    let q =
+      { C.q_procs = List.concat !procedures
+      ; q_rules = Psyntax.empty_logic (* XXX *)
+      ; q_infer = true } in
+    if not (verify q) then
       printf "@[verification failed@."
   with Fatal m -> eprintf "@[ERROR: %s@." m

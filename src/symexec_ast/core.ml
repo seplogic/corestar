@@ -25,7 +25,8 @@ type call_core =
 type ('body, 'spec) procedure =
   { proc_name : string
   ; mutable proc_spec : 'spec
-  ; proc_body : 'body option }
+  ; proc_body : 'body option
+  ; proc_rules : Psyntax.logic }
 
 type 'spec assignment_core =
   { asgn_rets : args_out
@@ -42,5 +43,14 @@ type 'spec core_statement =
 
 type ast_core = ast_spec core_statement
 type inner_core = inner_spec core_statement
+
+type question =
+  { q_procs : (ast_core list, ast_spec) procedure list
+  ; q_rules : Psyntax.logic
+  ; q_infer : bool  (* [true] means do bi-abduction *) }
+
+
+(* Deprecated. Do NOT use. *)
 type 'spec symb_question = ('spec core_statement list, 'spec) procedure
 type 'spec symb_test = 'spec symb_question * bool (* snd is expected answer *)
+

@@ -462,14 +462,24 @@ test_file:
 
 symb_question:
   | SPECIFICATION identifier COLON spec QUESTIONMARK core_stmt_list
-    { {proc_name=$2; proc_spec=$4; proc_body=Some $6} }
+    { { proc_name = $2
+      ; proc_spec = $4
+      ; proc_body = Some $6
+      ; proc_rules = Psyntax.empty_logic (* XXX *) } }
   | SPECIFICATION identifier COLON spec
-    { {proc_name=$2; proc_spec=$4; proc_body=None} }
+    { { proc_name = $2
+      ; proc_spec = $4
+      ; proc_body = None
+      ; proc_rules = Psyntax.empty_logic (* XXX *) } }
 ;
 
 symb_test:
   | SPECTEST identifier COLON spec QUESTIONMARK boolean core_stmt_list
-    {({proc_name=$2; proc_spec=$4; proc_body=Some $7}, $6)}
+    { ( { proc_name=$2
+        ; proc_spec=$4
+        ; proc_body=Some $7
+        ; proc_rules=Psyntax.empty_logic (* XXX *) }
+      , $6)}
 ;
 
 symb_question_file:
