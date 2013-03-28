@@ -51,3 +51,12 @@ let pp_core pp_spec f = function
 
 let pp_ast_core = pp_core pp_ast_spec
 let pp_inner_core = pp_core pp_inner_spec
+
+let pp_question pp_spec f { proc_name; proc_spec; proc_body } =
+  let pp_body f body =
+    let pp_nl_core f c = fprintf f "@\n%a" (pp_core pp_spec) c in
+    fprintf f "@[<2>?%a@]" (pp_list pp_nl_core) body in
+  fprintf f "@[<2>specification %s :@\n%a@]" proc_name pp_spec proc_spec;
+  option () (pp_body f) proc_body
+
+let pp_ast_question = pp_question pp_ast_spec

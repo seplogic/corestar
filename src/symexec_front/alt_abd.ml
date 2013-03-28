@@ -11,6 +11,8 @@ module PS = Psyntax
 
 exception Fatal of string
 
+let bfs_limit = 1 lsl 5
+
 let verbose = ref 0
 
 let parse fn =
@@ -362,14 +364,17 @@ end = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-  let collect_assignables fg =
+  (* XXX *)
+  let collect_pvars fg =
     let f v acc = match G.Cfg.V.label v with
       | G.Abs_cfg | G.Nop_cfg -> acc
-      | G.Call_cfg c -> List.fold_right PS.vs_add c.C.call_rets acc in
+      | G.Call_cfg c -> failwith "INTERNAL: "
+    in
     G.Cfg.fold_vertex f fg PS.vs_empty
 
+  (* XXX *)
   (* Used as the [make_framable] argument of the generic [execute]. *)
-  let replace_assignables =
+  let replace_pvars =
     let replace_one v f =
       match Sepprover.get_equals_pvar_free v f with
       | [] -> Sepprover.kill_var v f
@@ -441,6 +446,10 @@ end = struct
     done;
     List.iter (remove_conf context) (ConfBfs.get_seen q)
 
+  let get_new_specs context stop =
+    prune_error_confs context;
+    post_confs context stop |> CS.elements |> List.map conf_of_vertex
+
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph update procedure pre =
     let context = initialize procedure pre in
@@ -453,8 +462,8 @@ end = struct
         if update context s then enque_succ s;
         bfs (budget - 1)
       end in
-    if bfs (1 lsl 20) = 0 then None
-    else Some (prune_error_confs context; post_confs context procedure.P.stop)
+    if bfs bfs_limit = 0 then None
+    else Some (get_new_specs context procedure.P.stop)
 
   let spec_of post =
     let post = HashSet.singleton { Spec.pre = post; post } in
@@ -471,8 +480,8 @@ end = struct
 
   let update_infer body post =
     let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
-    let assignables = collect_assignables body.P.cfg in
-    let make_framable = replace_assignables assignables in
+    let pvars = collect_pvars body.P.cfg in
+    let make_framable = replace_pvars pvars in
     let execute = execute abduct make_framable (spec_of post body.P.stop) in
     update execute abstract
 
@@ -503,12 +512,21 @@ end = struct
     | None -> OK
     | Some body ->
         let body = inline_call_specs proc_of_name body in
-        let update_infer = update_infer body in
-        let process_triple triple =
-          option_map CS.elements
-          (interpret_flowgraph (update_infer triple.Spec.post) body triple.Spec.pre) in
-        concat_lol (List.map process_triple (HashSet.elements procedure.C.proc_spec));
-        failwith "TODO"
+        let process_triple update triple =
+          let update = update triple.Spec.post in
+          let triple_of_conf { G.current_heap; missing_heap } =
+            let ( * ) = Sepprover.conjoin_inner in
+            { Spec.pre = triple.Spec.pre * missing_heap
+            ; post = current_heap } in
+          let cs = interpret_flowgraph update body triple.Spec.pre in
+          option_map (List.map triple_of_conf) cs in
+        let ts = HashSet.elements procedure.C.proc_spec in
+        let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
+        let ts = option [] (fun x->x) ts in (* XXX *)
+        let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
+        let ts = option [] (fun x->x) ts in (* XXX *)
+        procedure.C.proc_spec <- HashSet.of_list ts;
+        OK
 end
 (* }}} *)
 
@@ -531,7 +549,6 @@ let interpret gs =
   List.for_all (interpret_one_scc proc_of_name) sccs
 
 let verify ps =
-(*   let ps = desugar_assignments ps in *)
   let ps = List.map ast_to_inner_procedure ps in
   let gs = List.map mk_cfg ps in
   interpret gs

@@ -28,3 +28,4 @@ val ast_to_inner_core : ast_core -> inner_core
 val pp_inner_spec : inner_spec pretty_printer
 val pp_ast_core : ast_core pretty_printer
 val pp_inner_core : inner_core pretty_printer
+val pp_ast_question : ast_spec symb_question pretty_printer
