@@ -107,7 +107,8 @@ let merge_formatters frm1 frm2 =
 
 let proof_dump = ref (merge_formatters
 		  (Format.formatter_of_buffer buffer_dump)
-		  (flagged_formatter Format.std_formatter (log log_prove || (Config.verb_proof()))))
+		  (flagged_formatter Format.std_formatter
+                    (log log_prove || (!Config.verbosity >= 4))))
 
 (*IF-OCAML*)
 exception Unsupported

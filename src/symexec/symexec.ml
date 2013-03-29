@@ -1,755 +1,553 @@
-(********************************************************
-   This file is part of coreStar
-        src/symbexe/symexec.ml
-   Release
-        $Release$
-   Version
-        $Rev$
-   $Copyright$
-
-   coreStar is distributed under a BSD license,  see,
-      LICENSE.txt
- ********************************************************)
+(** Symbolic execution (with and without spec inference) happens here. *)
 
 open Corestar_std
-
-open Cfg_core
+open Debug
 open Format
-open Misc
-open Psyntax
-open Sepprover
-open Specification
-open Vars
 
-(* IMPLEMENTATION NOTE
-
-(This is descriptive, not prescriptive.  I, rgrig, would change some of these,
-time permitting.)
-
-Data structures:
-  * a control flow graph, made out of [cfg_node]s
-  * a transition system, whose graph is made out of [node]s
-  * each [node] points to its corresponding [cfg_node]; to go from a [cfg_node]
-    to its list of [node]s use the dictionary [graphn]
-Where are the formulas?
-  * a [formset_entry] is a pair of a formula and a [node]
-  * to go from [cfg_node] to its set of [formset_entry]s use the dictionary
-    [formset_hashtbl]; it should be in sync with [graphn]
-
-Some notes on algorithms:
-  * The exploration is DFS, done mainly by [execute_core_stmt].
-  * Abstraction is done when a label-statement is hit.  This is where the prover
-    is asked if existing [node]s (for the same [cfg_node]) imply each-other, and
-    some (DFS) exploration paths are cut short.
-*)
-
-
-(* global variables *)
-
-let curr_abduct_logic : Psyntax.logic ref = ref Psyntax.empty_logic
-let curr_logic : Psyntax.logic ref = ref Psyntax.empty_logic
-let curr_abs_rules : Psyntax.logic ref = ref Psyntax.empty_logic
-
-
-(* ================  transition system ==================  *)
-type ntype = Plain | Good | Error | Abs | UnExplored
-
-type etype = ExecE | AbsE | ContE | ExitE
-
-type id = int
-
-let file = ref ""
-
-let proof_succeeded = ref true
-
-let set_group,grouped = let x = ref false in (fun y -> x := y),(fun () -> !x)
-
-let fresh_node = let node_counter = ref 0 in fun () ->  let x = !node_counter in node_counter := x+1; x
-
-let fresh_file = let file_id = ref 0 in fun () -> let x = !file_id in file_id := x+1;  Sys.getcwd() ^  "/" ^ !file ^ ".proof_file_"^(string_of_int x)^".txt"
-
-
-type node = {
-  mutable content : string;
-  id : id;
-  mutable ntype : ntype;
-  mutable url : string;
-  mutable outedges : edge list;
-  mutable inedges : edge list;
-  cfg : cfg_node option;
-}
-and edge = {
-  label : string;
-  clabel : string;
-  etype : etype;
-  src : node;
-  dest : node;
-  file : string option;
-}
-
-
-let graphe = ref []
-
-
-let mk_node c id nt url oed ied cfg =
- { content = c;
-   id = id;
-   ntype = nt;
-   url = url;
-   outedges = oed;
-   inedges = ied;
-   cfg = cfg
- }
-
-let node_get_content (n:node) : string =
-  n.content
-
-let node_get_idd (n:node) : id =
-  n.id
-
-let node_get_ntype (n:node) : ntype =
-  n.ntype
-
-let node_get_url (n:node) : string =
-  n.url
-
-
-module Idmap =
-  Map.Make(struct
-	     type t = int option
-	     let compare = compare
-	   end)
-
-let graphn = ref  Idmap.empty
-let startnodes : node list ref = ref []
-
-let make_start_node node = startnodes := node::!startnodes
-
-let pp_dotty_transition_system () =
-  let foname = (!file) ^ ".execution_core.dot~" in
-  let dotty_out = open_out foname in
-  let dotty_outf = formatter_of_out_channel dotty_out in
-  if Config.symb_debug() then printf "\n Writing transition system file execution_core.dot  \n";
-  fprintf dotty_outf "digraph main { \nnode [shape=box,  labeljust=l];\n\n";
-  Idmap.iter
-    (fun cfg nodes -> (
-      (* Print Abs nodes. *)
-      (if grouped () then
-        match cfg with Some cfg -> fprintf dotty_outf "subgraph cluster_cfg%i {\n"  cfg | _ -> ());
-      List.iter (fun {content=label;id=id;ntype=ty;url=url;cfg=cfg} ->
-	let label=Dot.escape_for_label label in
-	let url = if url = "" then "" else ", URL=\"file://" ^ url ^"\"" in
-	match ty with
-	| Plain -> ()
-	| Good ->  ()
-	| Error ->  ()
-	| UnExplored -> ()
-	| Abs ->  fprintf dotty_outf "\n state%i[label=\"%s\",labeljust=l, color=yellow, style=filled%s]\n" id label url)
-	nodes;
-      if grouped () then match cfg with Some _ -> fprintf dotty_outf "\n}\n" | _ -> ());
-      (* Print non-Abs nodes. *)
-      List.iter (fun {content=label;id=id;ntype=ty;url=url;cfg=cfg} ->
-	let label=Dot.escape_for_label label in
-	let url = if url = "" then "" else ", URL=\"file://" ^ url ^"\"" in
-	match ty with
-	  Plain ->  fprintf dotty_outf "\n state%i[label=\"%s\",labeljust=l%s]\n" id label url
-	| Good ->  fprintf dotty_outf "\n state%i[label=\"%s\",labeljust=l, color=green, style=filled%s]\n" id label url
-	| Error ->  fprintf dotty_outf "\n state%i[label=\"%s\",labeljust=l, color=red, style=filled%s]\n" id label url
-	| UnExplored ->  fprintf dotty_outf "\n state%i[label=\"%s\",labeljust=l, color=orange, style=filled%s]\n" id label url
-	| Abs -> () )
-	nodes;
-    )
-    !graphn;
-  List.iter (fun edge ->
-    let l = Dot.escape_for_label edge.label in
-    let c = Dot.escape_for_label edge.clabel in
-    fprintf dotty_outf "\n state%i -> state%i [label=\"%s\", tooltip=\"%s\"%s]" edge.src.id edge.dest.id l c
-	    (match edge.file with
-	      None -> ""
-	    | Some f -> sprintf ", URL=\"file://%s\", fontcolor=blue" f))
-    !graphe;
-  fprintf dotty_outf "\n\n\n}@.";
-  close_out dotty_out;
-  let fname = (!file) ^ ".execution_core.dot" in
-  if Sys.file_exists fname then Sys.remove fname;
-  Sys.rename foname (!file ^ ".execution_core.dot")
-
-
-let add_node (label : string) (ty : ntype) (cfg : cfg_node option) =
-  let id = fresh_node () in
-  let node = {content=label; id=id; ntype=ty;url=""; outedges=[]; inedges=[]; cfg =cfg} in
-  let cfgid =
-    match cfg with
-      None -> None
-    | Some cfg -> Some (cfg.sid) in
-  graphn := Idmap.add cfgid (node::(try Idmap.find cfgid !graphn with Not_found -> [])) !graphn;
-  node
-
-let add_error_node label =
-  proof_succeeded := false;
-  add_node label Error None
-
-let add_abs_node label cfg = add_node label Abs (Some cfg)
-let add_good_node label = add_node label Good None
-let add_node_unexplored label cfg = add_node label UnExplored (Some cfg)
-
-(* Redefines [add_node]! *)
-let add_node label cfg = add_node label UnExplored (Some cfg)
-let explore_node src = if src.ntype = UnExplored then src.ntype <- Plain
-
-let add_abs_heap_node cfg heap =
-  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
-  add_abs_node (Format.flush_str_formatter ()) cfg
-
-let add_heap_node cfg heap =
-  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
-  add_node (Format.flush_str_formatter ()) cfg
-
-let add_error_heap_node heap =
-  Format.fprintf (Format.str_formatter) "%a" string_inner_form heap;
-  add_error_node (Format.flush_str_formatter ())
-
-let add_edge_common src dst typ lbl f=
-  let e = {label=lbl; clabel=""; etype=typ; src=src; dest=dst; file=f} in
-  graphe := e :: !graphe;
-  src.outedges <- e :: src.outedges;
-  dst.inedges <- e :: dst.inedges;
-  explore_node src;
-  pp_dotty_transition_system ()
-
-let add_edge
-    (src : node)
-    (dest : node)
-    (typ : etype)
-    (label : string)
-    : unit =
-  add_edge_common src dest typ label None
-
-let add_edge_with_proof src dest typ label : string =
-  let f = fresh_file() in
-  let out = open_out f in
-  let fmt = formatter_of_out_channel out in
-  Sepprover.pprint_proof fmt;
-  pp_print_flush fmt ();
-  close_out out;
-  add_edge_common src dest typ label (Some f);
-  f
-
-let add_url_to_node src proof =
-  let f = fresh_file() in
-  let out = open_out f in
-  List.iter (output_string out) proof;
-  close_out out;
-  src.url <- f
-
-
-let tabulate f = List.map (fun x -> (x, f x))
-
-let add_id_formset cfg = tabulate (add_heap_node cfg)
-let add_id_abs_formset cfg = tabulate (add_abs_heap_node cfg)
-
-let add_id_formset_edge src label sheaps cfg =
-  match sheaps with
-    [] ->
-      if Config.symb_debug() then printf "\n\nInconsistent heap. Skip it!\n%!";
-      let idd = add_good_node "Inconsistent" in ignore (add_edge_with_proof src idd ExecE (label ^"\n Inconsistent"));
-	[]
-  | _ ->
-  let sheaps_id = add_id_formset cfg sheaps in
-  List.iter (fun dest -> ignore (add_edge_with_proof src (snd dest) ExecE label)) sheaps_id;
-  sheaps_id
-
-
-
-
-(* ================  work list algorithm ==================  *)
-
- (* this type has support for creating a transition system
-   (inner_form, id)
-   id is a unique identifier of the formula
- *)
-type formset_entry = inner_form * node
-
-(* eventually this should be a more efficient data structure than list*)
-type formset = formset_entry list
-
-
-type formset_hashtbl = (int, formset) Hashtbl.t
-
-(* table associating a cfg node to a set of heaps *)
-let formset_table : formset_hashtbl = Hashtbl.create 10007
-
-let flush_cache () =
-  Hashtbl.clear formset_table
-
-let formset_table_add key s =
-  Hashtbl.add formset_table key s
-
-let formset_table_replace key s =
-  Hashtbl.replace formset_table key s
-
-let formset_table_mem key  =
-  Hashtbl.mem formset_table key
-
-let formset_table_find key =
-  try
-    Hashtbl.find formset_table key
-  with Not_found ->
-    []  (* Default case returns false, empty list of disjunctions *)
-
-
-let remove_id_formset formset =
-  fst (List.split formset)
-
-let parameter = Format.sprintf "@@parameter%i:"
-
-let param_sub il =
-  let ps (cnt, sub) arg =
-    (succ cnt, add (Vars.concretep_str (parameter cnt)) arg sub) in
-  snd (List.fold_left ps (0, add SpecOp.ret_v1 (Arg_var SpecOp.ret_v1) empty) il)
-
-
-let call_jsr_static (sheap,id) spec il node =
-  let sub' = param_sub il in
-  let sub'' = (*freshening_subs*) sub' in
-  let spec' = Specification.sub_spec sub'' spec in
-  let res = simple_jsr !curr_logic sheap spec' in
-  if res = None then begin
-    let idd = add_error_node "ERROR" in
-    let proof_file = add_edge_with_proof id idd ExecE
-      (fprintf str_formatter "@[%a:@\n %a@]"
-        CoreOps.pp_ast_core node.skind
-        Sepprover.pprint_counter_example ();
-        flush_str_formatter ())
+module C = Core
+module G = Cfg
+module P = Cfg.Procedure
+module PS = Psyntax
+
+exception Fatal of string
+
+let bfs_limit = 1 lsl 5
+
+let substitute_list var =
+  let gen = let x = ref 0 in fun () -> incr x; var !x in
+  let sub = Sepprover.update_var_to (gen ()) in
+  List.fold_right sub
+
+let substitute_args = substitute_list SpecOp.parameter_var
+let substitute_rets = substitute_list SpecOp.return_var
+
+let specialize_spec rets args =
+  let rets = List.map (fun v -> PS.Arg_var v) rets in
+  let f { Spec.pre; post } =
+    { Spec.pre = substitute_args args pre
+    ; post = substitute_args args (substitute_rets rets post) } in
+  HashSet.map f
+
+let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
+  let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
+  let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
+  { C.proc_name; proc_spec; proc_body; proc_rules = Psyntax.empty_logic (*XXX*) }
+
+(* helpers for [mk_intermediate_cfg] {{{ *)
+module CfgH = Digraph.Make
+  (struct type t = C.inner_core end)
+  (Digraph.UnlabeledEdge)
+module HVHashtbl = Hashtbl.Make (CfgH.V)
+module HVHashSet = HashSet.Make (CfgH.V)
+
+module ProcedureH = G.MakeProcedure (CfgH)
+
+let fileout f file_name g = G.fileout file_name (fun o -> f o g)
+
+module DotH = Digraph.Dot (struct
+  include Digraph.DotDefault (CfgH)
+  let vertex_attributes v = match CfgH.V.label v with
+      C.Nop_stmt_core -> [`Label "NOP"]
+    | C.Label_stmt_core s -> [`Label ("Label:" ^ s)]
+    | C.Assignment_core _ -> [`Label "Assign "; `Shape `Box]
+    | C.Call_core c -> [`Label ("Call " ^ c.C.call_name); `Shape `Box]
+    | C.Goto_stmt_core ss -> [`Label ("Goto:" ^ (String.concat "," ss))]
+    | C.End -> [`Label "End"]
+end)
+let fileout_cfgH = fileout DotH.output_graph
+
+let mic_create_vertices g cs =
+  let succ = HVHashtbl.create 1 in
+  let cs = C.Nop_stmt_core :: cs @ [C.Nop_stmt_core] in
+  let vs = List.map CfgH.V.create cs in
+  List.iter (CfgH.add_vertex g) vs;
+  Misc.iter_pairs (HVHashtbl.add succ) vs;
+  List.hd vs, List.hd (List.rev vs), succ
+
+let mic_hash_labels g =
+  let labels = Hashtbl.create 1 in
+  let f v = match CfgH.V.label v with
+    | C.Label_stmt_core l -> Hashtbl.add labels l v
+    | _ -> () in
+  CfgH.iter_vertex f g;
+  labels
+
+let mic_add_edges r labels succ =
+  let g = r.ProcedureH.cfg in
+  let vertex_of_label l =
+    try Hashtbl.find labels l
+    with Not_found -> raise (Fatal ("label " ^ l ^ " is missing")) in
+  let add_outgoing x = if not (CfgH.V.equal x r.ProcedureH.stop) then begin
+      match CfgH.V.label x with
+      | C.Goto_stmt_core ls ->
+          List.iter (fun l -> CfgH.add_edge g x (vertex_of_label l)) ls
+      | C.End -> CfgH.add_edge g x r.ProcedureH.stop
+      | _  -> CfgH.add_edge g x (HVHashtbl.find succ x)
+    end in
+  CfgH.iter_vertex add_outgoing g
+
+(* }}} *)
+
+let mk_intermediate_cfg cs =
+  let g = CfgH.create () in
+  let start, stop, succ = mic_create_vertices g cs in
+  let labels = mic_hash_labels g in
+  let r =
+    { ProcedureH.cfg = g
+    ; ProcedureH.start = start
+    ; ProcedureH.stop = stop } in
+  mic_add_edges r labels succ;
+  r
+
+(* helpers for [simplify_cfg] {{{ *)
+let sc_interesting_label = function
+  | C.Call_core _ | C.Assignment_core _ -> true
+  | _ -> false
+
+let sc_new_label = function
+  | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
+      G.Spec_cfg (specialize_spec asgn_rets asgn_args asgn_spec)
+  | C.Call_core c -> G.Call_cfg c
+  | C.Nop_stmt_core -> G.Nop_cfg
+  | _ -> assert false
+
+let sc_add_edges cfg nv s_cfg v =
+  let add_outgoing v =
+    let seen = HVHashSet.create 1 in
+    let rec add_to u =
+      if not (HVHashSet.mem seen u) then begin
+        HVHashSet.add seen u;
+        try G.Cfg.add_edge s_cfg v (HVHashtbl.find nv u)
+        with Not_found -> CfgH.iter_succ add_to cfg u
+      end in
+    add_to in
+  try CfgH.iter_succ (add_outgoing (HVHashtbl.find nv v)) cfg v
+  with Not_found -> ()
+
+(* }}} *)
+
+let simplify_cfg { ProcedureH.cfg; start; stop } =
+  let s_cfg = G.Cfg.create () in
+  let nv = HVHashtbl.create 1 in (* old vertex -> new vertex *)
+  let add_vertex v =
+    let l = CfgH.V.label v in
+    if v = start || v = stop || sc_interesting_label l then
+      let w = G.Cfg.V.create (sc_new_label l) in
+      G.Cfg.add_vertex s_cfg w; HVHashtbl.add nv v w in
+  CfgH.iter_vertex add_vertex cfg;
+  CfgH.iter_vertex (sc_add_edges cfg nv s_cfg) cfg;
+  { P.cfg = s_cfg
+  ; start = HVHashtbl.find nv start
+  ; stop = HVHashtbl.find nv stop }
+
+(* POST: Only abstraction nodes have in-degree bigger than 1. *)
+let insert_abstraction_nodes p =
+  let module H = G.CfgVHashtbl in
+  let g = p.P.cfg in
+  assert (G.Cfg.in_degree g p.P.start <= 1);
+  let xs = H.create 1 in
+  let record x = if G.Cfg.in_degree g x > 1 then begin
+      assert (not (H.mem xs x));
+      H.add xs x (G.Cfg.V.create G.Abs_cfg)
+    end in
+  let insert_abs z y =
+    let replace x = G.Cfg.remove_edge g x z; G.Cfg.add_edge g x y in
+    G.Cfg.iter_pred replace g z; G.Cfg.add_edge g y z in
+  G.Cfg.iter_vertex record g; H.iter insert_abs xs
+
+let output_cfg n g =
+  G.fileout_cfg (n ^ "_Cfg.dot") g
+
+let output_cfgH n g =
+  fileout_cfgH (n ^ "_CfgH.dot") g
+
+let mk_cfg q =
+  let n = q.C.proc_name in
+  let g = option_map mk_intermediate_cfg q.C.proc_body in
+  if !Config.verbosity >= 3 then
+    option () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
+  let g = option_map simplify_cfg g in
+  ignore (option_map insert_abstraction_nodes g);
+  if !Config.verbosity >= 2 then
+    option () (fun g -> output_cfg n g.P.cfg) g;
+  { q with C.proc_body = g }
+
+(* helpers for [compute_call_graph] {{{ *)
+module CallGraph = Digraph.Make
+  (struct type t = (P.t, C.inner_spec) C.procedure end)
+  (Digraph.UnlabeledEdge)
+module DotCg = Digraph.Dot (struct
+  include Digraph.DotDefault (CallGraph)
+  let vertex_attributes v = [ `Label (CallGraph.V.label v).C.proc_name ]
+end)
+let output_cg = fileout DotCg.output_graph "callgraph.dot"
+
+let ccg_add_edges cg von p =
+  let u = Hashtbl.find von p.C.proc_name in
+  let add_outgoing s = match G.Cfg.V.label s with
+    | G.Call_cfg c ->
+        (* NOTE: calls may bound only subset of all in/out arguments *)
+        (try CallGraph.add_edge cg u (Hashtbl.find von c.C.call_name)
+        with Not_found ->
+          raise (Fatal ("undefined procedure: " ^ c.C.call_name)))
+    | _ -> () in
+  let pb b = G.Cfg.iter_vertex add_outgoing b.P.cfg in
+  option () pb p.C.proc_body
+
+(* }}} *)
+
+let compute_call_graph ps =
+  let cg = CallGraph.create () in
+  let von = Hashtbl.create 1 in (* procedure name -> vertex *)
+  let add_vertex p =
+    if Hashtbl.mem von p.C.proc_name then
+      raise (Fatal ("repeated procedure name " ^ p.C.proc_name));
+    Hashtbl.add von p.C.proc_name (CallGraph.V.create p) in
+  List.iter add_vertex ps;
+  List.iter (ccg_add_edges cg von) ps;
+  if !Config.verbosity >= 2 then output_cg cg;
+  cg, Hashtbl.find von
+
+let output_sccs cs =
+  let pp_procedure f p = fprintf f "@ %s" p.C.proc_name in
+  let pp_component f ps = fprintf f "@[[%a ]@]@\n" (pp_list pp_procedure) ps in
+  let file = open_out "sccs.txt" in
+  let f = make_formatter (output file) (fun () -> flush file) in
+  fprintf f "@[%a@]@?" (pp_list pp_component) cs;
+  close_out file
+
+(* symbolic execution for one procedure {{{ *)
+module ProcedureInterpreter : sig
+  type interpret_procedure_result =
+    | NOK
+    | OK
+    | Spec_updated
+    | Unknown
+  val interpret
+    : (string -> CallGraph.V.label) -> CallGraph.V.label -> interpret_procedure_result
+end = struct
+
+  type interpret_procedure_result =
+    | NOK
+    | OK
+    | Spec_updated
+    | Unknown  (* timeout *)
+
+  (* Short names for Statement/Configuration Set/Dictionary *)
+  module SS = G.CfgVHashSet
+  module SD = G.CfgVHashtbl
+  module CS = G.CVHashSet
+  module CD = G.CVHashtbl
+
+  (* Other short names. *)
+  module CG = G.ConfigurationGraph
+
+  type interpreter_context =
+    { confgraph : CG.t
+    ; flowgraph : G.Cfg.t (* input, unchanged *)
+    ; post_of : CS.t SD.t (* maps a statement to its post-configurations *)
+    ; pre_of : CS.t SD.t  (* maps a statement to its pre-configurations *)
+    ; statement_of : G.Cfg.vertex CD.t (* inverse of [post_of] *) }
+  (* INV: The set [pre_of s] should never shrink, for all statements [s]. *)
+  (* NOTE: Be careful, these are imperative data structures. *)
+
+  (* Executing one statement produces one [choice_tree], which is later
+  integrated into the confgraph by [update]. (Alternatively, the function
+  [execute] could know abouf confgraphs, rather than being just a local
+  operation.) *)
+  type choice_tree =
+    | CT_error
+    | CT_ok of G.ok_configuration
+    | CT_split of G.split_type * choice_tree list
+
+  let confs d s = try SD.find d s with Not_found -> CS.create 1
+  let post_confs context = confs context.post_of
+  let pre_confs context = confs context.pre_of
+
+  let remove_conf context c =
+    let s = CD.find context.statement_of c in
+    CS.remove (post_confs context s) c;
+    let f t = CS.remove (pre_confs context t) c in
+    G.Cfg.iter_succ f context.flowgraph s;
+    CG.remove_vertex context.confgraph c
+
+  let conf_of_vertex v = match CG.V.label v with
+    | G.OkConf (c, _) -> c
+    | G.ErrorConf -> assert false
+
+  let make_angelic c = G.OkConf (c, G.Angelic)
+  let make_demonic c = G.OkConf (c, G.Demonic)
+
+  let make_angelic_choice = function
+    | [] -> CT_error
+    | [c] -> c
+    | cs -> CT_split (G.Angelic, cs)
+
+  let make_demonic_choice = function
+    | [] -> failwith "INTERNAL: empty demonic choice"
+    | [c] -> c
+    | cs -> CT_split (G.Demonic, cs)
+
+  (* Updates the [pre_of s] by adding new confs, and returns what is added. *)
+  let update_pre_confs context s =
+    let old_pre = pre_confs context s in
+    let new_pre = CS.create 1 in
+    let add_new_pre c = if not (CS.mem old_pre c) then CS.add new_pre c in
+    let add_posts_of s = CS.iter add_new_pre (post_confs context s) in
+    G.Cfg.iter_pred add_posts_of context.flowgraph s;
+    CS.iter (CS.add old_pre) new_pre;
+    SD.replace context.pre_of s old_pre;
+    new_pre
+
+  (* Helper for [update_post_confs]. *)
+  let update_post_confs_execute execute context sv posts pv =
+    let new_post q =
+      let qv = CG.V.create q in
+      CS.add posts qv; CD.add context.statement_of qv sv;
+      qv in
+    let rec graph_of_tree parent =
+      let add_child = CG.add_edge context.confgraph parent in
+      let ok_vertex t = G.OkConf (conf_of_vertex parent, t) in
+      function
+        | CT_error -> add_child (new_post G.ErrorConf)
+        | CT_ok c -> add_child (new_post (ok_vertex G.Demonic))
+        | CT_split (t, qs) ->
+            let child = CG.V.create (ok_vertex t) in add_child child;
+            List.iter (graph_of_tree child) qs in
+    execute (conf_of_vertex pv) sv |> graph_of_tree pv
+
+  (* Update [post_of sv]. For each pre-conf in [pvs], it executes
+  symbolically the statement [sv], using the helper [update_post_confs_execute].
+  Thet it calls [abstract] on the whole set of cost-confs. The [confgraph] is
+  updated. *)
+  let update_post_confs execute abstract context pvs sv =
+    let posts = post_confs context sv in
+    CS.iter (update_post_confs_execute execute context sv posts) pvs;
+    let posts = abstract context.confgraph posts in
+    SD.replace context.post_of sv posts
+
+  let update execute abstract context s =
+    let new_pre = update_pre_confs context s in
+    update_post_confs execute abstract context new_pre s;
+    CS.length new_pre > 0
+
+  let emp = Specification.empty_inner_form
+
+  let initialize procedure pre =
+    let confgraph = CG.create () in
+    let flowgraph = procedure.P.cfg in
+    let post_of = SD.create 1 in
+    let pre_of = SD.create 1 in
+    let statement_of = CD.create 1 in
+    let conf = CG.V.create
+      (G.OkConf ({ G.current_heap = pre; missing_heap = emp }, G.Demonic)) in
+    CG.add_vertex confgraph conf;
+    CD.add statement_of conf procedure.P.start;
+    SD.add post_of procedure.P.start (CS.singleton conf);
+    { confgraph; flowgraph; post_of; pre_of; statement_of }
+
+  module StatementBfs = Bfs.Make (SS)
+  module ConfBfs = Bfs.Make (CS)
+
+  let make_nonempty = function
+    | [] -> [(emp, emp)]
+    | xs -> xs
+
+  let abduct logic p q =
+    Sepprover.abduct_inner logic p q |> option_map make_nonempty
+
+  let frame logic p q =
+    Sepprover.frame_inner logic p q
+    |> option_map (List.map (fun x -> (emp, x)))
+    |> option_map make_nonempty
+
+  (* XXX *)
+  let collect_pvars fg =
+    let f v acc = match G.Cfg.V.label v with
+      | G.Abs_cfg | G.Nop_cfg -> acc
+      | G.Call_cfg c -> failwith "INTERNAL: "
     in
-    printf "@[<2>@{<b>ERROR@}: While executing node %d:@\n%a@.%!"
-      node.sid
-      CoreOps.pp_ast_core node.skind;
-    Sepprover.print_counter_example ();
-    printf "Proof file: %s@\n" proof_file;
-    printf "%s(end of error)%s@.%!"
-      System.terminal_red System.terminal_white;
-    Printing.pp_json_node node.sid
-      (sprintf "Error while executing %d." node.sid) (Sepprover.get_counter_example());
-  end;
-  res
+    G.Cfg.fold_vertex f fg PS.vs_empty
+
+  (* XXX *)
+  (* Used as the [make_framable] argument of the generic [execute]. *)
+  let replace_pvars =
+    let replace_one v f =
+      match Sepprover.get_equals_pvar_free v f with
+      | [] -> Sepprover.kill_var v f
+      | t :: _ -> Sepprover.update_var_to v t f in
+    PS.vs_fold replace_one
+
+  (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
+  that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
+  sufficient to demonically split on the frames Fk, and then angelically on the
+  antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
+  frame) pairs (Ak, Fk). *)
+  let execute_one_triple
+      abduct make_framable pre_conf { Spec.pre; post }
+  =
+    let afs = abduct pre_conf.G.current_heap pre in
+    assert (afs <> Some []);
+    let branch afs =
+      let mk_post_conf (a, f) =
+        let ( * ) = Sepprover.conjoin_inner in
+        CT_ok
+          { G.missing_heap = pre_conf.G.missing_heap * make_framable a
+          ; current_heap = post * f } in
+      afs |> List.map mk_post_conf |> make_demonic_choice in
+    option CT_error branch afs
+
+  let execute abduct make_framable =
+    let execute_one_triple = execute_one_triple abduct make_framable in
+    fun spec_of pre_conf statement ->
+      statement
+      |> spec_of
+      |> HashSet.elements
+      |> List.map (execute_one_triple pre_conf)
+      |> make_angelic_choice
+
+  let abstract context confs = confs (* XXX *)
+
+  (* helpers for [prune_error_confs] {{{ *)
+
+  let pec_init context ne_succ_cnt q v = match CG.V.label v with
+    | G.ErrorConf -> ConfBfs.enque q v
+    | G.OkConf (_, G.Angelic) ->
+        let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
+        let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in
+        CD.add ne_succ_cnt v cnt
+    | _ -> ()
+
+  let pec_process context ne_succ_cnt q =
+    let process_pred u =
+      if not (ConfBfs.is_seen q u) then begin
+        match CG.V.label u with
+          | G.OkConf (_, G.Angelic) ->
+              let n = CD.find ne_succ_cnt u - 1 in
+              CD.replace ne_succ_cnt u n;
+              assert (n >= 0);
+              if n = 0 then ConfBfs.enque q u
+          | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
+          | G.ErrorConf -> failwith "ErrorConf has no successors"
+      end in
+    CG.iter_pred process_pred context.confgraph
+
+  (* }}} *)
+
+  let prune_error_confs context =
+    let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
+    let q = ConfBfs.initialize true in
+    CG.iter_vertex (pec_init context ne_succ_cnt q) context.confgraph;
+    while not (ConfBfs.is_done q) do
+      pec_process context ne_succ_cnt q (ConfBfs.deque q)
+    done;
+    List.iter (remove_conf context) (ConfBfs.get_seen q)
+
+  let get_new_specs context stop =
+    prune_error_confs context;
+    post_confs context stop |> CS.elements |> List.map conf_of_vertex
+
+  (* Builds a graph of configurations, in BFS order. *)
+  let interpret_flowgraph update procedure pre =
+    let context = initialize procedure pre in
+    let q = StatementBfs.initialize false in
+    let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
+    enque_succ procedure.P.start;
+    let rec bfs budget =
+      if budget = 0 || StatementBfs.is_done q then budget else begin
+        let s = StatementBfs.deque q in
+        if update context s then enque_succ s;
+        bfs (budget - 1)
+      end in
+    if bfs bfs_limit = 0 then None
+    else Some (get_new_specs context procedure.P.stop)
+
+  let spec_of post =
+    let post = HashSet.singleton { Spec.pre = post; post } in
+    let nop = HashSet.singleton { Spec.pre = emp; post = emp } in
+    fun stop statement ->
+    if statement = stop
+    then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
+    else begin match G.Cfg.V.label statement with
+      | G.Abs_cfg | G.Nop_cfg -> nop
+      | G.Spec_cfg s -> s
+      | G.Call_cfg { C.call_rets; call_name; call_args } ->
+          assert false (* should have called [inline_call_specs] before *)
+    end
+
+  let update_infer body post =
+    let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
+    let pvars = collect_pvars body.P.cfg in
+    let make_framable = replace_pvars pvars in
+    let execute = execute abduct make_framable (spec_of post body.P.stop) in
+    update execute abstract
+
+  let update_check body post =
+    let abduct = frame Psyntax.empty_logic in (* XXX: load rules *)
+    let check_emp x = assert (x = emp); emp in
+    let execute = execute abduct check_emp (spec_of post body.P.stop) in
+    update execute abstract
+
+  (* Lifts binary operators to options, *but* treats [None] as the identity. *)
+  let bin_option f x y = match x, y with
+    | None, x | x, None -> x
+    | Some x, Some y -> Some (f x y)
+
+  let concat_lol xs = List.fold_left (bin_option (@)) None xs
+
+  (* PRE: procedure.P.[start&stop] <> G.Call_cfg _. *)
+  let inline_call_specs proc_of_name procedure =
+    let call_to_spec v = match G.Cfg.V.label v with
+      | G.Call_cfg { C.call_name; call_rets; call_args } ->
+          let p = proc_of_name call_name in
+          let spec = specialize_spec call_rets call_args  p.C.proc_spec in
+          G.Cfg.V.create (G.Spec_cfg spec)
+      | _ -> v in
+    { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
+
+  let interpret proc_of_name procedure = match procedure.C.proc_body with
+    | None -> OK
+    | Some body ->
+        let body = inline_call_specs proc_of_name body in
+        let process_triple update triple =
+          let update = update triple.Spec.post in
+          let triple_of_conf { G.current_heap; missing_heap } =
+            let ( * ) = Sepprover.conjoin_inner in
+            { Spec.pre = triple.Spec.pre * missing_heap
+            ; post = current_heap } in
+          let cs = interpret_flowgraph update body triple.Spec.pre in
+          option_map (List.map triple_of_conf) cs in
+        let ts = HashSet.elements procedure.C.proc_spec in
+        let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
+        let ts = option [] (fun x->x) ts in (* XXX *)
+        let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
+        let ts = option [] (fun x->x) ts in (* XXX *)
+        procedure.C.proc_spec <- HashSet.of_list ts;
+        OK
+end
+(* }}} *)
+
+(* Assumes that components come in reversed topological order. *)
+let rec interpret_one_scc proc_of_name ps =
+  let module PI = ProcedureInterpreter in
+  let rs = List.map (PI.interpret proc_of_name) ps in
+  if List.exists ((=) PI.Spec_updated) rs
+  then interpret_one_scc proc_of_name ps
+  else List.for_all ((=) PI.OK) rs
+
+let interpret gs =
+  let cg, von = compute_call_graph gs in
+  let sccs =
+    let module X = Digraph.Components.Make (CallGraph) in
+    X.scc_list cg in
+  let sccs = List.map (List.map CallGraph.V.label) sccs in
+  if !Config.verbosity >= 3 then output_sccs sccs;
+  let proc_of_name n = CallGraph.V.label (von n) in
+  List.for_all (interpret_one_scc proc_of_name) sccs
+
+let verify q =
+  let ps = List.map ast_to_inner_procedure q.C.q_procs in
+  let gs = List.map mk_cfg ps in
+  interpret gs
 
 
-let check_postcondition (heaps : formset_entry list) (sheap : formset_entry) =
-  let sheap_noid = fst sheap in
-  let node = snd sheap in
-  try
-    let heap,id =
-      List.find
-        (fun (heap,id) ->
-          (frame_inner !curr_logic sheap_noid heap) <> None)
-        heaps in
-    if Config.symb_debug() then
-      printf "\n\nPost okay \n%!";
-    (* let idd = add_good_node ("EXIT: "^(Pprinter.name2str m.name)) in *)
-    ignore (add_edge_with_proof node id ExitE "exit");
-    true
-    (* add_edge id idd "";*)
-  with Not_found -> begin
-      let et = "Cannot prove postcondition" in
-      printf "@{<b>ERROR@}: %s.@.!" et;
-      Sepprover.print_counter_example ();
-      printf "@{<b>(end of error)@}@.%!";
-      Printing.pp_json_node (match node.cfg with None -> -1 | Some x -> x.sid) et (Sepprover.get_counter_example());
-      List.iter
-        (fun (heap, id) ->
-          let idd = add_error_heap_node heap in
-          ignore (add_edge_with_proof node idd ExecE
-            (Format.fprintf
-              (Format.str_formatter) "ERROR EXIT: @\n %a"
-              Sepprover.pprint_counter_example ();
-              Format.flush_str_formatter ())))
-         heaps;
-      false
-  end
-
-(* extract the return value into variable v *)
-let eliminate_ret_var
-      ( name_ret_var : string)
-      ( v : Vars.var)
-      ( h : inner_form ) : inner_form =
-   let ret_var = Vars.concretep_str name_ret_var in
-   let h = update_var_to v (Arg_var ret_var) h in
-   kill_var ret_var h
-
-
-(* extract return values called 'name_template' into variables vs *)
-let eliminate_ret_vs
-      ( name_template : string )
-      ( vs : Vars.var list )
-      ( h : inner_form ) : inner_form  =
-  let vs_i = Misc.add_index vs 1 in
-  List.fold_right (fun (v,i) -> eliminate_ret_var (name_template ^ string_of_int i) v) vs_i h
-
-
-let heap_pprinter = string_inner_form
-
-
-let rec exec (n : cfg_node) (sheap : formset_entry) =
-  let sheap_noid = fst sheap in
-  let sheap = (sheap_noid, snd sheap) in
-(*  if Config.symb_debug() then
-    Format.printf "Output to %i with heap@\n   %a@\n" (node_get_id n) (string_ts_form (Rterm.rao_create ())) sform_noid; *)
-  execute_core_stmt n sheap
-
-
-and execs_with_function
-   (n : cfg_node)
-   (sheaps : formset_entry list)
-   (g : cfg_node -> cfg_node list)
-   : formset_entry list =
-  let rec f ls =
-    match ls with
-    | [] -> []
-    | [s] -> List.flatten (List.map (exec s) sheaps)
-    | s::ls' -> List.flatten(List.map (fun h -> exec s h) sheaps) @ (f ls')
-  in
-  let succs = g n in
-  match succs with
-    [] ->
-      if Config.symb_debug() then printf "Exit node %i\n%!" (n.sid);
-      sheaps
-  |  _ -> f succs
-
-and execs_one n sheaps =
-	execs_with_function n sheaps (fun n -> if n.skind = Core.End then [] else n.succs)
-
-and execs n sheaps =
-	execs_with_function n sheaps (fun n -> [n])
-
-
-
-and execute_core_stmt
-    (n : cfg_node)
-    (sheap : formset_entry)
-    : formset_entry list =
-  let sheap_noid = fst sheap in
-  if Config.symb_debug() then begin
-    Format.printf "@\nExecuting statement:@ %a%!" CoreOps.pp_ast_core n.skind;
-    Format.printf "@\nwith heap :@\n    %a@\n@\n@.%!" heap_pprinter sheap_noid
-  end;
-  if Config.symb_debug() then
-    (Format.printf "\nStarting execution of node %i \n%!" (n.sid);
-    Format.printf "@\nExecuting statement:@ %a%!" CoreOps.pp_ast_core n.skind;
-    Format.printf "@\nwith heap :@\n    %a@\n@\n@.%!" heap_pprinter sheap_noid;);
-  (match n.skind with
-  | Core.Label_stmt_core l ->
-    (* Update the labels formset, if sheap already implied then fine, otherwise or it in. *)
-    (let id = n.sid in
-    if Config.symb_debug() then
-      Format.printf "@\nPre-abstraction heap:@\n    %a@.%!" heap_pprinter sheap_noid;
-    (* TODO: Introduce curr_abduct_abs_rules? *)
-    let frames_abs = Sepprover.abs !curr_abs_rules sheap_noid in
-    if Config.symb_debug() then
-      List.iter (fun heap -> Format.printf "@\nPost-abstraction heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-    (* Obtain abstract values of abstracted heaps using abstract interpretation *)
-    let frames_abs = List.map Sepprover.abstract_val frames_abs in
-    if Config.symb_debug() then
-      List.iter (fun heap -> Format.printf "@\nPost-abstract_val heap:@\n    %a@.%!" string_inner_form heap) frames_abs;
-
-    explore_node (snd sheap);
-    let sheaps_abs = add_id_abs_formset n frames_abs in
-    List.iter
-      (fun sheap2 ->
-        ignore (add_edge_with_proof (snd sheap) (snd sheap2) AbsE
-          ("Abstract@"^(string_of CoreOps.pp_ast_core n.skind))))
-      sheaps_abs;
-
-    if Config.symb_debug() then
-      (Format.printf "\nAbstracted heaps before filtering: \n%!";
-      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
-    let formset = (formset_table_find id) in
-    if Config.symb_debug() then
-      (Format.printf "\nPreviously abstracted heaps: \n%!";
-      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) formset;);
-    let sheaps_abs = map_option
-      (fun (sheap2,id2) ->
-        (let s = ref [] in
-          (if (List.for_all
-            (fun (sheap1,id1) ->
-              let sheap1,sheap2 =
-                if Config.abs_int_join() then join_over_numeric sheap1 sheap2
-                else sheap1,sheap2 in
-              if frame_inner !curr_logic sheap2 sheap1 <> None then
-                (ignore (add_edge_with_proof id2 id1 ContE
-                  ("Contains@"^(string_of CoreOps.pp_ast_core n.skind))); false)
-              else (s := ("\n---------------------------------------------------------\n" ^
-                (string_of_proof ())) :: !s; true))
-            formset)
-          then
-            (if !s <> [] then (add_url_to_node id2 !s);
-            Some (sheap2,id2))
-          else
-            None)
-        )
-      )
-      sheaps_abs in
-    if Config.symb_debug() then
-      (Format.printf "\nAbstracted heaps after filtering: \n%!";
-      List.iter (fun (heap, id) -> Format.printf "@\n    %a\n@.%!" heap_pprinter heap;) sheaps_abs;);
-
-    formset_table_replace id (sheaps_abs @ formset);
-    execs_one n sheaps_abs)
-
-  | Core.Goto_stmt_core _ -> execs_one n [sheap]
-
-  | Core.Nop_stmt_core  -> execs_one n [sheap]
-
-  | Core.Call_core _ -> failwith "TODO, perhaps"
-  | Core.Assignment_core {Core.asgn_rets=vl; asgn_spec=spec; asgn_args=il} ->
-    (
-      let spec = HashSet.choose spec in
-      let hs = call_jsr_static sheap spec il n in
-      let abort = false (* TODO(rgrig): What is this supposed to be? *)
-      in
-      if abort then
-        [ (empty_inner_form, add_good_node "Abort") ]
-      else
-        let hs = match hs with | None -> [] | Some hs -> hs in
-        let hs =
-          match vl with
-          | [] -> hs
-          | vs -> List.map (eliminate_ret_vs "$ret_v" vs) hs
-        in
-        let hs = add_id_formset_edge (snd sheap) (string_of CoreOps.pp_ast_core n.skind) hs n in
-        execs_one n hs
-    )
-
-  | Core.End -> execs_one n [sheap]
-  )
-
-
-(* TODO: a meaningful description of what this does *)
-let verify
-    (mname : string)
-    (stmts : cfg_node list)
-    (spec : Spec.ast_spec)
-    (lo : logic)
-    (abs_rules : logic)
-    : bool
-    =
-  flush_cache ();
-  (* remove methods that are declared abstraction *)
-  curr_logic := lo;
-  curr_abs_rules := abs_rules;
-  stmts_to_cfg stmts;
-  match stmts with
-  | [] -> failwith "Internal error: Method body shouldn't be empty."
-  | s::_ ->
-      let id = add_good_node ("Start "^mname) in
-      make_start_node id;
-      match Sepprover.convert (spec.Spec.pre) with
-        None ->
-          printf "@{<b>WARNING@}: %s has an unsatisfiable precondition@.%!" mname;
-          false
-      |	Some spec_pre ->
-          proof_succeeded := true;
-          let pre = spec_pre in
-          let posts = execute_core_stmt s (pre, id) in
-          let post =
-            match Sepprover.convert (spec.Spec.post) with
-              None ->
-                printf "@[@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" mname;
-                empty_inner_form
-            | Some spec_post -> spec_post
-          in
-          let id_exit = add_good_node ("Exit") in
-          let ret = List.for_all (check_postcondition [(post, id_exit)]) posts in
-          pp_dotty_transition_system ();
-          (* TODO: the way verification failure is currently handled is stupid *)
-          if !proof_succeeded then ret else false
-
-
-let verify_ensures
-     (name : string)
-     (stmts: cfg_node list)
-     (post : Psyntax.pform)
-     conjoin_with_res_true
-     (oldexp_frames : inner_form list list)
-     (lo : logic)
-     (abs_rules : logic)
-     : unit
-     =
-  flush_cache ();
-  (* construct the specification of the ensures clause *)
-	let rec conjoin_disjunctions (d1 : inner_form list) (d2 : inner_form list) : inner_form list =
-		match d1 with
-			| [] -> []
-			| d1first::d1rest ->
-				List.append (
-					List.map (fun d -> Sepprover.conjoin_inner d1first d) d2
-				) (conjoin_disjunctions d1rest d2)
-	in
-	let oldexp_results = List.fold_left (fun acc oldexp_res -> conjoin_disjunctions oldexp_res acc) [Sepprover.inner_truth] oldexp_frames in
-	  (* substitute $ret_var in the post! *)
-	let post =
-          subst_pform
-            (add SpecOp.ret_v1
-              (Arg_var(Vars.concretep_str (SpecOp.name_ret_v1^"_post")))
-              empty)
-            post in
-	let ensures_preconds = List.map (Sepprover.conjoin post) oldexp_results in
-  let ensures_postcond =
-    match Sepprover.convert (conjoin_with_res_true post) with
-      None -> printf "@{<b>WARNING@}: %s has an unsatisfiable postcondition@.%!" name; empty_inner_form
-    | Some post -> post
-  in
-	(* now do the verification *)
-	curr_logic := lo;
-  curr_abs_rules := abs_rules;
-  stmts_to_cfg stmts;
-  match stmts with
-    [] -> assert false
-  | s::stmts ->
-      let id = add_good_node ("Start "^name) in
-      make_start_node id;
-      let posts = execs s (List.map (fun pre -> (pre,id)) ensures_preconds) in
-      let id_exit = add_good_node ("Exit") in
-      ignore (List.map
-        (fun post ->
-          check_postcondition [(ensures_postcond,id_exit)] post) posts);
-      pp_dotty_transition_system ()
-
-
-let check_and_get_frame (pre_heap,id) post_sheap =
-  let post_sheap_noid = fst post_sheap in
-  let node = snd post_sheap in
-  let frame = frame_inner !curr_logic post_sheap_noid pre_heap in
-  match frame with
-    Some frame ->
-                 if Config.symb_debug() then
-                        (printf "\n\nOld expression okay \n%!";
-                        ignore (add_edge_with_proof node id ExitE "exit");
-                        frame)
-                 else
-                        frame
-  | None ->
-      let et = "Cannot prove frame for old expression" in
-      (printf "@{<b>ERROR:@} %s.@.%!" et;
-      Sepprover.print_counter_example ();
-      ignore (add_edge_with_proof
-          node
-          (add_error_heap_node pre_heap) ExitE
-          (fprintf str_formatter "@[<2>ERROR EXIT:@\n%a@."
-              Sepprover.pprint_counter_example ();
-              flush_str_formatter ()));
-      printf "@{<b>(end of error)@}@.%!";
-      Printing.pp_json_node
-        (match node.cfg with None -> -1 | Some x -> x.sid) et (Sepprover.get_counter_example());
-      [])
-
-
-let get_frame
-     (stmts : cfg_node list)
-     (pre : Psyntax.pform)
-     (lo : logic)
-     (abs_rules : logic)
-     : inner_form list
-     =
-  flush_cache ();
-  curr_logic := lo;
-  curr_abs_rules := abs_rules;
-  stmts_to_cfg stmts;
-  match stmts with
-    [] -> assert false
-  | s::stmts ->
-		  let id = add_good_node ("Start") in
-      make_start_node id;
-      let rlogic_pre = Sepprover.convert pre in
-      match rlogic_pre with
-        None -> printf "@{<b>WARNING:@} False precondition in spec.@.%!"; []
-      |	Some rlogic_pre ->
-        let pre = rlogic_pre in
-        let post =
-          match execute_core_stmt s (pre, id) with
-          | [p] -> p
-          | [] -> assert false
-          | _ -> assert false  (* an old expression is guaranteed to have only one exit point *)
-        in
-        let id_exit = add_good_node ("Exit") in
-        check_and_get_frame (pre,id_exit) post
-
-(*
-let verify_inner
-    (mname : string)
-    (stmts : cfg_node list)
-    (spec_pre : inner_form)
-    (spec_post : inner_form)
-    (lo : logic)
-    (abs_rules : logic)
-    : bool
-    =
-  curr_logic := lo;
-  curr_abs_rules := abs_rules;
-  stmts_to_cfg stmts;
-  match stmts with
-  | [] -> failwith "Internal error: Method body shouldn't be empty."
-  | s::_ ->
-      let id = add_good_node ("Start "^mname) in
-      make_start_node id;
-      let pre = lift_inner_form spec_pre in
-      let posts = execute_core_stmt s (pre, id) in
-      let post = lift_inner_form spec_post in
-      let id_exit = add_good_node ("Exit") in
-      List.for_all (check_postcondition [(post, id_exit)]) posts
-
-
-let bi_abduct
-    (mname : string)
-    (stmts : cfg_node list)
-    (spec : Spec.ast_spec)
-    (lo : logic)
-    (abduct_lo : logic)
-    (abs_rules : logic)
-    : (inner_form * inner_form) list
-    =
-  flush_cache ();
-  curr_logic := lo;
-  curr_abduct_logic := abduct_lo;
-  curr_abs_rules := abs_rules;
-  stmts_to_cfg stmts;
-  match stmts with
-  | [] -> []
-  | s::_ ->
-      match Sepprover.convert (spec.Spec.pre) with
-        None -> printf "@{<b>WARNING@}: %s has an unsatisfiable precondition@.%!" mname; []
-      |	Some pre ->
-        if Config.symb_debug() then
-          Printf.printf "\nStarting abduction...\n%!";
-        exec_type := Abduct;
-         let id = add_good_node ("Start "^mname) in
-         make_start_node id;
-        let posts = execute_core_stmt s (lift_inner_form pre, id) in
-        (* build spec pre/post pairs *)
-        let specs = List.map
-          (fun (heap,_) -> (Sepprover.conjoin_inner pre (inner_form_af_to_af heap), inner_form_af_to_form heap))
-          posts in
-        if Config.symb_debug()
-        then begin
-          Format.printf "\nCandidate specs: \n%!";
-          List.iter (fun (spec_pre, spec_post) ->
-            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre;
-            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post;
-            ) specs;
-        end;
-        (* eliminate those for which the symbolic execution does not go through *)
-        if Config.symb_debug() then
-            Printf.printf "\nStarting symbolic execution...\n%!";
-        let cnt = ref 0 in
-        let specs' = List.filter (fun (spec_pre, spec_post) ->
-          cnt := !cnt + 1;
-          if Config.symb_debug()
-          then begin
-            Printf.printf "\nSymbolic execution for:\n%!";
-            Format.printf "@\nSpec pre:@\n    %a@.%!" string_inner_form spec_pre;
-            Format.printf "@\nSpec post:@\n    %a@.%!" string_inner_form spec_post;
-          end;
-          Hashtbl.clear formset_table;
-          verify_inner (mname^".check("^(string_of_int !cnt)^")") stmts spec_pre spec_post lo abs_rules) specs in
-        specs'
-        *)

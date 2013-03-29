@@ -47,8 +47,8 @@ type inner_core = inner_spec core_statement
 type question =
   { q_procs : (ast_core list, ast_spec) procedure list
   ; q_rules : Psyntax.logic
-  ; q_infer : bool  (* [true] means do bi-abduction *) }
-
+  ; q_infer : bool  (* [true] means do bi-abduction *)
+  ; q_name : string }
 
 (* Deprecated. Do NOT use. *)
 type 'spec symb_question = ('spec core_statement list, 'spec) procedure

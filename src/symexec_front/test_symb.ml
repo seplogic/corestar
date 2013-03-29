@@ -25,8 +25,7 @@ let logic_file_name = ref "";;
 let absrules_file_name = ref "";;
 
 let set_question_file_name fn =
-  question_file_name := fn;
-  Symexec.file := Filename.basename fn
+  question_file_name := fn
 
 let proof_succes = ref true;;
 

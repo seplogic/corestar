@@ -11,7 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
-
+val verbosity : int ref
 val specs_template_mode : bool ref
 val dotty_print : bool ref
 val symb_debug : unit -> bool
@@ -23,6 +23,5 @@ val solver_path : string ref
 val smt_run : bool ref
 val smt_custom_commands : string ref
 val args_default : (string * Arg.spec * string) list
-val verb_proof : unit -> bool
 val eclipse_mode : unit -> bool
 val abs_int_plugins : string list ref
