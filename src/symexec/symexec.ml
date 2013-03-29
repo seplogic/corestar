@@ -549,5 +549,3 @@ let verify q =
   let ps = List.map ast_to_inner_procedure q.C.q_procs in
   let gs = List.map mk_cfg ps in
   interpret gs
-
-

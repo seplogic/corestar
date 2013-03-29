@@ -133,6 +133,7 @@ let rec form_format sep emp f ppf list =
 let rec form_format_optional start sep emp f ppf list =
   Format.fprintf ppf "%s@ @[%a@]" start (form_format sep emp f) list
 
+(* XXX remove *)
 let rec list_format sep f ppf = function
   | [] -> ()
   | [x] -> fprintf ppf "%a" f x

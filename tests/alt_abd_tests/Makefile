@@ -9,7 +9,7 @@ clean:
 
 $(TESTS): %.test:
 	@rm -rf $*.out && mkdir $*.out
-	@cd $*.out; alt_abd -v -v -v ../$*.star > stdout 2> stderr; cd ..
+	@cd $*.out; corestar -v -v -v ../$*.star > stdout 2> stderr; cd ..
 
 .PHONY: test $(TESTS) clean
 .SILENT: test
