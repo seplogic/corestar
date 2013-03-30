@@ -361,13 +361,19 @@ end = struct
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
 
-  (* XXX *)
   let collect_pvars fg =
-    let f v acc = match G.Cfg.V.label v with
+    let cp_vertex v acc = match G.Cfg.V.label v with
       | G.Abs_cfg | G.Nop_cfg -> acc
-      | G.Call_cfg c -> failwith "INTERNAL: "
+      | G.Call_cfg { C.call_rets; call_name; call_args } ->
+          failwith "INTERNAL: calls should be removed by [inline_call_specs]"
+      | G.Spec_cfg spec ->
+          let cp_triple { Spec.pre; post } acc =
+            let cp_formula f =
+              List.fold_right PS.vs_add (Sepprover.get_pvars f) in
+            acc |> cp_formula pre |> cp_formula post in
+          HashSet.fold cp_triple spec acc
     in
-    G.Cfg.fold_vertex f fg PS.vs_empty
+    G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
 
   (* XXX *)
   (* Used as the [make_framable] argument of the generic [execute]. *)
