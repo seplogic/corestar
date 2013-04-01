@@ -398,11 +398,7 @@ let decl_evars (types : smttypeset) (s : string) : string =
   if prefix = "" then s else "(exists (" ^ prefix ^ ") " ^ s ^ ")"
 
 (* try to establish that the pure parts of a sequent are valid using the SMT solver *)
-let finish_him
-    (ts : term_structure)
-    (asm : formula)
-    (obl : formula)
-    : bool =
+let finish_him ts asm obl =
   try
     (* Push a frame to allow reuse of prover *)
     smt_push();
@@ -464,17 +460,13 @@ let true_sequent_smt (seq : sequent) : bool =
     finish_him seq.seq_ts seq.assumption seq.obligation)))
 
 
-let frame_sequent_smt (seq : sequent) : bool =
-  (Clogic.frame_sequent seq)
-    ||
-  (if (not !Config.smt_run) then false
-  else
-  (Clogic.plain seq.obligation
-    &&
-   ((if Config.smt_debug() then printf "@[Calling SMT to get frame from@\n %a@." Clogic.pp_sequent seq);
-    finish_him seq.seq_ts seq.assumption seq.obligation)))
-
-
+let frame_sequent_smt seq =
+  Clogic.frame_sequent seq
+  || ( not !Config.smt_run
+     && Clogic.plain seq.obligation
+     && (if Config.smt_debug () then
+          printf "@[Calling SMT to get frame from@\n %a@." Clogic.pp_sequent seq;
+        finish_him seq.seq_ts seq.assumption seq.obligation))
 
 (* Update the congruence closure using the SMT solver *)
 let ask_the_audience

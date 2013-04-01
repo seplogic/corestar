@@ -20,7 +20,7 @@ let parse_debug_ref = ref false
 let parse_debug() = !parse_debug_ref
 
 let smt_debug_ref = ref false
-let smt_debug() = !smt_debug_ref
+let smt_debug () = !smt_debug_ref
 
 let abs_int_join_ref = ref false
 let abs_int_join() = !abs_int_join_ref

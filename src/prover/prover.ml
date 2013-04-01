@@ -332,7 +332,7 @@ let apply_rule_list
     (must_finish : Clogic.sequent -> bool)
     (may_finish : Clogic.sequent -> bool)
     : Clogic.sequent list
-    =
+=
 (* Clear pretty print buffer *)
   Buffer.clear buffer_dump;
 (*  let rules,rwm,ep = logic in *)
@@ -380,6 +380,17 @@ let apply_rule_list
   if log log_prove then
     fprintf !proof_dump "@\nEnd time :%f@ " (Sys.time ());
   res
+
+(* Scores should be roughly in [0.. 100], but see the comment on
+[new_apply_rule_list]. *)
+let min_score = 50
+let max_score = 100
+
+(* A goal with score [>= max_score] is discharged.  A goal with with score
+[< min_score] needs a proof.  Anything in-between is kind of acceptable as a
+leaf, but we should keep looking for something better. *)
+let new_apply_rule_list rules get_score goals =
+  failwith "XXX"
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
