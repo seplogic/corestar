@@ -14,6 +14,7 @@
 %{ (* header *)
 exception Give_up
 
+(* TODO(rgrig): Don't open these. *)
 open Core
 open Lexing
 open Parsing
@@ -21,6 +22,8 @@ open Printing
 open Psyntax
 open Spec
 open Vars
+
+module PS = Psyntax
 
 let newVar x =
   if x.[0] = '_' then begin
@@ -65,7 +68,6 @@ let parse_warning s =
 %token COLON_EQUALS
 %token COMMA
 %token CONSTRUCTOR
-%token DASHV
 %token DOT
 %token EMP
 %token END
@@ -294,8 +296,7 @@ spatial_list:
 /* Sequents and rules */
 
 sequent:
-  | spatial_list OR formula VDASH formula { ($1,$3,$5,mkEmpty) }
-  | spatial_list OR formula VDASH formula DASHV formula { ($1,$3,$5,$7) }
+    spatial_list OR formula VDASH formula { PS.mk_psequent $1 $3 $5 }
 ;
 sequent_list:
   |  /* empty */ { [] }
@@ -370,9 +371,10 @@ rule:
         guard={without_form=$12; rewrite_where=$13; if_form=$11};
         rewrite_name=$2;
         saturate=true})) }
-  | ABSRULE identifier_op COLON formula LEADSTO formula where  { let seq=(mkEmpty,$4,mkEmpty,mkEmpty) in
-      let wo=(mkEmpty,mkEmpty) in
-      let seq2=(mkEmpty,$6,mkEmpty,mkEmpty) in
+  | ABSRULE identifier_op COLON formula LEADSTO formula where
+    { let seq = PS.mk_psequent mkEmpty $4 mkEmpty in
+      let wo = (mkEmpty, mkEmpty) in
+      let seq2= PS.mk_psequent mkEmpty $6 mkEmpty in
       let seq_list=[[seq2]] in
       Load.NormalEntry(SeqRule(seq,seq_list,$2,wo,$7)) }
   | equiv_rule { Load.NormalEntry($1) }

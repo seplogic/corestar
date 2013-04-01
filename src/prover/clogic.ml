@@ -524,16 +524,13 @@ let match_and_remove
 
 (* Assume that assumption does not contain eqs or neqs, they are represented in ts *)
 type sequent =
-   {
-    matched : RMSet.multiset;
-    seq_ts : term_structure;
-    assumption : formula;
-    obligation : formula;
-    antiframe : formula;
-  }
+   { matched : RMSet.multiset
+   ; seq_ts : term_structure
+   ; assumption : formula
+   ; obligation : formula }
 
 
-let pp_sequent ppf { matched; seq_ts; assumption; obligation; antiframe} =
+let pp_sequent ppf { matched; seq_ts; assumption; obligation } =
     let pp_term = pp_c seq_ts in
     let rmf = pp_star.separator (pp_rmset_element "" pp_term) ppf in
     ignore (RMSet.fold rmf true matched);
@@ -541,10 +538,7 @@ let pp_sequent ppf { matched; seq_ts; assumption; obligation; antiframe} =
     let first = pp_ts' pp_star ppf true seq_ts in
     ignore (pp_formula' pp_term pp_star ppf first assumption);
     fprintf ppf "@ |- ";
-    pp_formula pp_term ppf obligation;
-    fprintf ppf "@ -| ";
-    pp_formula pp_term ppf antiframe
-
+    pp_formula pp_term ppf obligation
 
 let rec plain f =
   f.spat = RMSet.empty
@@ -556,33 +550,23 @@ let true_sequent (seq : sequent) : bool =
     &&
   plain seq.assumption
 
-let frame_sequent (seq : sequent) : bool =
-  (seq.obligation = empty) && (seq.antiframe = empty)
+let frame_sequent seq = seq.obligation = empty
 
 (* Stolen from Prover just for refactor *)
 type sequent_rule = psequent * (psequent list list) * string * ((* without *) pform * pform) * (where list)
 
 
 type pat_sequent =
-  {
-    assumption_same : syntactic_form;
-    assumption_diff : syntactic_form;
-    obligation_diff : syntactic_form;
-    antiframe_diff : syntactic_form;
-  }
+  { assumption_same : syntactic_form
+  ; assumption_diff : syntactic_form
+  ; obligation_diff : syntactic_form }
 
-let convert_sequent (ps : psequent) : pat_sequent =
-(*  fprintf !(Debug.proof_dump) "Converting sequent: %a@\n" string_pseq ps;*)
-  let ps = match ps with
-    pm,pl,pr,pa ->
-      {
-       assumption_same = convert_to_inner pm;
-       assumption_diff = convert_to_inner pl;
-       obligation_diff = convert_to_inner pr;
-       antiframe_diff = convert_to_inner pa;
-     } in
-(*  Format.fprintf !(Debug.proof_dump) "Produced sequent: %a@ |@ %a@ |-@ %a@\n@\n" pp_sform ps.assumption_same pp_sform ps.assumption_diff pp_sform ps.obligation_diff; *)
-  ps
+let convert_sequent
+  { ast_assumption_same = c; ast_assumption_diff = l; ast_obligation_diff = r }
+=
+  { assumption_same = convert_to_inner c
+  ; assumption_diff = convert_to_inner l
+  ; obligation_diff = convert_to_inner r }
 
 type inner_sequent_rule =
     {
@@ -724,23 +708,15 @@ let convert fresh ts pform =
   convert_sf_without_eqs fresh ts (convert_to_inner pform)
 
 let make_implies (heap : ts_formula) (pheap : pform) : sequent =
-  let ts,form = break_ts_form heap in
-  let rh,ts = convert false ts pheap in
-  {seq_ts = ts;
-     assumption = form;
-     obligation = rh;
-     matched = RMSet.empty;
-     antiframe = empty; }
+  let ts, assumption = break_ts_form heap in
+  let obligation, seq_ts = convert false ts pheap in
+  { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let make_implies_inner ts_form1 ts_form2 =
-  let ts,form = break_ts_form ts_form1 in
+  let ts, assumption = break_ts_form ts_form1 in
   let sform = make_syntactic ts_form2 in
-  let rform,ts = convert_sf_without_eqs false ts sform in
-  {seq_ts = ts;
-    assumption = form;
-    obligation = rform;
-    matched = RMSet.empty;
-    antiframe = empty; }
+  let obligation, seq_ts = convert_sf_without_eqs false ts sform in
+  { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let ts_form_to_pform ts_form =
   convert_to_pform (make_syntactic_all ts_form)

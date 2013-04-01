@@ -19,9 +19,12 @@
 (************************************************************
    The syntactic representation of terms.
 *************************************************************)
+
+open Corestar_std
 open Debug
 open Format
-open Vars
+
+open Vars (* TODO(rgrig): Don't open this. *)
 (*F#
 open Microsoft.FSharp.Compatibility
 F#*)
@@ -149,9 +152,7 @@ let empty : varmap = Plain (vm_empty)
 let freshening_subs subs : varmap =
     match subs with
       Plain subs -> Freshen (subs, vh_create 30 )
-    | _ -> unsupported_s "freshening_subs applied to wrong argument type."
-
-
+    | _ -> failwith "INTERNAL: freshening_subs applied to wrong argument type."
 
 let subst_kill_vars_to_fresh_prog vars =
   Plain (vs_fold (fun ev vm -> vm_add  ev (Arg_var (freshp())) vm) vars vm_empty)
@@ -331,7 +332,7 @@ let rec string_form_at ppf pa =
   | P_Septract(f1,f2) -> Format.fprintf ppf "(%a)@ -o (%a)" string_form f1  string_form f2
   | P_False -> Format.fprintf ppf "False"
 and string_form ppf pf =
-  list_format "*" string_form_at ppf pf
+  pp_list_sep "*" string_form_at ppf pf
 
 
 
@@ -369,8 +370,12 @@ let rec ev_form_at pa set =
 and ev_form pf set =
  List.fold_left (fun set pa -> ev_form_at pa set) set pf
 
-type psequent = pform * pform * pform * pform
-
+type psequent =
+  { ast_assumption_same : pform
+  ; ast_assumption_diff : pform
+  ; ast_obligation_diff : pform }
+let mk_psequent ast_assumption_same ast_assumption_diff ast_obligation_diff =
+  { ast_assumption_same; ast_assumption_diff; ast_obligation_diff }
 
 let fv_psequent (pff,pfl,pfr,pfa) =
   (fv_form pff (fv_form pfl (fv_form pfr vs_empty)))
@@ -386,7 +391,7 @@ let purify pal =
       match x with
 	P_EQ(_,_) | P_NEQ(_,_) -> x
       |	P_SPred(n,al) -> P_PPred(n,al)
-      |	_ -> unsupported ()
+      |	_ -> failwith "INTERNAL: currently unsupported"
 	    ) pal
 
 
@@ -463,11 +468,13 @@ type sequent_rule =
    ((* without *) pform * pform) *
    (where list)
 
-let pp_entailment f ((h, c) : pform * pform) =
+let pp_entailment f (h, c) =
   fprintf f "%a@ |- %a" string_form h string_form c
 
-let pp_psequent f ((g,l,r,a) : psequent) =
-  fprintf f "%a@ | %a -|@ %a" string_form g pp_entailment (l, r) string_form a
+let pp_psequent f
+  { ast_assumption_same = g; ast_assumption_diff = l; ast_obligation_diff = r }
+=
+  fprintf f "%a@ | %a" string_form g pp_entailment (l, r)
 
 let pp_sequent_rule f ((c, hss, n, w, ss) : sequent_rule) =
   let p a b c = fprintf f "@\n@[<4>%s%a@]" a b c in
@@ -476,11 +483,11 @@ let pp_sequent_rule f ((c, hss, n, w, ss) : sequent_rule) =
   (match hss with
     | [] -> ()
     | x::xs ->
-        let ps = list_format ";" pp_psequent in
+        let ps = pp_list_sep ";" pp_psequent in
         p "if " ps x; List.iter (p "or" ps) xs);
   p "without " pp_entailment w;
   if ss <> [] then
-    p "where " (list_format ";" string_where) ss;
+    p "where " (pp_list_sep ";" string_where) ss;
   fprintf f "@]"
 
 
@@ -533,17 +540,28 @@ let expand_equiv_rules rules =
 (*encode equiv rule as three rules *)
   let equiv_rule_to_seq_rule x list : rules list=
     match x with
-      EquivRule(name, guard, leftform, rightform, without) ->
-	(SeqRule((guard, leftform, [],mkEmpty), [[([],rightform,[],mkEmpty)]],name ^ "_left", (without,mkEmpty) , []))
-	::
-	  (SeqRule(([],[],guard&&&leftform,mkEmpty), [[([],[],guard&&&rightform,mkEmpty)]], name ^"_right", (mkEmpty, without), []))
-	::
-	  if(guard <> []) then
-	    (SeqRule((guard, [], leftform, mkEmpty), [[([],[],rightform,mkEmpty)]], name ^ "_split", (mkEmpty, without), []))
-	    ::
-	      list
-	  else
-	    list
+      EquivRule (name, guard, leftform, rightform, without) ->
+        SeqRule
+          ( mk_psequent guard leftform []
+          , [[mk_psequent [] rightform []]]
+          , name ^ "_left"
+          , (without, mkEmpty)
+          , [] )
+	:: SeqRule
+          ( mk_psequent [] [] (guard &&& leftform)
+          , [[mk_psequent [] [] (guard &&& rightform)]]
+          , name ^"_right"
+          , (mkEmpty, without)
+          , [] )
+	:: (if(guard <> []) then
+	  SeqRule
+            ( mk_psequent guard [] leftform
+            , [[mk_psequent [] [] rightform]]
+            , name ^ "_split"
+            , (mkEmpty, without)
+            , [])
+	  :: list
+	else list)
     | SeqRule _ | RewriteRule _ | ConsDecl _ -> x::list
   in
   List.fold_right equiv_rule_to_seq_rule rules []

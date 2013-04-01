@@ -64,9 +64,6 @@
  * Finally, don't forget that guidelines are meant to be broken.
  *)
 
-(*F#
-open Microsoft.FSharp.Compatibility
-F#*)
 open Format
 
 let safe = true
@@ -94,51 +91,18 @@ let debug = false
 let buffer_dump = Buffer.create 10000
 
 let flagged_formatter frm flag =
-  let sxy,fl =  Format.pp_get_formatter_output_functions frm () in
-  Format.make_formatter
+  let sxy,fl =  pp_get_formatter_output_functions frm () in
+  make_formatter
     (fun s x y -> if flag then sxy s x y) (fun () -> fl ())
 
 let merge_formatters frm1 frm2 =
-  let sxy1,fl1 =  Format.pp_get_formatter_output_functions frm1 () in
-  let sxy2,fl2 =  Format.pp_get_formatter_output_functions frm2 () in
-  Format.make_formatter (fun s x y -> sxy1 s x y; sxy2 s x y) (fun () -> fl1 () ; fl2 ())
+  let sxy1,fl1 = pp_get_formatter_output_functions frm1 () in
+  let sxy2,fl2 = pp_get_formatter_output_functions frm2 () in
+  make_formatter (fun s x y -> sxy1 s x y; sxy2 s x y) (fun () -> fl1 () ; fl2 ())
 
 
 
 let proof_dump = ref (merge_formatters
-		  (Format.formatter_of_buffer buffer_dump)
-		  (flagged_formatter Format.std_formatter
+		  (formatter_of_buffer buffer_dump)
+		  (flagged_formatter std_formatter
                     (log log_prove || (!Config.verbosity >= 4))))
-
-(*IF-OCAML*)
-exception Unsupported
-let unsupported () = raise Unsupported
-
-exception Unsupported2 of string
-let unsupported_s s = raise (Unsupported2 s)
-
-(*ENDIF-OCAML*)
-
-(*F#
-let unsupported () = failwith "Assert false"
-F#*)
-
-let rec form_format sep emp f ppf list =
-  match list with
-    [] -> Format.fprintf ppf "%s" emp
-  | [x] -> Format.fprintf ppf "%a" f x
-  | x::xs -> Format.fprintf ppf "@[%a@]@ %s @[%a@]" f x sep (form_format sep emp f) xs
-
-
-let rec form_format_optional start sep emp f ppf list =
-  Format.fprintf ppf "%s@ @[%a@]" start (form_format sep emp f) list
-
-(* XXX remove *)
-let rec list_format sep f ppf = function
-  | [] -> ()
-  | [x] -> fprintf ppf "%a" f x
-  | x::xs -> fprintf ppf "%a@ %s %a" f x sep (list_format sep f) xs
-
-let rec list_format_optional start sep f ppf = function
-  | [] -> ()
-  | xs -> fprintf ppf "%s@ %a" start (list_format sep f) xs

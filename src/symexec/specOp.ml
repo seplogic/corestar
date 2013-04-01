@@ -20,7 +20,7 @@ let spec2str ppf spec  =
 
 let specSet2str ppf specs =
   fprintf ppf "@\n@[<4>{";
-  Debug.list_format ", " spec2str ppf (HashSet.elements specs);
+  pp_list_sep ", " spec2str ppf (HashSet.elements specs);
   fprintf ppf "}@]"
 
 let pprinter_core_spec2str = string_of spec2str

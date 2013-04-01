@@ -375,7 +375,6 @@ end = struct
     in
     G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
 
-  (* XXX *)
   (* Used as the [make_framable] argument of the generic [execute]. *)
   let replace_pvars =
     let replace_one v f =

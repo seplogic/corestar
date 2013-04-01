@@ -63,7 +63,11 @@ and pform = pform_at list
 val pconjunction : pform -> pform -> pform
 val ( &&& ) : pform -> pform -> pform
 val subst_pform : varmap -> pform -> pform
-type psequent = pform * pform * pform * pform
+type psequent =
+  { ast_assumption_same : pform
+  ; ast_assumption_diff : pform
+  ; ast_obligation_diff : pform }
+val mk_psequent : pform -> pform -> pform -> psequent
 val purify : pform_at list -> pform_at list
 val is_numerical_args : args -> bool
 val is_numerical_pform_at : pform_at -> bool

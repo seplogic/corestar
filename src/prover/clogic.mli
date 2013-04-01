@@ -53,13 +53,11 @@ val normalise :
 val convert_to_inner : Psyntax.pform -> syntactic_form
 val convert_to_pform : syntactic_form -> Psyntax.pform
 val conjoin : bool -> ts_formula -> syntactic_form -> ts_formula
-type sequent = {
-  matched : RMSet.multiset;
-  seq_ts : Cterm.term_structure;
-  assumption : formula;
-  obligation : formula;
-  antiframe : formula; (* TODO(rgrig): Wat? Remove! *)
-}
+type sequent =
+  { matched : RMSet.multiset
+  ; seq_ts : Cterm.term_structure
+  ; assumption : formula
+  ; obligation : formula }
 val plain : formula -> bool
 val pp_sequent : Format.formatter -> sequent -> unit
 val true_sequent : sequent -> bool
@@ -67,12 +65,10 @@ val frame_sequent : sequent -> bool
 type sequent_rule =
     Psyntax.psequent * Psyntax.psequent list list * string *
     (Psyntax.pform * Psyntax.pform) * Psyntax.where list
-type pat_sequent = {
-  assumption_same : syntactic_form;
-  assumption_diff : syntactic_form;
-  obligation_diff : syntactic_form;
-  antiframe_diff : syntactic_form;
-}
+type pat_sequent =
+  { assumption_same : syntactic_form
+  ; assumption_diff : syntactic_form
+  ; obligation_diff : syntactic_form }
 val convert_sf : bool -> Cterm.term_structure -> syntactic_form -> (formula * Cterm.term_structure)
 val convert_sf_without_eqs : bool -> Cterm.term_structure -> syntactic_form -> (formula * Cterm.term_structure)
 val convert_sequent : Psyntax.psequent -> pat_sequent

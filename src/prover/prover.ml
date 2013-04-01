@@ -15,6 +15,7 @@ open Corestar_std
 open Debug
 open Format
 
+(* TODO(rgrig): Don't open these. *)
 open Clogic
 open Cterm
 open Misc
@@ -22,16 +23,13 @@ open Psyntax
 open Smt
 open Vars
 
+module PS = Psyntax
 
 let empty_sequent () =
-  {
-  matched = RMSet.empty;
-  seq_ts = Cterm.new_ts ();
-  assumption = Clogic.empty;
-  obligation = Clogic.empty;
-  antiframe = Clogic.empty;
-}
-
+  { matched = RMSet.empty
+  ; seq_ts = Cterm.new_ts ()
+  ; assumption = Clogic.empty
+  ; obligation = Clogic.empty }
 
 let rec out_normalise ts form =
   let form,ts = Clogic.normalise ts form in
@@ -75,7 +73,7 @@ let contains ts form pat : bool  =
 
 
 let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
-  try
+  try begin
     (* Construct new assumption *)
     let ass,ts =
       try
@@ -86,19 +84,7 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
           pp_syntactic_form pseq.assumption_diff;
       raise Contradiction
     in
-    let ass = conjunction ass seq.assumption in
-
-    (* Construct new antiframe *)
-    let ant,ts =
-      try
-        convert_sf fresh ts pseq.antiframe_diff
-      with Contradiction ->
-        fprintf !(Debug.proof_dump)
-          "Failed to add formula to antiframe: %a@\n"
-          pp_syntactic_form pseq.antiframe_diff;
-        raise Contradiction
-    in
-    let ant = conjunction ant seq.antiframe in
+    let assumption = conjunction ass seq.assumption in
 
     (* Construct new matched portion *)
     let sam,ts =
@@ -109,27 +95,20 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
           "Failed to add formula to matched: %a@\n"
           pp_syntactic_form pseq.assumption_same;
         assert false in
-    let sam = RMSet.union sam.spat seq.matched in
+    let matched = RMSet.union sam.spat seq.matched in
 
     (* Construct new obligation portion *)
-    let obs,ts =
+    let obligation, seq_ts =
       try
         let obs,ts = convert_sf_without_eqs fresh ts pseq.obligation_diff in
         let obs = conjunction obs seq.obligation in
-        obs,ts
+        obs, ts
       with Contradiction ->
         try
           convert_sf_without_eqs true ts false_sform
-        with Contradiction -> assert false
-          in
-          Some {
-           assumption = ass;
-           obligation = obs;
-           matched = sam;
-           seq_ts = ts;
-           antiframe = ant;
-         }
-  with Contradiction ->
+        with Contradiction -> assert false in
+    Some { assumption; obligation; matched; seq_ts }
+  end with Contradiction ->
     fprintf !(Debug.proof_dump) "Contradiction detected!!@\n";
     None
 
@@ -148,23 +127,26 @@ let check wheres seq : bool  =
     (
   function
     | NotInContext (Psyntax.Var varset) ->
-	vs_for_all (
-	  fun v ->
-	    Cterm.var_not_used_in seq.seq_ts v sreps
-	) varset
+        vs_for_all (
+          fun v ->
+            Cterm.var_not_used_in seq.seq_ts v sreps
+        ) varset
     | NotInTerm (Psyntax.Var varset, term) ->
-	vs_for_all (
-	  fun v ->
-	    Cterm.var_not_used_in_term seq.seq_ts v term
-	) varset
+        vs_for_all (
+          fun v ->
+            Cterm.var_not_used_in_term seq.seq_ts v term
+        ) varset
     | PureGuard pf ->
         if !Config.smt_run then
           begin
             let sf = convert_to_inner pf in
             let (f,ts) = convert_ground seq.seq_ts sf in
-            if Config.smt_debug() then
-               Format.printf "[Calling SMT to discharge a pure guard]@\nguard:@\n%a@\nheap:@\n%a@\n"
-               pp_ts_formula (mk_ts_form ts f) pp_sequent seq;
+            if Config.smt_debug () then begin
+              printf "@[[Calling SMT to discharge a pure guard]";
+              printf "@\n@[<2>guard:@\n%a@]" pp_ts_formula (mk_ts_form ts f);
+              printf "@\n@[<2>heap:@\n%a@]" pp_sequent seq;
+              printf "@]@\n"
+            end;
             Smt.finish_him ts seq.assumption f
           end
         else raise Backtrack.No_match
@@ -172,57 +154,33 @@ let check wheres seq : bool  =
 
 
 (* TODO Doesn't use obligation equalities to help with match. *)
-let apply_rule
-     (sr : inner_sequent_rule)
-     (seq : sequent)
-     : sequent list list
-     =
-  (* Should reset any matching variables in the ts to avoid clashes. *)
-  let ts = blank_pattern_vars seq.seq_ts in
-  (* Match obligation *)
-  match_form true ts seq.obligation sr.conclusion.obligation_diff
+let apply_rule sr seq =
+  let seq_ts = blank_pattern_vars seq.seq_ts in (* to avoid clashes *)
+  match_form true seq_ts seq.obligation sr.conclusion.obligation_diff
     (@)
-    (fun (ts,ob) ->
-  (* Match antiframe_diff *)
-  match_form true ts seq.antiframe sr.conclusion.antiframe_diff
+    (fun (seq_ts, obligation) ->
+  match_form true seq_ts seq.assumption sr.conclusion.assumption_diff
     (@)
-    (fun (ts,ant) ->
-  (* Match assumption_diff *)
-  match_form true ts seq.assumption sr.conclusion.assumption_diff
+    (fun (seq_ts, assumption) ->
+      (* match assumption_not removed *)
+      let ass_f = { assumption with spat = RMSet.union assumption.spat seq.matched } in
+  match_form true seq_ts ass_f sr.conclusion.assumption_same
     (@)
-    (fun (ts,ass) ->
-	  (* match assumption_not removed *)
-	  let ass_f = {ass with spat=RMSet.union ass.spat seq.matched} in
-	  match_form true ts ass_f sr.conclusion.assumption_same
-            (@)
-	    (fun (ts,_) ->
-	      if (not (is_sempty sr.without_left) && contains ts ass_f sr.without_left) then
-		raise Backtrack.No_match
-	      else if (not (is_sempty sr.without_right) && contains ts ob sr.without_right) then
-		raise Backtrack.No_match
-	      else if (not (check sr.where {seq with  (* TODO: do we want to use the old asm / ob here for the SMT guard? *)
-					    seq_ts = ts;
-					    obligation = ob;
-					    assumption = ass})) then
-		  raise Backtrack.No_match
-	      else begin
-		fprintf !(Debug.proof_dump) "Match rule %s@\n" sr.name;
-		let seq =
-		  {seq with
-		   seq_ts = ts;
-		   obligation = ob;
-                   assumption = ass;
-                   antiframe = ant; } in
-		List.map
-		  (map_option
-		     (sequent_join_fresh seq))
-		  sr.premises
-	      end
-	    )
-	    )
-	)
-    )
+    (fun (seq_ts, _) ->
 
+  (* Main processing *)
+  let seq = { matched = seq.matched; seq_ts; obligation; assumption } in
+  let ok =
+    is_sempty sr.without_left
+    && contains seq_ts ass_f sr.without_left
+    && is_sempty sr.without_right
+    && contains seq_ts obligation sr.without_right
+    && is_sempty sr.without_right
+    && contains seq_ts obligation sr.without_right
+    && check sr.where seq in (* TODO: do we want to use the old asm / ob here for the SMT guard? *)
+  if not ok then raise Backtrack.No_match;
+  fprintf !(Debug.proof_dump) "@[Match rule %s@]@\n" sr.name;
+  List.map (map_option (sequent_join_fresh seq)) sr.premises)))
 
 let rewrite_guard_check seq (ts,guard) =
   if contains ts seq.assumption (convert_to_inner guard.if_form) then
@@ -235,24 +193,23 @@ let rewrite_guard_check seq (ts,guard) =
     false
 
 
-let simplify_sequent rm seq : sequent option
-    =
+let simplify_sequent rm seq =
 try
-(*  printf "Before simplification : %a@\n" pp_sequent seq ;*)
+  (*  printf "Before simplification : %a@\n" pp_sequent seq ;*)
   (* Try to prove each equality and inequality using ts.
    Note we assume ones we can prove to prove the rest.*)
   let remove test update =
     let rec remove_rec rem_eqs ts eqs =
       match eqs with
-	[] -> rem_eqs,ts
+        [] -> rem_eqs,ts
       | (x,y)::eqs ->
-	  if test ts x y then
-	    remove_rec rem_eqs ts eqs
-	  else
-	    begin
-	      let ts = update ts x y in
-	      remove_rec ((x,y)::rem_eqs) ts eqs
-	    end
+          if test ts x y then
+            remove_rec rem_eqs ts eqs
+          else
+            begin
+              let ts = update ts x y in
+              remove_rec ((x,y)::rem_eqs) ts eqs
+            end
     in remove_rec []
   in
   let ass = seq.assumption in
@@ -268,14 +225,14 @@ try
     let obs,_ =
       try Clogic.normalise ts obs
       with Contradiction ->
-	raise Failed in
+        raise Failed in
     let ob_eqs = obs.eqs in
     let rec duts ts ob_eqs new_ob_eqs =
       match ob_eqs with
-	[] -> ts,  new_ob_eqs
+        [] -> ts,  new_ob_eqs
       | (a,b)::ob_eqs ->
-	  let ts,obeq = determined_exists ts (sequent_ass_reps seq []) a b in
-	  duts ts ob_eqs (obeq @ new_ob_eqs) in
+          let ts,obeq = determined_exists ts (sequent_ass_reps seq []) a b in
+          duts ts ob_eqs (obeq @ new_ob_eqs) in
     let ts, ob_eqs = try duts ts ob_eqs [] with Contradiction -> raise Failed in
     let ob_neqs = obs.neqs in
     let ts = try Cterm.rewrite ts rm (rewrite_guard_check seq) with Contradiction -> raise Success in
@@ -300,12 +257,11 @@ try
       assumption = {ass with spat = a_spat};
       obligation =
       {obs with
-	spat = o_spat;
-	plain = o_plain;
-	eqs = ob_eqs;
-	neqs=ob_neqs
-      };
-      antiframe = seq.antiframe; (* FIXME: What should this do? *)
+        spat = o_spat;
+        plain = o_plain;
+        eqs = ob_eqs;
+        neqs=ob_neqs
+      }
     } in
    (*  printf "After simplification : %a@\n" pp_sequent seq; *)
     Some seq
@@ -315,7 +271,6 @@ try
       seq_ts = ts;
       assumption = ass;
       obligation = obs }
-
 with Success -> None
 
 
@@ -323,22 +278,22 @@ let prover_counter_example : Clogic.sequent list ref = ref []
 
 let pprint_counter_example ppf () =
   fprintf ppf "Needed to prove:@   @[%a@]@\n@\n"
-    (list_format "\nor" Clogic.pp_sequent)
+    (pp_list_sep " or " Clogic.pp_sequent)
     !prover_counter_example
 
 let print_counter_example = pprint_counter_example std_formatter
 
 let get_counter_example () =
   let out_buff = Buffer.create 1000 in
-  let out_ft = Format.formatter_of_buffer out_buff in
+  let out_ft = formatter_of_buffer out_buff in
   pprint_counter_example out_ft ();
-  Format.pp_print_flush out_ft ();
+  pp_print_flush out_ft ();
   let r = Buffer.contents out_buff in
   Buffer.clear out_buff;
   r
 
 let pprint_proof (f : formatter) : unit =
-  Format.pp_print_flush !proof_dump ();
+  pp_print_flush !proof_dump ();
   fprintf f "%s" (Buffer.contents buffer_dump)
 
 let string_of_proof () =
@@ -388,30 +343,30 @@ let apply_rule_list
   let rec apply_rule_list_inner sequents n best : Clogic.sequent list * int =
     let search seqss =
       sequents_backtrack
-	(fun seqs->apply_rule_list_inner seqs (n+1) best) best seqss in
+        (fun seqs->apply_rule_list_inner seqs (n+1) best) best seqss in
     let sequents = map_option (simplify_sequent logic.rw_rules) sequents in
     (* Apply rules lots to one sequent *)
     (* Return list of needed assumptions together with a score 0..100; high is good *)
     let solve_seq seq =
       fprintf !proof_dump "%s>@[%a@]@\n@." (String.make n '-') Clogic.pp_sequent seq;
       if must_finish seq then
-	([seq], 100)
+        ([seq], 100)
       else
-	try
-	  search (apply_rule_list_once logic.seq_rules seq)
-	with Backtrack.No_match ->
-	  try
-	    if may_finish seq then
-	      ([seq], 98)
-	    else
-	      search ([Clogic.apply_or_left seq])
-	  with Backtrack.No_match ->
-	    try
-	      search (Clogic.apply_or_right seq)
-	    with Backtrack.No_match ->
+        try
+          search (apply_rule_list_once logic.seq_rules seq)
+        with Backtrack.No_match ->
+          try
+            if may_finish seq then
+              ([seq], 98)
+            else
+              search ([Clogic.apply_or_left seq])
+          with Backtrack.No_match ->
+            try
+              search (Clogic.apply_or_right seq)
+            with Backtrack.No_match ->
               try
-	        let ts' = Smt.ask_the_audience seq.seq_ts seq.assumption in
-	        search [[ {seq with seq_ts = ts'} ]]
+                let ts' = Smt.ask_the_audience seq.seq_ts seq.assumption in
+                search [[ {seq with seq_ts = ts'} ]]
               with
                 | Assm_Contradiction -> ([],100)
                 | Backtrack.No_match -> let score = 0 in ([seq], score) in
@@ -464,14 +419,16 @@ let abs
       assert false
 
 let check_implication_syntactic logic pform pform2 =
-  let seq = make_sequent (Clogic.convert_sequent ([],pform,pform2,mkEmpty)) in
+  let seq = PS.mk_psequent [] pform pform2 in
+  let seq = make_sequent (Clogic.convert_sequent seq) in
   match seq with
     None -> true (* Found contradiction immediately *)
   | Some seq ->
       check_imp logic seq
 
 let check_implication_frame_syntactic logic pform pform2 =
-  let seq = make_sequent (Clogic.convert_sequent ([],pform,pform2,mkEmpty)) in
+  let seq = PS.mk_psequent [] pform pform2 in
+  let seq = make_sequent (Clogic.convert_sequent seq) in
   match seq with
     None -> Some [] (* Found contradiction immediately *)
   | Some seq ->

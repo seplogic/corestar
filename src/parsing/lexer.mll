@@ -142,7 +142,6 @@ rule token = parse
   | "?" { QUESTIONMARK }
   | "!" { BANG }
   | "|-" { VDASH }
-  | "-|" { DASHV }
   | "~~>" { LEADSTO }
   | "/" { OP_DIV }
   | "-" { OP_MINUS }
