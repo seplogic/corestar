@@ -1093,16 +1093,12 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       |	CPConstant c -> if rep_eq ts c con then cont ts else raise No_match
       |	CPApp (p1,p2) ->
 	  let cl = A.get ts.rev_lookup (rep ts con) in
-	  using
-	    ts cont
-	    (tryall
-	       (fun (c1,c2)
-		 ->
-		   andthen
-		     (patternmatch_inner p1 c1)
-		     (patternmatch_inner p2 c2)
-		     )
-	       cl)
+          Backtrack.tryall
+            (fun (c1,c2) ->
+              Backtrack.chain
+                [ patternmatch_inner p1 c1; patternmatch_inner p2 c2 ]
+                ts cont)
+            cl
 
     let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a =
       match pattern with
@@ -1128,16 +1124,12 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	    end
       |	App (p1,p2) ->
 	  let cl = A.get ts.rev_lookup (rep ts con) in
-	  using
-	    ts cont
-	    (tryall
-	       (fun (c1,c2)
-		 ->
-		   andthen
-		     (patternmatch_inner p1 c1)
-		     (patternmatch_inner p2 c2)
-		     )
-	       cl)
+	  Backtrack.tryall
+             (fun (c1,c2) ->
+               Backtrack.chain
+                 [ patternmatch_inner p1 c1; patternmatch_inner p2 c2 ]
+                 ts cont)
+             cl
     let patternmatch ts pattern constant (cont : t -> 'a) : 'a =
       patternmatch_inner pattern constant ts cont
 

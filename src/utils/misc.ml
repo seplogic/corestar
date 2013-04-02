@@ -73,15 +73,6 @@ let rec map_and_find f = function
   | [] -> raise Not_found
   | x :: xs -> try f x with _ -> map_and_find f xs
 
-let rec find_no_match_simp f l =
-  let rec fnm_inner f l =
-  match l with
-    [] -> raise No_match
-  | x::l -> try f x with No_match -> fnm_inner f l
-  in fnm_inner f l
-
-
-
 let lift_pair f =
   fun (x,y) -> (f x, f y)
 

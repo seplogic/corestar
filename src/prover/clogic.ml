@@ -13,7 +13,7 @@
 
 open Format
 
-open Backtrack
+(* TODO(rgrig): Don't open these. *)
 open Congruence
 open Cterm
 open Misc
@@ -504,10 +504,10 @@ let match_and_remove
 	  mar_inner ts (RMSet.next term) (cn,cp) pattern 0 cont
 	else
 	  (* We have missed it, so no match *)
-	  raise No_match
+	  raise Backtrack.No_match
       else
 	(* pattern left, but nothing to match against *)
-	raise No_match
+	raise Backtrack.No_match
   in
     (* Check the pattern is non-empty *)
     if SMSet.has_more pattern then
@@ -601,7 +601,7 @@ let rec match_foo op ts form seqs cont =
       let y,ts = add_pattern y ts in
       try
 	op ts x y (fun ts -> match_foo op ts form seqs cont)
-      with No_match ->
+      with Backtrack.No_match ->
 	let rec f ts frms frms2=
 	  match frms with
 	    (a,b)::frms ->
@@ -610,14 +610,14 @@ let rec match_foo op ts form seqs cont =
 		  unifies ts x a
 		    (fun ts -> unifies ts y b
 			(fun ts -> match_foo op ts (frms@frms2) seqs cont) )
-		with No_match -> try
+		with Backtrack.No_match -> try
 		  unifies ts x b
 		    (fun ts -> unifies ts y a
 			(fun ts -> match_foo op ts (frms@frms2) seqs cont) )
-		with No_match ->
+		with Backtrack.No_match ->
 		  f ts frms ((a,b)::frms2)
 	      end
-	  | [] -> raise No_match
+	  | [] -> raise Backtrack.No_match
 	in
 	f ts form []
 
@@ -630,28 +630,24 @@ let match_neqs ts neqs sneqs cont =
 
 
 
-let rec match_form remove ts form pat combine (cont : term_structure * formula -> 'a) : 'a =
+let rec match_form
+  remove ts form pat
+  combine
+  (cont : term_structure * formula -> 'a)
+  : 'a
+=
   match_and_remove remove ts form.spat pat.sspat
-    combine
-    (fun (ts,nspat) ->
-      match_and_remove remove ts form.plain pat.splain
-        combine
-	(fun (ts,nplain) ->
-	  match_eqs ts form.eqs pat.seqs
-	    (fun (ts,eqs) ->
-	      match_neqs ts form.neqs pat.sneqs
-		(fun (ts,neqs) ->
-		  match_disjunct remove ts {form with
-			      spat = nspat;
-			      plain = nplain;
-			      eqs = eqs;
-			      neqs = neqs;
-			    }
-		    pat.sdisjuncts combine cont
-		)
-	    )
-	)
-    )
+      combine
+  (fun (ts, spat) -> match_and_remove remove ts form.plain pat.splain
+      combine
+  (fun (ts, plain) -> match_eqs ts form.eqs pat.seqs
+  (fun (ts, eqs) -> match_neqs ts form.neqs pat.sneqs
+  (fun (ts, neqs) ->
+    let form = { spat; plain; eqs; neqs; disjuncts = form.disjuncts } in
+    match_disjunct remove ts form pat.sdisjuncts
+      combine
+    cont))))
+
 and match_disjunct remove ts form pat_disj combine cont =
   match pat_disj with
     [] -> cont (ts,form)
@@ -659,7 +655,7 @@ and match_disjunct remove ts form pat_disj combine cont =
       try
 	match_form remove ts form x combine
           (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
-      with No_match ->
+      with Backtrack.No_match ->
 	match_form remove ts form y combine
           (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
 
@@ -670,7 +666,7 @@ and match_disjunct remove ts form pat_disj combine cont =
    original disjuncts eliminated.*)
 let split_disjunct form =
   match form.disjuncts with
-    [] -> raise No_match
+    [] -> raise Backtrack.No_match
   | (x,y)::disjuncts ->
       conjunction x {form with disjuncts = disjuncts},
       conjunction y {form with disjuncts = disjuncts}

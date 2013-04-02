@@ -11,25 +11,20 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
+
 exception No_match
 
-let rec find_no_match_simp f l =
-  let rec fnm_inner f l =
-  match l with 
-    [] -> raise No_match
-  | x::l -> try f x with No_match -> fnm_inner f l
-  in fnm_inner f l 
+let tryall f =
+  let rec ta = function
+    | [] -> raise No_match
+    | x :: xs -> (try f x with No_match -> ta xs)
+  in ta
 
-let rec tryall f l t cont =
-  let rec fnm_inner l =
-  match l with 
-    [] -> raise No_match
-  | x::l -> try f x t cont with No_match -> fnm_inner l
-  in fnm_inner l 
+let tryall2 y1 y2 f = tryall (fun x -> f x y1 y2)
 
-let andthen first second x cont =
-  first x (fun y -> second y cont) 
-    
+let chain fs x cont =
+  List.fold_right flip fs cont x
 
 let using x cont f =
-  f x cont 
+  f x cont

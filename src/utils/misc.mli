@@ -28,7 +28,6 @@ val map_and_find : ('a -> 'b) -> 'a list -> 'b
     order. An application is successful when it raises no exception.
    *)
 
-val find_no_match_simp : ('a -> 'b) -> 'a list -> 'b
 val lift_pair : ('a -> 'b) -> 'a * 'a -> 'b * 'b
 val add_index : 'a list -> int -> ('a * int) list
 

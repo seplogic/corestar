@@ -13,7 +13,10 @@
 
 
 exception No_match
-val find_no_match_simp : ('a -> 'b) -> 'a list -> 'b
-val tryall : ('a -> 'b -> 'c -> 'd) -> 'a list -> 'b -> 'c -> 'd
-val andthen : ('a -> ('b -> 'c) -> 'd) -> ('b -> 'e -> 'c) -> 'a -> 'e -> 'd
-val using : 'a -> 'b -> ('a -> 'b -> 'c) -> 'c
+
+val tryall : ('a -> 'b) -> 'a list -> 'b
+  (** [tryall f xs] evaluates [f x] on each [x] in [xs] until [No_match]
+  in not thrown. *)
+
+val chain : ('a -> ('a -> 'b) -> 'b) list -> ('a -> ('a -> 'b) -> 'b)
+  (** Like [andthen], but n-ary rather than binary. *)
