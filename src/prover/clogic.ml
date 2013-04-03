@@ -448,13 +448,13 @@ let make_syntactic_none ts_form =
 
 
 let match_and_remove
-      remove (* should match terms be removed - true removes them, false leaves them *)
-      ts
-      term (*formula to match in *)
-      pattern (*pattern to match *)
-      combine (* combines results of continuations *)
-      cont
-    =
+  remove (* should match terms be removed - true removes them, false leaves them *)
+  ts
+  term (*formula to match in *)
+  pattern (*pattern to match *)
+  combine (* combines results of continuations *)
+  cont
+=
   let rec mar_inner
 	ts
 	(term : RMSet.multiset)
@@ -519,9 +519,6 @@ let match_and_remove
       cont (ts,term)
 
 
-
-
-
 (* Assume that assumption does not contain eqs or neqs, they are represented in ts *)
 type sequent =
    { matched : RMSet.multiset
@@ -552,6 +549,7 @@ let true_sequent (seq : sequent) : bool =
 
 let frame_sequent seq = seq.obligation = empty
 
+(* TODO(rgrig): Remove this. *)
 (* Stolen from Prover just for refactor *)
 type sequent_rule = psequent * (psequent list list) * string * ((* without *) pform * pform) * (where list)
 
@@ -644,23 +642,29 @@ let rec match_form
   (fun (ts, eqs) -> match_neqs ts form.neqs pat.sneqs
   (fun (ts, neqs) ->
     let form = { spat; plain; eqs; neqs; disjuncts = form.disjuncts } in
-    match_disjunct remove ts form pat.sdisjuncts
-      combine
-    cont))))
+    match_disjunct remove combine pat.sdisjuncts (ts, form) cont))))
 
-and match_disjunct remove ts form pat_disj combine cont =
-  match pat_disj with
-    [] -> cont (ts,form)
-  | (x,y)::pat_disj ->
-      try
-	match_form remove ts form x combine
-          (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
-      with Backtrack.No_match ->
-	match_form remove ts form y combine
-          (fun (ts,form) -> match_disjunct remove ts form pat_disj combine cont)
+and new_match_form remove combine pat (ts, form) cont =
+  let m0 (ts, form) cont =
+    let cont (ts, spat) = cont (ts, { form with spat }) in
+    match_and_remove remove ts form.spat pat.sspat combine cont in 
+  let m1 (ts, form) cont =
+    let cont (ts, plain) = cont (ts, { form with plain }) in
+    match_and_remove remove ts form.plain pat.splain combine cont in
+  let m2 (ts, form) cont =
+    let cont (ts, eqs) = cont (ts, { form with eqs }) in
+    match_eqs ts form.eqs pat.seqs cont in
+  let m3 (ts, form) cont =
+    let cont (ts, neqs) = cont (ts, { form with neqs }) in
+    match_neqs ts form.neqs pat.sneqs cont in
+  let m4 = match_disjunct remove combine pat.sdisjuncts in
+  Backtrack.chain [m0; m1; m2; m3; m4] (ts, form) cont
 
-
-
+and match_disjunct remove combine ds =
+  let one_d (x, y) (ts, form) cont =
+    let branch z = match_form remove ts form z combine cont in
+    Backtrack.tryall branch [x; y] in
+  Backtrack.chain (List.map one_d ds)
 
 (* Takes a formula, and returns a pair of formula with one of the
    original disjuncts eliminated.*)

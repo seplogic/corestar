@@ -21,10 +21,11 @@ let tryall f =
     | x :: xs -> (try f x with No_match -> ta xs)
   in ta
 
-let tryall2 y1 y2 f = tryall (fun x -> f x y1 y2)
-
 let chain fs x cont =
   List.fold_right flip fs cont x
 
-let using x cont f =
-  f x cont
+let wrap pre post f x cont =
+  f (pre x) (cont @@ post)
+
+let seq f g x cont =
+  cont |> flip g |> f x
