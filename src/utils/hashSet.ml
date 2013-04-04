@@ -6,7 +6,7 @@ let add h e = Hashtbl.replace h e ()
 
 let remove h e = Hashtbl.remove h e
 
-let create = Hashtbl.create
+let create n = Hashtbl.create n
 
 let singleton e =
   let h = create 1 in
