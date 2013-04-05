@@ -29,3 +29,15 @@ let wrap pre post f x cont =
 
 let seq f g x cont =
   cont |> flip g |> f x
+
+let rec repeat f x =
+  try
+    let y = f x in
+    repeat f y
+  with No_match -> x
+
+let id x = x
+
+let lexico fs =
+  let add acc f = repeat (f @@ acc) in
+  List.fold_left add id fs

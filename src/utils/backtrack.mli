@@ -44,3 +44,10 @@ val seq
   ['c] and then calls a continuation, and returns a function that transforms
   ['a] into ['c] and then calls a continuation. NOTE: [chain] is the case
   ['a='b='c]. *)
+
+val repeat : ('a -> 'a) -> 'a -> 'a
+  (** Iterate until [No_match] is thrown, then return the value that cause the exception. *)
+
+val lexico : ('a -> 'a) list -> 'a -> 'a
+  (** A list version of [repeat]: [lexico [f1; ...; fn] x cont] evaluates
+  to [((...((f1*;f2)*; f3)*;...)*; fn)*]. *)

@@ -315,6 +315,9 @@ let rec apply_rule_list_once
       with
       | Backtrack.No_match -> apply_rule_list_once rules seq
 
+let new_apply_rule_list_once rules seq =
+  let try_rule rule = apply_rule (Clogic.convert_rule rule) seq in
+  Backtrack.tryall try_rule rules
 
 let rec sequents_backtrack
     f (best_ss, score) (seqss : Clogic.sequent list list)
@@ -389,8 +392,41 @@ let max_score = 100
 (* A goal with score [>= max_score] is discharged.  A goal with with score
 [< min_score] needs a proof.  Anything in-between is kind of acceptable as a
 leaf, but we should keep looking for something better. *)
-let new_apply_rule_list rules get_score goals =
-  failwith "XXX"
+let prove_goals rules get_score goals =
+  let discharge (goals, scored) =
+    let need_more_work goal = get_score goal < max_score in
+    let (new_goals, new_to_score) = List.partition need_more_work goals in
+    if new_to_score = [] then raise Backtrack.No_match
+    else (* RLP: Some repeated work calling get_score *)
+      let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored new_to_score in
+      (new_goals, new_scored) in
+  let lift_pure f (goals, scored) =
+    let try_one goal = (f goal) @ (List.filter (fun g -> g <> goal) goals) in
+    (Backtrack.tryall try_one goals, scored) in
+  let lift f (goals, scored) =
+    let try_one goal =
+      let new_goals, new_scored = f goal in
+      new_goals @ (List.filter (fun g -> g <> goal) goals), new_scored @ scored in
+    Backtrack.tryall try_one goals in
+  let try_rules = List.flatten @@ (apply_rule_list_once rules) in
+  let try_or_left = Clogic.apply_or_left in
+  let try_or_right = List.flatten @@ Clogic.apply_or_right in
+  let try_smt seq =
+    try
+      let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
+      [ {seq with seq_ts = ts} ], []
+    with Assm_Contradiction -> [], [(seq,100)] in
+  let agenda =
+    [ discharge
+    ; lift_pure try_rules
+    ; lift_pure try_or_left
+    ; lift_pure try_or_right
+    ; lift try_smt ] in
+  let (unsolved, scored) = Backtrack.lexico agenda (goals, []) in
+  if List.exists (fun goal -> get_score goal < min_score) unsolved then raise Backtrack.No_match
+  else (* RLP: Some repeated work calling get_score *)
+    let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored unsolved in
+    new_scored
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
