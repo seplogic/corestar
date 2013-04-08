@@ -509,9 +509,7 @@ type rewrite_rule =
   }
 
 
-
-type equiv_rule = string * (pform) * (pform) * (pform) * (pform)
-
+type equiv_rule = string * pform * pform * pform * pform
 
 type rules =
   | SeqRule of sequent_rule
@@ -527,45 +525,27 @@ type question =
   |  Abs of pform
   |  Abduction of pform * pform
 
-
-type test =
-  |  TImplication of pform * pform * bool
-  |  TInconsistency of pform * bool
-  |  TFrame of pform * pform * pform
-  |  TEqual of pform * args * args * bool
-  |  TAbs of pform * pform
-
-
-let expand_equiv_rules rules =
-(*encode equiv rule as three rules *)
-  let equiv_rule_to_seq_rule x list : rules list=
-    match x with
-      EquivRule (name, guard, leftform, rightform, without) ->
-        SeqRule
-          ( mk_psequent guard leftform []
-          , [[mk_psequent [] rightform []]]
-          , name ^ "_left"
-          , (without, mkEmpty)
-          , [] )
-	:: SeqRule
-          ( mk_psequent [] [] (guard &&& leftform)
-          , [[mk_psequent [] [] (guard &&& rightform)]]
-          , name ^"_right"
-          , (mkEmpty, without)
-          , [] )
-	:: (if(guard <> []) then
-	  SeqRule
-            ( mk_psequent guard [] leftform
-            , [[mk_psequent [] [] rightform]]
-            , name ^ "_split"
-            , (mkEmpty, without)
-            , [])
-	  :: list
-	else list)
-    | SeqRule _ | RewriteRule _ | ConsDecl _ -> x::list
-  in
-  List.fold_right equiv_rule_to_seq_rule rules []
-
+let expand_equiv_rule (name, guard, leftform, rightform, without) =
+  (if guard <> [] then
+    [ SeqRule
+      ( mk_psequent guard [] leftform
+      , [[mk_psequent [] [] rightform]]
+      , name ^ "_split"
+      , (mkEmpty, without)
+      , []) ]
+  else [])
+  @ [ SeqRule
+      ( mk_psequent guard leftform []
+      , [[mk_psequent [] rightform []]]
+      , name ^ "_left"
+      , (without, mkEmpty)
+      , [] )
+    ; SeqRule
+      ( mk_psequent [] [] (guard &&& leftform)
+      , [[mk_psequent [] [] (guard &&& rightform)]]
+      , name ^"_right"
+      , (mkEmpty, without)
+      , [] ) ]
 
 
     (*************************************
@@ -704,16 +684,23 @@ let mk_seq_rule (mat_seq,premises,name) : sequent_rule =
 (* rules for simplifying septraction need defining as well *)
 
 
-type logic = {
-  seq_rules : sequent_rule list;
-  rw_rules : rewrite_rule list;
-  consdecl : string list;
-  dummy : unit;
-}
+type logic =
+  { seq_rules : sequent_rule list
+  ; rw_rules : rewrite_rule list
+  ; consdecl : string list }
 
-let empty_logic : logic = {
-  seq_rules = [];
-  rw_rules = [];
-  consdecl = [];
-  dummy = ();
-}
+let empty_logic =
+  { seq_rules = []
+  ; rw_rules = []
+  ; consdecl = [] }
+
+let rec add_rule logic = function
+  | SeqRule r ->
+      { logic with seq_rules = r :: logic.seq_rules }
+  | RewriteRule r ->
+      { logic with rw_rules = r :: logic.rw_rules }
+  | EquivRule ((a,b,c,d,e) as r) ->
+      List.fold_left add_rule logic (expand_equiv_rule r)
+  | ConsDecl r ->
+      { logic with consdecl = r :: logic.consdecl }
+

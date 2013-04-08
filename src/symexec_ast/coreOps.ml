@@ -15,7 +15,14 @@ open Core
 open Corestar_std
 open Format
 
-let ast_to_inner_spec = HashSet.map Spec.ast_to_inner_spec
+let ast_to_inner_form x = match Sepprover.convert x with
+    | None -> Sepprover.inner_falsum
+    | Some x -> x
+
+let ast_to_inner_triple { pre; post } =
+  let f = ast_to_inner_form in { pre = f pre; post = f post }
+
+let ast_to_inner_spec = HashSet.map ast_to_inner_triple
 
 let ast_to_inner_core = function
   | Nop_stmt_core -> Nop_stmt_core
@@ -29,8 +36,9 @@ let ast_to_inner_core = function
 let pp_args_out = pp_list_sep "," Vars.pp_var
 let pp_args_in = pp_list_sep "," Psyntax.string_args
 
-let pp_triple pf f { Spec.pre; post } =
+let pp_triple pf f { pre; post } =
   fprintf f "@[@[{%a}@]@[{%a}@]@]" pf pre pf post
+let pp_ast_triple = pp_triple Psyntax.string_form
 
 let pp_spec pf f ts = pp_list_sep " " (pp_triple pf) f (HashSet.elements ts)
 let pp_ast_spec = pp_spec Psyntax.string_form
@@ -52,11 +60,31 @@ let pp_core pp_spec f = function
 let pp_ast_core = pp_core pp_ast_spec
 let pp_inner_core = pp_core pp_inner_spec
 
-let pp_question pp_spec f { proc_name; proc_spec; proc_body } =
+let pp_logic _ _ = failwith "XXX"
+
+let pp_proc pp_spec f { proc_name; proc_spec; proc_body } =
   let pp_body f body =
     let pp_nl_core f c = fprintf f "@\n%a" (pp_core pp_spec) c in
     fprintf f "@[<2>?%a@]" (pp_list pp_nl_core) body in
   fprintf f "@[<2>specification %s :@\n%a@]" proc_name pp_spec proc_spec;
   option () (pp_body f) proc_body
 
-let pp_ast_question = pp_question pp_ast_spec
+let pp_ast_proc = pp_proc pp_ast_spec
+
+let pp_question f { q_procs; q_rules; q_infer; q_name } =
+  fprintf f "@[infer %b@@\n%a@\n%a@]"
+    q_infer
+    (pp_list pp_ast_proc) q_procs
+    pp_logic q_rules
+
+let name_ret_v1 = "$ret_v1"
+let ret_v1 = Vars.concretep_str name_ret_v1
+let return_var n = Vars.concretep_str (Printf.sprintf "$ret_v%d" n)
+let parameter n = Printf.sprintf "@parameter%d:" n
+let parameter_var n = (Vars.concretep_str (parameter n))
+
+let empty_question =
+  { q_procs = []
+  ; q_rules = Psyntax.empty_logic
+  ; q_infer = false
+  ; q_name = "empty_question" }

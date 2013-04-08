@@ -13,9 +13,13 @@
 
 type args_out = Vars.var list
 type args_in = Psyntax.args list
+
+type 'a triple = { pre : 'a; post : 'a }
+type ast_triple = Psyntax.form triple
+type inner_triple = Sepprover.inner_form triple
 type 'a spec = 'a HashSet.t
-type ast_spec = Spec.ast_spec spec
-type inner_spec = Spec.inner_spec spec
+type ast_spec = ast_triple spec
+type inner_spec = inner_triple spec
 
 type call_core =
   { call_name : string
@@ -44,13 +48,11 @@ type 'spec core_statement =
 type ast_core = ast_spec core_statement
 type inner_core = inner_spec core_statement
 
+type ast_procedure = (ast_core list, ast_spec) procedure
+
 type question =
-  { q_procs : (ast_core list, ast_spec) procedure list
+  { q_procs : ast_procedure list
   ; q_rules : Psyntax.logic
   ; q_infer : bool  (* [true] means do bi-abduction *)
   ; q_name : string }
-
-(* Deprecated. Do NOT use. *)
-type 'spec symb_question = ('spec core_statement list, 'spec) procedure
-type 'spec symb_test = 'spec symb_question * bool (* snd is expected answer *)
 

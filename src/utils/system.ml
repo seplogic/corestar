@@ -17,13 +17,13 @@ open Corestar_std
 let java_path_delimiter = if Sys.os_type = "Windows" then ";" else ":"
 let java_path_delimiter_re = Str.regexp (java_path_delimiter ^ "+")
 
-let getenv variable = 
+let getenv variable =
   try Sys.getenv variable with Not_found -> ""
 
-let getenv_dirlist variable = 
+let getenv_dirlist variable =
   Str.split java_path_delimiter_re (getenv variable)
 
-   
+
 (* read a file into a string *)
 let string_of_file fname =
   let ichan = if fname = "-" then stdin else open_in fname
@@ -38,28 +38,28 @@ let string_of_file fname =
   s
 
 
-let parse_file pars lexe fname ftype = 
-  try 
-    if log log_phase then 
+let parse_file pars lexe fname ftype =
+  try
+    if log log_phase then
       Printf.printf "Start parsing %s in %s...\n" ftype fname;
-    let ichan = open_in fname in 
-    let ret = pars lexe (Lexing.from_channel ichan) in 
+    let ichan = open_in fname in
+    let ret = pars lexe (Lexing.from_channel ichan) in
     Parsing.clear_parser ();
     close_in ichan;
     if log log_phase then Printf.printf "Parsed %s!\n" fname;
     ret
   with Parsing.Parse_error -> Printf.printf "Failed to parse %s\n" fname; exit 1
-  |  Failure s ->  Printf.printf "Failed to parse %s\n%s\n" fname s; exit 1 
+  |  Failure s ->  Printf.printf "Failed to parse %s\n%s\n" fname s; exit 1
 
-(* 
-  Check if file exists in current directory, or in list of directories supplied.  
+(*
+  Check if file exists in current directory, or in list of directories supplied.
   Returns full filename if found,
-  If not raises Not_found 
+  If not raises Not_found
 *)
 let find_file_from_dirs dirs fname =
-  if Sys.file_exists fname then fname 
-  else 
-    let f x = Filename.concat x fname in 
+  if Sys.file_exists fname then fname
+  else
+    let f x = Filename.concat x fname in
     f (List.find (function d -> Sys.file_exists (f d)) dirs)
 
 let rec fs_postorder m f =
@@ -75,13 +75,13 @@ let fs_filter p f =
   let r = ref [] in
   fs_postorder (fun x -> if p x then r =:: x) f; !r
 
-let rm_rf f = 
-  fs_postorder 
+let rm_rf f =
+  fs_postorder
     (fun x -> if Sys.is_directory x then Unix.rmdir x else Unix.unlink x) f
 
 let rec mkdir_p dir =
   if Sys.file_exists dir then begin
-    if not (Sys.is_directory dir) then 
+    if not (Sys.is_directory dir) then
       raise (Unix.Unix_error (Unix.EEXIST, "mkdir_p", dir))
   end else begin
     mkdir_p (Filename.dirname dir);
@@ -92,7 +92,7 @@ let is_executable_available fn =
   try
     let candidate = find_file_from_dirs (getenv_dirlist "PATH") fn in
     Unix.access candidate [Unix.X_OK; Unix.R_OK];
-    true 
+    true
   with _ -> false
 
 let is_file ext fn =

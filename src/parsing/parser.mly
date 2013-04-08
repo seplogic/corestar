@@ -12,17 +12,14 @@
  ********************************************************/
 
 %{ (* header *)
-exception Give_up
 
 (* TODO(rgrig): Don't open these. *)
-open Core
 open Lexing
 open Parsing
 open Printing
-open Psyntax
-open Spec
 open Vars
 
+module C = Core
 module PS = Psyntax
 
 let newVar x =
@@ -51,6 +48,8 @@ let parse_warning s =
 
 /* ============================================================= */
 /* tokens */
+%token <string> IDENTIFIER
+%token <string> STRING_CONSTANT
 %token ABDUCTION
 %token ABSRULE
 %token ABSTRACT
@@ -60,10 +59,10 @@ let parse_warning s =
 %token BANG
 %token BIMP
 %token CALL
-%token CMP_LE
-%token CMP_LT
 %token CMP_GE
 %token CMP_GT
+%token CMP_LE
+%token CMP_LT
 %token COLON
 %token COLON_EQUALS
 %token COMMA
@@ -78,40 +77,37 @@ let parse_warning s =
 %token FRAME
 %token GARBAGE
 %token GOTO
-%token <string> IDENTIFIER
 %token IF
 %token IMP
 %token IMPLICATION
 %token IMPORT
 %token INCONSISTENCY
 %token LABEL
+%token LEADSTO
 %token L_BRACE
 %token L_BRACKET
 %token L_PAREN
-%token LEADSTO
 %token MULT
 %token NOP
-%token NOT_EQUALS
 %token NOTIN
 %token NOTINCONTEXT
-%token PUREGUARD
+%token NOT_EQUALS
 %token OP_DIV
 %token OP_MINUS
 %token OP_PLUS
 %token OR
 %token OROR
 %token ORTEXT
+%token PROCEDURE
+%token PUREGUARD
 %token QUESTIONMARK
 %token QUOTE
+%token REWRITERULE
+%token RULE
 %token R_BRACE
 %token R_BRACKET
 %token R_PAREN
-%token REWRITERULE
-%token RULE
 %token SEMICOLON
-%token SPECIFICATION
-%token SPECTEST
-%token <string> STRING_CONSTANT
 %token TRUE
 %token VDASH
 %token WAND
@@ -127,37 +123,20 @@ let parse_warning s =
 %left OROR
 %left MULT
 
-/* entry points */
-%start rule_file
-%type <Psyntax.rules Load.importoption list> rule_file
-
-%start question_file
-%type <Psyntax.question list> question_file
-
-%start test_file
-%type <Psyntax.test list> test_file
-
-%start symb_question_file
-%type <Core.ast_spec Core.symb_question list> symb_question_file
-
-%start symb_test_file
-%type <Core.ast_spec Core.symb_test list> symb_test_file
+/* entry point */
+%start file
+%type <ParserAst.entry Load.entry list> file
 
 %% /* rules */
 
 /* Identifiers and constants */
-
-boolean:
-  | TRUE { true }
-  | FALSE { false }
-;
 
 identifier:
   | IDENTIFIER { $1 }
 ;
 
 identifier_op:
-  | /* empty */ {""}
+  | /* empty */ {""} /* TODO(rgrig): fresh name, mentioning the location */
   | identifier  {$1}
 ;
 
@@ -205,11 +184,11 @@ lvariable_npv_list:
 /* Code for matching where not allowing question mark variables:
    no pattern vars */
 term_npv:
-  | lvariable_npv {Arg_var ($1)}
-  | identifier L_PAREN term_npv_list R_PAREN { Arg_op($1, $3) }
-  | L_PAREN term_npv binop term_npv R_PAREN { Arg_op($3, [$2;$4]) }
-  | L_BRACE fldlist_npv R_BRACE { mkArgRecord $2 }
-  | STRING_CONSTANT { Arg_string($1) }
+  | lvariable_npv { PS.Arg_var ($1)}
+  | identifier L_PAREN term_npv_list R_PAREN { PS.Arg_op($1, $3) }
+  | L_PAREN term_npv binop term_npv R_PAREN { PS.Arg_op($3, [$2;$4]) }
+  | L_BRACE fldlist_npv R_BRACE { PS.mkArgRecord $2 }
+  | STRING_CONSTANT { PS.Arg_string($1) }
 ;
 term_npv_list_ne:
   | term_npv {$1::[]}
@@ -222,11 +201,11 @@ term_npv_list:
 
 /* With pattern vars*/
 term:
-  | lvariable { Arg_var ($1) }
-  | identifier L_PAREN term_list R_PAREN { Arg_op($1, $3) }
-  | L_PAREN term binop term R_PAREN { Arg_op($3, [$2;$4]) }
-  | L_BRACE fldlist R_BRACE { mkArgRecord $2 }
-  | STRING_CONSTANT { Arg_string($1) }
+  | lvariable { PS.Arg_var ($1) }
+  | identifier L_PAREN term_list R_PAREN { PS.Arg_op($1, $3) }
+  | L_PAREN term binop term R_PAREN { PS.Arg_op($3, [$2;$4]) }
+  | L_BRACE fldlist R_BRACE { PS.mkArgRecord $2 }
+  | STRING_CONSTANT { PS.Arg_string($1) }
 ;
 term_list_ne:
   | term {$1::[]}
@@ -253,43 +232,43 @@ fldlist:
 /* Formulae */
 
 formula:
-  | /*empty*/  { mkEmpty }
-  | EMP  { mkEmpty }
-  | FALSE { mkFalse}
-  | BANG identifier L_PAREN term_list R_PAREN { mkPPred ($2, $4) }
-  | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
-  | formula MULT formula { mkStar $1 $3 }
-  | formula OROR formula { mkOr ($1,$3) }
-  | term NOT_EQUALS term { mkNEQ ($1,$3) }
-  | term EQUALS term { mkEQ ($1, $3) }
-  | term cmpop term { mkPPred ($2, [$1;$3]) }
+  | /*empty*/  { PS.mkEmpty }
+  | EMP  { PS.mkEmpty }
+  | FALSE { PS.mkFalse }
+  | BANG identifier L_PAREN term_list R_PAREN { PS.mkPPred ($2, $4) }
+  | identifier L_PAREN term_list R_PAREN { PS.mkSPred($1,$3) }
+  | formula MULT formula { PS.mkStar $1 $3 }
+  | formula OROR formula { PS.mkOr ($1,$3) }
+  | term NOT_EQUALS term { PS.mkNEQ ($1,$3) }
+  | term EQUALS term { PS.mkEQ ($1, $3) }
+  | term cmpop term { PS.mkPPred ($2, [$1;$3]) }
   | L_PAREN formula R_PAREN { $2 }
 ;
 
 formula_npv:
-  | /*empty*/  { mkEmpty }
-  | EMP  { mkEmpty }
-  | FALSE { mkFalse}
-  | BANG identifier L_PAREN term_npv_list R_PAREN { mkPPred ($2, $4) }
-  | identifier L_PAREN term_npv_list R_PAREN { mkSPred($1,$3) }
-  | formula_npv MULT formula_npv { mkStar $1 $3 }
-  | formula_npv OROR formula_npv { mkOr ($1,$3) }
-  | term_npv NOT_EQUALS term_npv { mkNEQ ($1,$3) }
-  | term_npv EQUALS term_npv { mkEQ ($1,$3) }
-  | term_npv cmpop term_npv { mkPPred ($2, [$1;$3]) }
+  | /*empty*/  { PS.mkEmpty }
+  | EMP  { PS.mkEmpty }
+  | FALSE { PS.mkFalse}
+  | BANG identifier L_PAREN term_npv_list R_PAREN { PS.mkPPred ($2, $4) }
+  | identifier L_PAREN term_npv_list R_PAREN { PS.mkSPred($1,$3) }
+  | formula_npv MULT formula_npv { PS.mkStar $1 $3 }
+  | formula_npv OROR formula_npv { PS.mkOr ($1,$3) }
+  | term_npv NOT_EQUALS term_npv { PS.mkNEQ ($1,$3) }
+  | term_npv EQUALS term_npv { PS.mkEQ ($1,$3) }
+  | term_npv cmpop term_npv { PS.mkPPred ($2, [$1;$3]) }
   | L_PAREN formula_npv R_PAREN { $2 }
 ;
 
 spatial_at:
-  | identifier L_PAREN term_list R_PAREN { mkSPred($1,$3) }
+  | identifier L_PAREN term_list R_PAREN { PS.mkSPred($1,$3) }
 ;
 spatial_list_ne:
-  | spatial_at MULT spatial_list_ne  { mkStar $1 $3 }
+  | spatial_at MULT spatial_list_ne  { PS.mkStar $1 $3 }
   | spatial_at    { $1 }
 ;
 spatial_list:
   | spatial_list_ne { $1 }
-  | /*empty*/  { mkEmpty }
+  | /*empty*/  { PS.mkEmpty }
 ;
 
 
@@ -310,9 +289,9 @@ sequent_list_or_list:
 ;
 
 without:
-  | WITHOUT formula { ($2, mkEmpty) }
+  | WITHOUT formula { ($2, PS.mkEmpty) }
   | WITHOUT formula VDASH formula { ($2,$4) }
-  | /* empty */ { (mkEmpty,mkEmpty) }
+  | /* empty */ { (PS.mkEmpty, PS.mkEmpty) }
 ;
 
 without_simp:
@@ -321,13 +300,13 @@ without_simp:
 ;
 
 varterm:
-  | lvariable_list { Var(vs_from_list $1) }
+  | lvariable_list { PS.Var (PS.vs_from_list $1) }
 ;
 
 clause:
-  | varterm NOTINCONTEXT { NotInContext($1) }
-  | varterm NOTIN term { NotInTerm($1,$3) }
-  | formula PUREGUARD { PureGuard($1) }   /* TODO: check that the formula here is really pure */
+  | varterm NOTINCONTEXT { PS.NotInContext $1 }
+  | varterm NOTIN term { PS.NotInTerm ($1,$3) }
+  | formula PUREGUARD { PS.PureGuard $1 }   /* TODO: check that the formula here is really pure */
 ;
 
 clause_list:
@@ -345,52 +324,51 @@ ifclause:
   | IF formula {$2}
 ;
 
-/* Need to do tests that simplified rules are fine for pure bits.*/
+/* TODO: Test that simplified rules are fine for pure bits.*/
 equiv_rule:
-  | EQUIV identifier_op COLON formula IMP formula BIMP formula without_simp  { EquivRule($2,$4,$6,$8,$9) }
-  | EQUIV identifier_op COLON formula IMP formula without_simp  { EquivRule($2,$4,$6,mkEmpty,$7) }
-  | EQUIV identifier_op COLON formula BIMP formula without_simp  { EquivRule($2,mkEmpty,$4,$6,$7) }
+  | EQUIV identifier_op COLON formula IMP formula BIMP formula without_simp
+    { PS.EquivRule ($2,$4,$6,$8,$9) }
+  | EQUIV identifier_op COLON formula IMP formula without_simp
+    { PS.EquivRule ($2,$4,$6,PS.mkEmpty,$7) }
+  | EQUIV identifier_op COLON formula BIMP formula without_simp
+    { PS.EquivRule ($2,PS.mkEmpty,$4,$6,$7) }
 ;
 
 rule:
-  | CONSTRUCTOR identifier  { Load.NormalEntry( ConsDecl($2) ) }
-  | IMPORT STRING_CONSTANT SEMICOLON  { Load.ImportEntry($2) }
+  | CONSTRUCTOR identifier
+    { PS.ConsDecl $2 }
   | RULE identifier_op COLON sequent without where IF sequent_list_or_list
-    { Load.NormalEntry(SeqRule($4,$8,$2,$5,$6)) }
+    { PS.SeqRule($4,$8,$2,$5,$6) }
   | REWRITERULE identifier_op COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
-    { Load.NormalEntry(RewriteRule({function_name=$4;
-        arguments=$6;
-        result=$9;
-        guard={without_form=$11;rewrite_where=$12;if_form=$10};
-        rewrite_name=$2;
-        saturate=false})) }
+    { PS.RewriteRule
+      ( { PS.function_name = $4
+        ; arguments = $6
+        ; result = $9
+        ; guard = { PS.without_form=$11; rewrite_where=$12; if_form=$10 }
+        ; rewrite_name = $2
+        ; saturate = false } ) }
   | REWRITERULE identifier_op MULT COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
-    { Load.NormalEntry(RewriteRule({function_name=$5;
-        arguments=$7;
-        result=$10;
-        guard={without_form=$12; rewrite_where=$13; if_form=$11};
-        rewrite_name=$2;
-        saturate=true})) }
+    { PS.RewriteRule
+      ( { PS.function_name = $5
+        ; arguments = $7
+        ; result = $10
+        ; guard = { PS.without_form=$12; rewrite_where=$13; if_form=$11 }
+        ; rewrite_name = $2
+        ; saturate=true } ) }
   | ABSRULE identifier_op COLON formula LEADSTO formula where
-    { let seq = PS.mk_psequent mkEmpty $4 mkEmpty in
-      let wo = (mkEmpty, mkEmpty) in
-      let seq2= PS.mk_psequent mkEmpty $6 mkEmpty in
+    { let seq = PS.mk_psequent PS.mkEmpty $4 PS.mkEmpty in
+      let wo = (PS.mkEmpty, PS.mkEmpty) in
+      let seq2= PS.mk_psequent PS.mkEmpty $6 PS.mkEmpty in
       let seq_list=[[seq2]] in
-      Load.NormalEntry(SeqRule(seq,seq_list,$2,wo,$7)) }
-  | equiv_rule { Load.NormalEntry($1) }
+      PS.SeqRule(seq,seq_list,$2,wo,$7) }
+  | equiv_rule { $1 }
 ;
-
-rule_file:
-  | EOF  { [] }
-  | rule rule_file  { $1 :: $2 }
-;
-
 
 /* Specifications */
 
 triple:
   L_BRACE formula R_BRACE L_BRACE formula R_BRACE
-    { { Spec.pre = $2; post = $5 } }
+    { { Core.pre = $2; post = $5 } }
 ;
 
 spec:
@@ -414,21 +392,21 @@ label_list:
 
 call_stmt: /* split in cases to avoid parsing conflict */
   | IDENTIFIER core_args_in
-    { { call_name = $1; call_rets = []; call_args = $2 } }
+    { { C.call_name = $1; call_rets = []; call_args = $2 } }
   | lvariable_npv COLON_EQUALS IDENTIFIER core_args_in
-    { { call_name = $3; call_rets = [$1]; call_args = $4 } }
+    { { C.call_name = $3; call_rets = [$1]; call_args = $4 } }
   | lvariable_npv COMMA lvariable_npv_list_ne COLON_EQUALS IDENTIFIER core_args_in
-    { { call_name = $5; call_rets = $1 :: $3; call_args = $6 } }
+    { { C.call_name = $5; call_rets = $1 :: $3; call_args = $6 } }
 ;
 
 core_stmt:
-  | END  { End }
-  | NOP  { Nop_stmt_core }
+  | END  { C.End }
+  | NOP  { C.Nop_stmt_core }
   | ASSIGN core_assn_args spec core_args_in
-    { Assignment_core { asgn_rets = $2; asgn_args = $4; asgn_spec = $3 } }
-  | CALL call_stmt { Call_core $2 }
-  | GOTO label_list { Goto_stmt_core $2 }
-  | LABEL IDENTIFIER  { Label_stmt_core $2 }
+    { C.Assignment_core { C.asgn_rets = $2; asgn_args = $4; asgn_spec = $3 } }
+  | CALL call_stmt { C.Call_core $2 }
+  | GOTO label_list { C.Goto_stmt_core $2 }
+  | LABEL IDENTIFIER  { C.Label_stmt_core $2 }
 ;
 
 core_stmt_list:
@@ -439,59 +417,48 @@ core_stmt_list:
 
 /* Input files */
 
-question:
-  | IMPLICATION COLON formula_npv VDASH formula_npv {Implication($3,$5)}
-  | INCONSISTENCY COLON formula_npv {Inconsistency($3)}
-  | FRAME COLON formula_npv VDASH formula_npv {Frame($3,$5)}
-  | ABDUCTION COLON formula_npv VDASH formula_npv {Abduction($3,$5)}
+prover_query:
+  | IMPLICATION COLON formula_npv VDASH formula_npv {PS.Implication($3,$5)}
+  | INCONSISTENCY COLON formula_npv {PS.Inconsistency($3)}
+  | FRAME COLON formula_npv VDASH formula_npv {PS.Frame($3,$5)}
+  | ABDUCTION COLON formula_npv VDASH formula_npv {PS.Abduction($3,$5)}
 ;
 
-test:
-  | IMPLICATION COLON formula_npv VDASH formula_npv QUESTIONMARK boolean { TImplication($3,$5,$7) }
-  | INCONSISTENCY COLON formula_npv QUESTIONMARK boolean { TInconsistency($3,$5) }
-  | FRAME COLON formula_npv VDASH formula_npv QUESTIONMARK formula_npv { TFrame($3,$5,$7) }
+body:
+  | /* empty */ { None }
+  | QUESTIONMARK core_stmt_list { Some $2 }
 ;
 
-question_file:
-  | EOF  { [] }
-  | question question_file  {$1 :: $2}
-;
-
-test_file:
-  | EOF  { [] }
-  | test test_file  { $1 :: $2 }
-;
-
-symb_question:
-  | SPECIFICATION identifier COLON spec QUESTIONMARK core_stmt_list
-    { { proc_name = $2
+procedure:
+  | PROCEDURE identifier COLON spec body
+    { { C.proc_name = $2
       ; proc_spec = $4
-      ; proc_body = Some $6
-      ; proc_rules = Psyntax.empty_logic (* XXX *) } }
-  | SPECIFICATION identifier COLON spec
-    { { proc_name = $2
-      ; proc_spec = $4
-      ; proc_body = None
+      ; proc_body = $5
       ; proc_rules = Psyntax.empty_logic (* XXX *) } }
 ;
 
-symb_test:
-  | SPECTEST identifier COLON spec QUESTIONMARK boolean core_stmt_list
-    { ( { proc_name=$2
-        ; proc_spec=$4
-        ; proc_body=Some $7
-        ; proc_rules=Psyntax.empty_logic (* XXX *) }
-      , $6)}
+import_entry:
+  | IMPORT STRING_CONSTANT SEMICOLON  { $2 }
 ;
 
-symb_question_file:
-  | EOF  { [] }
-  | symb_question symb_question_file  {$1 :: $2}
+normal_entry:
+  | procedure { ParserAst.Procedure $1 }
+  | prover_query { ParserAst.ProverQuery $1 }
+  | rule { ParserAst.Rule $1 }
 ;
 
-symb_test_file:
-  | EOF  { [] }
-  | symb_test symb_test_file  {$1 :: $2}
+entry:
+  | import_entry { Load.ImportEntry $1 }
+  | normal_entry { Load.NormalEntry $1 }
+;
+
+entry_list:
+  | /* empty */ { [] }
+  | entry entry_list { $1 :: $2 }
+;
+
+file:
+  | entry_list EOF { $1 }
 ;
 
 %% (* trailer *)

@@ -11,15 +11,18 @@
       LICENSE.txt
  ********************************************************)
 
+(* TODO(rgrig): Move to [coreOps] and jStar. *)
+
 
 val empty_inner_form : Sepprover.inner_form
-val sub_spec : Psyntax.varmap -> Spec.ast_spec -> Spec.ast_spec
+val sub_triple : Psyntax.varmap -> Core.ast_triple -> Core.ast_triple
 val simple_jsr : Psyntax.logic ->
-  Sepprover.inner_form -> Spec.ast_spec -> Sepprover.inner_form list option
+  Sepprover.inner_form -> Core.ast_triple -> Sepprover.inner_form list option
 
-(* These are not used by coreStar itself, but mey be useful to the frontend. *)
-val spec_conjunction : Spec.ast_spec -> Spec.ast_spec -> Spec.ast_spec
-val logical_vars_to_prog : Spec.ast_spec -> Spec.ast_spec
+(* These are not used by coreStar itself, but may be useful to the frontend. *)
+val join_triples : Core.ast_triple -> Core.ast_triple -> Core.ast_triple
+
+val logical_vars_to_prog : Core.ast_triple -> Core.ast_triple
 val refinement_extra :
-  Psyntax.logic -> Spec.ast_spec -> Spec.ast_spec -> Psyntax.form -> bool
-val refinement : Psyntax.logic -> Spec.ast_spec -> Spec.ast_spec -> bool
+  Psyntax.logic -> Core.ast_triple -> Core.ast_triple -> Psyntax.form -> bool
+val refinement : Psyntax.logic -> Core.ast_triple -> Core.ast_triple -> bool

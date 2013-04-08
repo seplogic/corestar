@@ -94,7 +94,7 @@ type rewrite_rule = {
 }
 type equiv_rule = string * pform * pform * pform * pform
 type rules =
-    SeqRule of sequent_rule
+  | SeqRule of sequent_rule
   | RewriteRule of rewrite_rule
   | EquivRule of equiv_rule
   | ConsDecl of string
@@ -105,13 +105,6 @@ type question =
   | Equal of pform * args * args
   | Abs of pform
   | Abduction of pform * pform
-type test =
-    TImplication of pform * pform * bool
-  | TInconsistency of pform * bool
-  | TFrame of pform * pform * pform
-  | TEqual of pform * args * args * bool
-  | TAbs of pform * pform
-val expand_equiv_rules : rules list -> rules list
 type var = Vars.var
 type term = args
 type form = pform
@@ -144,6 +137,6 @@ type logic = {
   seq_rules : sequent_rule list;
   rw_rules : rewrite_rule list;
   consdecl : string list;
-  dummy : unit;
 }
 val empty_logic : logic
+val add_rule : logic -> rules -> logic
