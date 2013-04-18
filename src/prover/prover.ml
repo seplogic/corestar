@@ -401,21 +401,21 @@ let prove_goals rules get_score goals =
       let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored new_to_score in
       (new_goals, new_scored) in
   let lift_pure f (goals, scored) =
-    let try_one goal = (f goal) @ (List.filter (fun g -> g <> goal) goals) in
+    let try_one goal = (f goal) @ (List.filter ((<>) goal) goals) in
     (Backtrack.tryall try_one goals, scored) in
   let lift f (goals, scored) =
     let try_one goal =
       let new_goals, new_scored = f goal in
-      new_goals @ (List.filter (fun g -> g <> goal) goals), new_scored @ scored in
+      new_goals @ (List.filter ((<>) goal) goals), new_scored @ scored in
     Backtrack.tryall try_one goals in
-  let try_rules = List.flatten @@ (apply_rule_list_once rules) in
+  let try_rules = List.flatten @@ (apply_rule_list_once rules) in (* RLP: Check that flatten is OK *)
   let try_or_left = Clogic.apply_or_left in
   let try_or_right = List.flatten @@ Clogic.apply_or_right in
   let try_smt seq =
     try
       let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
       [ {seq with seq_ts = ts} ], []
-    with Assm_Contradiction -> [], [(seq,100)] in
+    with Assm_Contradiction -> [], [(seq,max_score)] in
   let agenda =
     [ discharge
     ; lift_pure try_rules
@@ -427,6 +427,37 @@ let prove_goals rules get_score goals =
   else (* RLP: Some repeated work calling get_score *)
     let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored unsolved in
     new_scored
+
+
+(* A goal with penalty [<= Backtrack.min_penalty] is discharged.  A goal with with score
+[> Backtrack.max_penalty] needs a proof.  Anything in-between is kind of acceptable as a
+leaf, but we should keep looking for something better. *)
+let rules = []
+(*
+  [ try_rules
+  ; try_or_left
+  ; try_or_right
+  ; try_smt ]
+*)
+let penalty n = 2
+
+let rec solve n goal =
+  let leaf = ([goal], penalty goal) in
+  if n = 0 then leaf else begin
+    let process_rule r =
+      let subgoals = r goal in
+      let f = solve (n-1) in
+      Backtrack.combine_list f ([], Backtrack.min_penalty) subgoals in
+    Backtrack.choose_list process_rule leaf rules
+  end
+
+let min_depth = 2
+let max_depth = 10
+
+let solve_idfs goal =
+  Backtrack.choose ((<) max_depth) ((+) 1) (flip solve goal) ([], Backtrack.max_penalty) min_depth
+
+
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try

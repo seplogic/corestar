@@ -46,8 +46,33 @@ val seq
   ['a='b='c]. *)
 
 val repeat : ('a -> 'a) -> 'a -> 'a
-  (** Iterate until [No_match] is thrown, then return the value that cause the exception. *)
+  (** Iterate until [No_match] is thrown, then return the value that cause the exception.
+   Thus [repeat f] will not throw No_match.
+   Warning: [repeat f] will loop forever if [f] never throws No_match. *)
 
 val lexico : ('a -> 'a) list -> 'a -> 'a
   (** A list version of [repeat]: [lexico [f1; ...; fn] x cont] evaluates
   to [((...((f1*;f2)*; f3)*;...)*; fn)*]. *)
+
+
+val early_exit_fold :
+  ('a -> bool) ->
+  ('a -> 'b -> 'a) ->
+  ('c -> bool) -> ('c -> 'c) -> ('c -> 'b) -> 'a -> 'c -> 'a
+val early_exit_fold_list :
+  ('a -> bool) -> ('a -> 'b -> 'a) -> ('c -> 'b) -> 'a -> 'c list -> 'a
+
+val min_penalty : int
+val max_penalty : int
+
+val choose :
+  ('a -> bool) ->
+  ('a -> 'a) -> ('a -> 'b * int) -> 'b * int -> 'a -> 'b * int
+val choose_list :
+  ('a -> 'b * int) -> 'b * int -> 'a list -> 'b * int
+val combine :
+  ('a -> bool) ->
+  ('a -> 'a) ->
+  ('a -> 'b list * int) -> 'b list * int -> 'a -> 'b list * int
+val combine_list :
+  ('a -> 'b list * int) -> 'b list * int -> 'a list -> 'b list * int
