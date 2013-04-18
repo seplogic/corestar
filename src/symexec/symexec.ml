@@ -18,13 +18,13 @@ let substitute_list var =
   let sub = Sepprover.update_var_to (gen ()) in
   List.fold_right sub
 
-let substitute_args = substitute_list SpecOp.parameter_var
-let substitute_rets = substitute_list SpecOp.return_var
+let substitute_args = substitute_list CoreOps.parameter_var
+let substitute_rets = substitute_list CoreOps.return_var
 
 let specialize_spec rets args =
   let rets = List.map (fun v -> PS.Arg_var v) rets in
-  let f { Spec.pre; post } =
-    { Spec.pre = substitute_args args pre
+  let f { Core.pre; post } =
+    { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets rets post) } in
   HashSet.map f
 
@@ -367,7 +367,7 @@ end = struct
       | G.Call_cfg { C.call_rets; call_name; call_args } ->
           failwith "INTERNAL: calls should be removed by [inline_call_specs]"
       | G.Spec_cfg spec ->
-          let cp_triple { Spec.pre; post } acc =
+          let cp_triple { Core.pre; post } acc =
             let cp_formula f =
               List.fold_right PS.vs_add (Sepprover.get_pvars f) in
             acc |> cp_formula pre |> cp_formula post in
@@ -389,7 +389,7 @@ end = struct
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
   let execute_one_triple
-      abduct make_framable pre_conf { Spec.pre; post }
+      abduct make_framable pre_conf { Core.pre; post }
   =
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
@@ -468,8 +468,8 @@ end = struct
     else Some (get_new_specs context procedure.P.stop)
 
   let spec_of post =
-    let post = HashSet.singleton { Spec.pre = post; post } in
-    let nop = HashSet.singleton { Spec.pre = emp; post = emp } in
+    let post = HashSet.singleton { Core.pre = post; post } in
+    let nop = HashSet.singleton { Core.pre = emp; post = emp } in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -515,12 +515,12 @@ end = struct
     | Some body ->
         let body = inline_call_specs proc_of_name body in
         let process_triple update triple =
-          let update = update triple.Spec.post in
+          let update = update triple.Core.post in
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
-            { Spec.pre = triple.Spec.pre * missing_heap
+            { Core.pre = triple.Core.pre * missing_heap
             ; post = current_heap } in
-          let cs = interpret_flowgraph update body triple.Spec.pre in
+          let cs = interpret_flowgraph update body triple.Core.pre in
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
         let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in

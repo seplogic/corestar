@@ -11,15 +11,10 @@
       LICENSE.txt
  ********************************************************)
 
-type 'a importoption = ImportEntry of string | NormalEntry of 'a
-val import_flatten_extra_rules :
-  string list ->
-  string ->
-  'a importoption list ->
-  ((Lexing.lexbuf -> 'b) -> Lexing.lexbuf -> 'a importoption list) ->
-  (Lexing.lexbuf -> 'b) -> 'a list
-val import_flatten :
-  string list ->
-  string ->
-  ((Lexing.lexbuf -> 'a) -> Lexing.lexbuf -> 'b importoption list) ->
-  (Lexing.lexbuf -> 'a) -> 'b list
+exception FileNotFound of string
+
+exception CyclicDependency of string list
+
+type 'a entry = ImportEntry of string | NormalEntry of 'a
+
+val load : ?path:string list -> (string -> 'a entry list) -> string -> 'a list

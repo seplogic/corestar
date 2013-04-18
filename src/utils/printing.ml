@@ -16,12 +16,11 @@ open Format
 
 (* TODO(rgrig): Shouldn't this keep track of the file path too? *)
 (* TODO(rgrig): Should probably be in a different file. *)
-type source_location = {
-  begin_line : int;
-  begin_column : int;
-  end_line : int;
-  end_column : int 
-}
+type source_location =
+  { begin_line : int
+  ; begin_column : int
+  ; end_line : int
+  ; end_column : int }
 
 let unknown_location =
   { begin_line = -1; begin_column = -1; end_line = -1; end_column = -1}
