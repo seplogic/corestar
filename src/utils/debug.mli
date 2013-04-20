@@ -19,6 +19,7 @@ val log_load : int
 val log_prove : int
 val log_exec : int
 val log_logic : int
+val log_mm : int
 val log : int -> bool
 val logf : Format.formatter
 val debug : bool

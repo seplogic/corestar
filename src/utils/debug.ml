@@ -75,6 +75,7 @@ let log_phase = 1 lsl 3
 let log_prove = 1 lsl 4
 let log_specs = 1 lsl 5
 let log_cfg = 1 lsl 6
+let log_mm = 1 lsl 7
 
 let log_active = 0
   (* -1 means all, 0 means one, in general use lor *)

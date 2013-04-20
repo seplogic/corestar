@@ -25,6 +25,9 @@ val ( @@ ) : ('b -> 'c) -> ('a -> 'b) -> ('a -> 'c)
 (** Function feeding. You can write [x |> f |> g] instead of [g (f (x))]. *)
 val ( |> ) : 'a -> ('a -> 'b) -> 'b
 
+(** First [map], then concat; aka [bind] for the list monad. *)
+val ( >>= ) : 'a list -> ('a -> 'b list) -> 'b list
+
 (** Function application. You can write [g & f & x] instead of [g (f (x))]. *)
 val ( & ) : ('a -> 'b) -> 'a -> 'b
 
@@ -53,6 +56,9 @@ val map_option : ('a -> 'b option) -> 'a list -> 'b list
 val from_option : 'a -> ('a option) -> 'a
 
 (** Like in Haskell. *)
+val from_some : 'a option -> 'a
+
+(** Like in Haskell. *)
 val is_some : 'a option -> bool
 
 (** Like in Haskell. *)
@@ -72,6 +78,9 @@ module IntSet : Set.S with type elt = int
 
 (** A map from strings to something. *)
 module StringMap : Map.S with type key = string
+
+(** A map from strings to something.  Consider using [array]. *)
+module IntMap : Map.S with type key = int
 
 (**
   A few helpers for dealing with maps. This is a workaround for the lack of
@@ -131,6 +140,8 @@ val cons : 'a -> 'a list -> 'a list
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
 type 'a pretty_printer = Format.formatter -> 'a -> unit
+
+val pp_int : int pretty_printer
 
 val pp_string : string pretty_printer
 

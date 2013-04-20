@@ -17,11 +17,12 @@ module Int = struct type t = int let compare = compare end
 module StringSet = Set.Make (String)
 module IntSet = Set.Make (Int)
 module StringMap = Map.Make (String)
-module IntMap = Set.Make (Int)
+module IntMap = Map.Make (Int)
 
 let ( @@ ) f g x = f (g x)
 let ( & ) f x = f x
 let ( |> ) x f = f x
+let ( >>= ) x f = x |> List.map f |> List.concat
 let ( =:: ) xs x = xs := x :: !xs
 let ( !* ) = Lazy.force
 
@@ -45,6 +46,8 @@ let map_option f l =
 let from_option d = function
   | None -> d
   | Some x -> x
+
+let from_some = function Some x -> x | None -> failwith "from_some: None"
 
 let is_some = function Some _ -> true | _ -> false
 let is_none = function None -> true | _ -> false
@@ -104,6 +107,8 @@ end
 let cons x xs = x :: xs
 
 type 'a pretty_printer = formatter -> 'a -> unit
+
+let pp_int f x = fprintf f "%d" x
 
 let pp_string f s = fprintf f "%s" s
 
