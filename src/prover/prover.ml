@@ -299,179 +299,72 @@ let pprint_proof (f : formatter) : unit =
 let string_of_proof () =
   Buffer.contents buffer_dump
 
+(*
 exception Failed_eg of Clogic.sequent list
-
-
-let rec apply_rule_list_once
-   (rules : sequent_rule list)
-   (seq : Clogic.sequent)
-   : Clogic.sequent list list
-   =
-  match rules with
-    [] -> raise Backtrack.No_match
-  | rule::rules ->
-      try
-      apply_rule (Clogic.convert_rule rule) seq
-      with
-      | Backtrack.No_match -> apply_rule_list_once rules seq
-
-let new_apply_rule_list_once rules seq =
-  let try_rule rule = apply_rule (Clogic.convert_rule rule) seq in
-  Backtrack.tryall try_rule rules
-
-let rec sequents_backtrack
-    f (best_ss, score) (seqss : Clogic.sequent list list)
-    : Clogic.sequent list * int =
-  match seqss with
-    [] -> (best_ss, score)
-  | seqs::seqss ->
-    let (ss, new_score) = f seqs in
-    let new_best = if new_score > score then (ss, new_score) else (best_ss, score) in
-    sequents_backtrack f new_best seqss
-
-let apply_rule_list
-    (logic : logic)
-    (sequents : Clogic.sequent list)
-    (must_finish : Clogic.sequent -> bool)
-    (may_finish : Clogic.sequent -> bool)
-    : Clogic.sequent list
-=
-(* Clear pretty print buffer *)
-  Buffer.clear buffer_dump;
-(*  let rules,rwm,ep = logic in *)
-  let n = 0 in
-  if log log_prove then
-    (List.iter (fun seq -> fprintf !proof_dump "Goal@ %a@\n@\n" Clogic.pp_sequent seq) sequents;
-     fprintf !proof_dump "Start time :%f @\n" (Sys.time ()));
-  let rec apply_rule_list_inner sequents n best : Clogic.sequent list * int =
-    let search seqss =
-      sequents_backtrack
-        (fun seqs->apply_rule_list_inner seqs (n+1) best) best seqss in
-    let sequents = map_option (simplify_sequent logic.rw_rules) sequents in
-    (* Apply rules lots to one sequent *)
-    (* Return list of needed assumptions together with a score 0..100; high is good *)
-    let solve_seq seq =
-      fprintf !proof_dump "%s>@[%a@]@\n@." (String.make n '-') Clogic.pp_sequent seq;
-      if must_finish seq then
-        ([seq], 100)
-      else
-        try
-          search (apply_rule_list_once logic.seq_rules seq)
-        with Backtrack.No_match ->
-          try
-            if may_finish seq then
-              ([seq], 98)
-            else
-              search ([Clogic.apply_or_left seq])
-          with Backtrack.No_match ->
-            try
-              search (Clogic.apply_or_right seq)
-            with Backtrack.No_match ->
-              try
-                let ts' = Smt.ask_the_audience seq.seq_ts seq.assumption in
-                search [[ {seq with seq_ts = ts'} ]]
-              with
-                | Assm_Contradiction -> ([],100)
-                | Backtrack.No_match -> let score = 0 in ([seq], score) in
-    (* Collect solutions and combine scores (using minimum, high score is good) *)
-    let collect_solutions =
-      List.fold_left (fun (acc_seqs, acc_score) (seqs, score) -> (acc_seqs@seqs, min acc_score score)) ([], 100) in
-    (* Apply rules lots *)
-    collect_solutions (List.map solve_seq sequents) in
-  let (res, score) = apply_rule_list_inner sequents n (sequents, 0) in
-  if score < 90 then raise Failed;
-  if log log_prove then
-    fprintf !proof_dump "@\nEnd time :%f@ " (Sys.time ());
-  res
-
-(* Scores should be roughly in [0.. 100], but see the comment on
-[new_apply_rule_list]. *)
-let min_score = 50
-let max_score = 100
-
-(* A goal with score [>= max_score] is discharged.  A goal with with score
-[< min_score] needs a proof.  Anything in-between is kind of acceptable as a
-leaf, but we should keep looking for something better. *)
-let prove_goals rules get_score goals =
-  let discharge (goals, scored) =
-    let need_more_work goal = get_score goal < max_score in
-    let (new_goals, new_to_score) = List.partition need_more_work goals in
-    if new_to_score = [] then raise Backtrack.No_match
-    else (* RLP: Some repeated work calling get_score *)
-      let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored new_to_score in
-      (new_goals, new_scored) in
-  let lift_pure f (goals, scored) =
-    let try_one goal = (f goal) @ (List.filter ((<>) goal) goals) in
-    (Backtrack.tryall try_one goals, scored) in
-  let lift f (goals, scored) =
-    let try_one goal =
-      let new_goals, new_scored = f goal in
-      new_goals @ (List.filter ((<>) goal) goals), new_scored @ scored in
-    Backtrack.tryall try_one goals in
-  let try_rules = List.flatten @@ (apply_rule_list_once rules) in (* RLP: Check that flatten is OK *)
-  let try_or_left = Clogic.apply_or_left in
-  let try_or_right = List.flatten @@ Clogic.apply_or_right in
-  let try_smt seq =
-    try
-      let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
-      [ {seq with seq_ts = ts} ], []
-    with Assm_Contradiction -> [], [(seq,max_score)] in
-  let agenda =
-    [ discharge
-    ; lift_pure try_rules
-    ; lift_pure try_or_left
-    ; lift_pure try_or_right
-    ; lift try_smt ] in
-  let (unsolved, scored) = Backtrack.lexico agenda (goals, []) in
-  if List.exists (fun goal -> get_score goal < min_score) unsolved then raise Backtrack.No_match
-  else (* RLP: Some repeated work calling get_score *)
-    let new_scored = List.fold_left (fun acc goal -> (goal, get_score goal)::acc) scored unsolved in
-    new_scored
-
+*)
 
 (* A goal with penalty [<= Backtrack.min_penalty] is discharged.  A goal with with score
 [> Backtrack.max_penalty] needs a proof.  Anything in-between is kind of acceptable as a
 leaf, but we should keep looking for something better. *)
-let rules = []
-(*
-  [ try_rules
-  ; try_or_left
-  ; try_or_right
-  ; try_smt ]
-*)
-let penalty n = 2
-
-let rec solve n goal =
+let rec solve rules penalty n goal =
   let leaf = ([goal], penalty goal) in
   if n = 0 then leaf else begin
     let process_rule r =
       let subgoals = r goal in
-      let f = solve (n-1) in
-      Backtrack.combine_list f ([], Backtrack.min_penalty) subgoals in
+      Backtrack.combine_list (solve rules penalty (n-1)) ([], 0) subgoals in
     Backtrack.choose_list process_rule leaf rules
   end
 
 let min_depth = 2
 let max_depth = 10
 
-let solve_idfs goal =
-  Backtrack.choose ((<) max_depth) ((+) 1) (flip solve goal) ([], Backtrack.max_penalty) min_depth
+let solve_idfs rules penalty goal =
+  Backtrack.choose (flip (solve rules penalty) goal) ((<) max_depth) succ Backtrack.fail min_depth
 
+(* If a rule does not match, it should raise Backtrack.No_match. *)
+let search_rules rules =
+  let try_rule r = List.flatten @@ (apply_rule (Clogic.convert_rule r)) in (* RLP: Check flatten is OK *)
+  let try_rules = List.map try_rule rules in
+  let try_or_left = Clogic.apply_or_left in
+  let try_or_right = List.flatten @@ Clogic.apply_or_right in
+  let try_smt seq =
+    try
+      let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
+      [ {seq with seq_ts = ts} ]
+    with Assm_Contradiction -> [] in
+  try_rules @ (try_or_left :: try_or_right :: [try_smt])
 
+let frame_penalty g =
+  if Smt.frame_sequent_smt g then 0 else Backtrack.max_penalty
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
-    let leaves = apply_rule_list logic [seq] (fun _ -> false) Smt.frame_sequent_smt in
+    let rules = search_rules logic.seq_rules in
+    let leaves, _ = solve_idfs rules frame_penalty seq in
     Some (Clogic.get_frames leaves)
-  with
-    Failed -> fprintf !proof_dump "Frame failed\n"; None
-  | Failed_eg x -> fprintf !proof_dump "Frame failed\n"; prover_counter_example := x; None
+  with Backtrack.No_match -> fprintf !proof_dump "Frame failed\n"; None
 
 let check_imp logic sequent = is_some (check_frm logic sequent)
 
-let abduct logic hypothesis conclusion = failwith "TODO"
+let abduction_penalty g = 2
+
+(* RLP: this code typechecks, but not at all sure it does the right thing... *)
+let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
+  try
+    let seq = Clogic.make_implies_inner hypothesis conclusion in
+    (* RLP: What does this bit do? *)
+    let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
+    let seq = {seq with seq_ts = ts} in
+    let rules = search_rules logic.seq_rules in
+    let leaves, _ = solve_idfs rules abduction_penalty seq in
+    let frameanti seq =
+      Clogic.mk_ts_form seq.seq_ts seq.assumption,
+      Clogic.mk_ts_form seq.seq_ts seq.obligation in
+    Some (List.map frameanti leaves)
+  with Backtrack.No_match -> fprintf !proof_dump "Abduction failed\n"; None
+
 
 let check_implication_frame_pform logic heap pheap  =
   check_frm logic (Clogic.make_implies heap pheap)

@@ -57,22 +57,26 @@ val lexico : ('a -> 'a) list -> 'a -> 'a
 
 val early_exit_fold :
   ('a -> bool) ->
-  ('a -> 'b -> 'a) ->
-  ('c -> bool) -> ('c -> 'c) -> ('c -> 'b) -> 'a -> 'c -> 'a
+  ('a -> 'b -> 'a) -> ('b -> bool) -> ('b -> 'b) -> 'a -> 'b -> 'a
+  (** Generalized early exit fold. *)
+
 val early_exit_fold_list :
-  ('a -> bool) -> ('a -> 'b -> 'a) -> ('c -> 'b) -> 'a -> 'c list -> 'a
+  ('a -> bool) -> ('a -> 'b -> 'a) -> 'a -> 'b list -> 'a
 
 val min_penalty : int
 val max_penalty : int
 
 val choose :
-  ('a -> bool) ->
-  ('a -> 'a) -> ('a -> 'b * int) -> 'b * int -> 'a -> 'b * int
+  ('a -> 'b * int) -> ('a -> bool) ->
+  ('a -> 'a) -> 'b * int -> 'a -> 'b * int
 val choose_list :
   ('a -> 'b * int) -> 'b * int -> 'a list -> 'b * int
 val combine :
-  ('a -> bool) ->
-  ('a -> 'a) ->
-  ('a -> 'b list * int) -> 'b list * int -> 'a -> 'b list * int
+  ('a -> 'b list * int) -> ('a -> bool) ->
+  ('a -> 'a) -> 'b list * int -> 'a -> 'b list * int
 val combine_list :
   ('a -> 'b list * int) -> 'b list * int -> 'a list -> 'b list * int
+
+val fail : ('a list * int)
+  (** A rule which is not applicable should return this value. *)
+
