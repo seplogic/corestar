@@ -1,1 +1,4 @@
+true: package(dynlink)
+true: package(str)
+true: package(unix)
 true: debug
