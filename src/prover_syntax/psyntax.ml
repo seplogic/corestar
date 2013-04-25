@@ -41,6 +41,8 @@ type args =
   | Arg_record of (string *  args) list (* Do not use *)
 
 
+let mkArgint m =
+  Arg_op ("numeric_const", [Arg_string (string_of_int m)])
 
 let mkArgRecord fldlist =
   Arg_record (List.sort (fun (a1,b1) (a2,b2) -> compare a1 a2) fldlist)
