@@ -1,11 +1,13 @@
-ML=infermli unused
-BYTE=$(patsubst %,%.byte,$(ML))
+ML=infermli unused cpln
+OFLAGS=-use-ocamlfind -cflag -dtypes
 
 byte:
-	ocamlbuild -cflag -g -lflag -g $(BYTE)
+	ocamlbuild $(OFLAGS) $(addsuffix .byte,$(ML))
 
 native:
-	ocamlbuild -cflags -g,-p -lflags -g,-p $(patsubst %,%.native,$(ML))
+	ocamlbuild $(OFLAGS) $(addsuffix .native,$(ML))
 
 clean:
 	ocamlbuild -clean
+
+.PHONY: byte clean native

@@ -7,20 +7,22 @@ export CORESTAR_HOME
 
 SRC_DIRS=src
 MAINS=corestar
-LIBS=dynlink str unix
 
 # section that shouldn't change often
 
 SHELL=/bin/bash
 SRC_SUBDIRS=$(addsuffix .subdirs,$(SRC_DIRS))
 OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v \
-	   `cat $(SRC_SUBDIRS)` $(addprefix -lib ,$(LIBS))
+	   `cat $(SRC_SUBDIRS)`
+CPLN=scripts/_build/cpln.byte
 
 build: native
 
 native byte: $(SRC_SUBDIRS)
-	$(OCAMLBUILD) $(addsuffix .$@,$(MAINS))
-	for f in $(MAINS); do ln -sf ../`readlink $$f.$@` bin/$$f; rm $$f.$@; done
+	@$(MAKE) -C scripts byte
+	@$(OCAMLBUILD) $(addsuffix .$@,$(MAINS))
+	@mkdir -p bin
+	@for f in $(MAINS); do $(CPLN) $$f.$@ bin/$$f; rm $$f.$@; done
 
 test: test-native
 
@@ -37,6 +39,7 @@ all: build test
 
 clean:
 	ocamlbuild -clean
+	rm -rf bin
 	rm -f lib/*.a lib/* bin/* *.subdirs
 	$(MAKE) -C tests clean
 	$(MAKE) -C scripts clean       	# DEV

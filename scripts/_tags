@@ -1,0 +1,3 @@
+<cpln.*>: package(unix)
+true: debug
+<*.native>: profile
