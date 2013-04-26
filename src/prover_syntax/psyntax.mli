@@ -20,6 +20,7 @@ type args =
   | Arg_op of string * args list
   | Arg_cons of string * args list
   | Arg_record of (string * args) list
+val  mkArgint : int -> args
 val mkArgRecord : (string * args) list -> args
 type fldlist = (string * args) list
 module VarSet : Set.S with type elt = Vars.var
