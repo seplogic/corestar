@@ -76,7 +76,3 @@ val combine :
   ('a -> 'a) -> 'b list * int -> 'a -> 'b list * int
 val combine_list :
   ('a -> 'b list * int) -> 'b list * int -> 'a list -> 'b list * int
-
-val fail : ('a list * int)
-  (** A rule which is not applicable should return this value. *)
-

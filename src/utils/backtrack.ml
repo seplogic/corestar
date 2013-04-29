@@ -80,5 +80,3 @@ let plus_combination f (best_proof, best_penalty) c =
 let combine f = early_exit_fold exitable_combination (plus_combination f)
 
 let combine_list f = early_exit_fold_list exitable_combination (plus_combination f)
-
-let fail = ([], max_penalty)
