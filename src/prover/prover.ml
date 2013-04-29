@@ -342,13 +342,15 @@ let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic.seq_rules in
-    let leaves, _ = solve_idfs rules frame_penalty seq in
+    let leaves, penalty = solve_idfs rules frame_penalty seq in
+    if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
     Some (Clogic.get_frames leaves)
   with Backtrack.No_match -> fprintf !proof_dump "Frame failed\n"; None
 
 let check_imp logic sequent = is_some (check_frm logic sequent)
 
-let abduction_penalty g = 2
+(* Many choices possible here... *)
+let abduction_penalty g = List.length g.assumption.disjuncts
 
 (* RLP: this code typechecks, but not at all sure it does the right thing... *)
 let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
@@ -358,7 +360,8 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic.seq_rules in
-    let leaves, _ = solve_idfs rules abduction_penalty seq in
+    let leaves, penalty = solve_idfs rules abduction_penalty seq in
+    if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
     let frameanti seq =
       Clogic.mk_ts_form seq.seq_ts seq.assumption,
       Clogic.mk_ts_form seq.seq_ts seq.obligation in
