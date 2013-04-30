@@ -118,6 +118,7 @@ val mkNEQ : term * term -> form
 val mkPPred : string * term list -> form
 val mkSPred : string * term list -> form
 val mkOr : form * form -> form
+val mkBigOr : form list -> form
 val mkStar : form -> form -> form
 val mkEmpty : form
 val fv_form : pform -> VarSet.t

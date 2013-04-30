@@ -287,6 +287,8 @@ let mkOr(f1,f2) =
   else if isFalse f2 then f1
   else [P_Or(f1,f2)]
 
+let mkBigOr = List.fold_left (curry mkOr) mkFalse
+
 let mkWand(f1,f2) =
   [P_Wand(f1,f2)]
 

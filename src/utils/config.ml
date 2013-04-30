@@ -46,9 +46,9 @@ let check_arg_specs xs =
 
 let args_default =
   [ "-v", Arg.Unit (fun () -> incr verbosity), "increase verbosity"
-  ; "-d", Arg.String (String.iter set_debug_char), "set debug modes"
+  ; "-d", Arg.String (String.iter set_debug_char), "set debug modes [pm]"
   ; "-nosmt", Arg.Clear smt_run, "don't use the SMT solver"
-  ; "-p", Arg.Set_string solver_path, "set SMT solver path"
+  ; "-p", Arg.Set_string solver_path, "SMT solver (absolute path)"
   ; "-b", Arg.Set_string smt_custom_commands, "background predicate"
   ; "-ai", Arg.String set_abs_int_plugins, "AI plugins, separated by :"
   ; "-join", Arg.Set abs_int_join_ref, "numeric abstraction" ]
