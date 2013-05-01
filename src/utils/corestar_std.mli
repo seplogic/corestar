@@ -67,6 +67,9 @@ val is_none : 'a option -> bool
 (** Flip the first two arguments of a function. *)
 val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
 
+(** Almost like in Haskell, modulo laziness. *)
+val undefined : 'a -> 'b
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 

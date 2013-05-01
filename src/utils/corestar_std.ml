@@ -54,6 +54,8 @@ let is_none = function None -> true | _ -> false
 
 let flip f x y = f y x
 
+let undefined _ = failwith "INTERNAL: undefined"
+
 module CharH = struct
   let is_space =
     let spaces = " \t\n\r\x0b\x0c" in
