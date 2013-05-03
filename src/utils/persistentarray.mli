@@ -12,14 +12,26 @@
  ********************************************************)
 
 
-module type GrowablePersistentArray =
+module type S =
   sig
-    type 'a t
-    val set : 'a t -> int -> 'a -> 'a t
-    val get : 'a t -> int -> 'a
-    val create : (int -> 'a) -> 'a t
-    val size : 'a t -> int
-    val grow : 'a t -> int -> 'a t
-    val unsafe_create : 'a array -> (int -> 'a) -> 'a t
+    type elt
+    type t
+    val set : t -> int -> elt -> t
+    val get : t -> int -> elt
+    val create : unit -> t
+    val size : t -> int
+    val grow : t -> int -> t
+    (* After calling [unsafe_create a], don't dare to touch [a] again. *)
+    val unsafe_create : elt array -> t
   end
-module GrowablePersistentImpl : GrowablePersistentArray
+
+module type CREATOR = sig
+  type elt
+  val create : int -> elt
+end
+
+(* NOTE: This is a functor so that you don't need to store a function [create]
+in the data-structure [t].  If this was done (as it used to be, btw), then [t]s
+cannot be compared (e.g., put in hashtables). *)
+
+module Make (Creator : CREATOR) : S with type elt = Creator.elt

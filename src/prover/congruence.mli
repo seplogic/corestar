@@ -75,6 +75,4 @@ module type PCC =
     val test : unit -> unit
     val delete : t -> constant -> t
   end
-module PersistentCC :
-  functor (A : Persistentarray.GrowablePersistentArray) -> PCC
 module CC : PCC

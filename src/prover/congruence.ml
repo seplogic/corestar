@@ -16,9 +16,10 @@ open Corestar_std
 open Backtrack
 open Format
 open Misc
-open Persistentarray
 open Printing
 open Psyntax
+
+module PA = Persistentarray
 
 (*  Implementation of paper:
     Fast congruence closure and extensions
@@ -174,7 +175,7 @@ module type PCC =
       (* }}} *)
     end
 
-module PersistentCC (A : GrowablePersistentArray) : PCC =
+module CC : PCC =
   struct
 
     type constant = int
@@ -257,6 +258,13 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
    Lookup : constant -> constant -> complex_eq option
  *)
 
+    module Auselist = PA.Make (struct type elt = use list let create _ = [] end)
+    module Arepresentative = PA.Make (struct type elt = constant let create i = i end)
+    module Aclasslist = PA.Make (struct type elt = int list let create i = [i] end)
+    module Arev_lookup = PA.Make (struct type elt = ((constant * constant) list) let create _ = [] end)
+    module Aconstructor = PA.Make (struct type elt = inj_term let create _ = Not end)
+    module Aunifiable = PA.Make (struct type elt = var_type let create _ = Standard end)
+
 (* Intuitively:
 
   representative - mapping from constant to represntative constant.
@@ -265,61 +273,60 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
 *)
     type t =
-	{ uselist : (use list) A.t;
-	  representative : constant A.t;
-	  classlist : (constant list) A.t;
+	{ uselist : Auselist.t;
+	  representative : Arepresentative.t;
+	  classlist : Aclasslist.t;
 	  lookup : complex_eq CCMap.t;
-	  rev_lookup : ((constant * constant) list) A.t;
+	  rev_lookup : Arev_lookup.t;
 	  not_equal : unit CCMap.t;
-	  constructor : inj_term A.t;
-	  unifiable : var_type A.t;
+	  constructor : Aconstructor.t;
+	  unifiable : Aunifiable.t;
 	}
-
 
     let create () =
       {
-       uselist = A.create (fun i -> []);
-       representative = A.create (fun i -> i);
-       classlist = A.create (fun i -> [i]);
+       uselist = Auselist.create ();
+       representative = Arepresentative.create ();
+       classlist = Aclasslist.create ();
        lookup = CCMap.empty;
-       rev_lookup = A.create (fun i -> []);
+       rev_lookup = Arev_lookup.create ();
        not_equal = CCMap.empty;
-       constructor = A.create (fun i -> Not);
-       unifiable = A.create (fun i -> Standard);
+       constructor = Aconstructor.create ();
+       unifiable = Aunifiable.create ();
      }
 
 
 
 
     let fresh ts : int * t =
-      let c = A.size ts.uselist in
+      let c = Auselist.size ts.uselist in
       c,
       {ts with
-	uselist = A.grow ts.uselist 1;
-	representative = A.grow ts.representative 1;
-	classlist = A.grow ts.classlist 1;
-        rev_lookup = A.grow ts.rev_lookup 1;
-	constructor = A.grow ts.constructor 1;
-	unifiable = A.grow ts.unifiable 1;
+	uselist = Auselist.grow ts.uselist 1;
+	representative = Arepresentative.grow ts.representative 1;
+	classlist = Aclasslist.grow ts.classlist 1;
+        rev_lookup = Arev_lookup.grow ts.rev_lookup 1;
+	constructor = Aconstructor.grow ts.constructor 1;
+	unifiable = Aunifiable.grow ts.unifiable 1;
       }
 
     let fresh_unifiable ts : int * t =
       let c,ts = fresh ts in
-      c, {ts with unifiable = A.set ts.unifiable c Unifiable}
+      c, {ts with unifiable = Aunifiable.set ts.unifiable c Unifiable}
 
     let fresh_unifiable_exists ts : int * t =
       let c,ts = fresh ts in
-      c, {ts with unifiable = A.set ts.unifiable c UnifiableExists}
+      c, {ts with unifiable = Aunifiable.set ts.unifiable c UnifiableExists}
 
     let fresh_exists ts : int * t =
       let c,ts = fresh ts in
-      c, {ts with unifiable = A.set ts.unifiable c Exists}
+      c, {ts with unifiable = Aunifiable.set ts.unifiable c Exists}
 
     let rep ts a =
-      A.get ts.representative a
+      Arepresentative.get ts.representative a
 
     let set_rep ts a r =
-      {ts with representative = A.set ts.representative a r }
+      {ts with representative = Arepresentative.set ts.representative a r }
 
     let rep_eq (ts : t) (c : constant) (c2 : constant) : bool =
       rep ts c = rep ts c2
@@ -328,7 +335,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       let c = rep ts c in
       let c2 = rep ts c2 in
       if c <> c2 then
-	match A.get ts.constructor c, A.get ts.constructor c2 with
+	match Aconstructor.get ts.constructor c, Aconstructor.get ts.constructor c2 with
 	  Not, _
 	| _, Not  (* At least one rep is not constructor, check if we have explicit neq.*)
 	| IApp _,IApp _  (* Don't recurse, just do simple test here, later redefine to find contradictions *)
@@ -352,28 +359,28 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
 
     let invariant (ts : t) : bool = if true then true else
-      let n = A.size ts.representative  - 1 in
+      let n = Arepresentative.size ts.representative  - 1 in
       (* Check reps have class list *)
       for i = 0 to n do
-	let r = A.get ts.representative i in
-	let cl = A.get ts.classlist r in
+	let r = Arepresentative.get ts.representative i in
+	let cl = Aclasslist.get ts.classlist r in
 	assert (List.exists ((=) i) cl)
       done;
       (* check class list has reps *)
       for i = 0 to n do
-	let cl = A.get ts.classlist i in
-	assert (List.for_all (fun c -> A.get ts.representative c = i) cl)
+	let cl = Aclasslist.get ts.classlist i in
+	assert (List.for_all (fun c -> Arepresentative.get ts.representative c = i) cl)
       done;
       (* check lookup has appropriate rev_lookup and uses *)
       CCMap.iter
 	(fun (a,b) (c,d,e) ->
-	  let rl = A.get ts.rev_lookup (rep ts e) in
+	  let rl = Arev_lookup.get ts.rev_lookup (rep ts e) in
 	  assert (rep_eq ts a c);
 	  assert (rep_eq ts b d);
 	  (* Check reverse map exists *)
 	  assert (List.exists (fun (r1,r2) -> rep_eq ts a r1 && rep_eq ts b r2) rl);
 	  (* Check there exists a use for "a" *)
-	  let ula = A.get ts.uselist (rep ts a) in
+	  let ula = Auselist.get ts.uselist (rep ts a) in
 	  assert (List.exists
 		    (function
 			Complex_eq (r1,r2,r3) ->
@@ -382,7 +389,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 			  rep_eq ts r2 b
 		      |	 _ -> false)
 		     ula);
-	  let ulb = A.get ts.uselist (rep ts b) in
+	  let ulb = Auselist.get ts.uselist (rep ts b) in
 	  assert (List.exists
 		    (function
 			Complex_eq (r1,r2,r3) ->
@@ -395,7 +402,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	  ) ts.lookup;
       (* check rev_lookup has appropriate lookup *)
       for i = 0 to n do
-	let rl = A.get ts.rev_lookup i in
+	let rl = Arev_lookup.get ts.rev_lookup i in
 	assert (List.for_all
 	  (fun (r1,r2) ->
 	    match lookup ts (r1,r2) with
@@ -413,9 +420,9 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       pp ppf i (*(rep ts i)*)
 
     let for_each_rep ts (f : constant -> unit) =
-      let n = A.size ts.representative in
+      let n = Arepresentative.size ts.representative in
       for i = 0 to n-1 do
-	if A.get ts.representative i = i then
+	if Arepresentative.get ts.representative i = i then
 	  f i
       done
 
@@ -427,7 +434,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	  let rp = map rep in
 	  List.iter
 	    (fun i -> if mask i && rep <> i then acc := (rp,map i)::!acc)
-	    (A.get ts.classlist rep)
+	    (Aclasslist.get ts.classlist rep)
 	  ) ;
       !acc
 
@@ -454,11 +461,11 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
     let print (ts:t) : unit =
       let rs = ts.representative in
-      let n = A.size rs - 1 in
+      let n = Arepresentative.size rs - 1 in
       printf "Rep\n   ";
       for i = 0 to n do
-	if i <> (A.get rs i) then
-	  printf "%n|->%n  " i (A.get rs i)
+	if i <> (Arepresentative.get rs i) then
+	  printf "%n|->%n  " i (Arepresentative.get rs i)
       done ;
 
 (*
@@ -499,19 +506,19 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
       printf "\nRev lookup";
       for i = 0 to n do
-	if (A.get ts.rev_lookup i) <> [] then
+	if (Arev_lookup.get ts.rev_lookup i) <> [] then
 	  begin
 	    printf "\n %n" i;
 	    List.iter
 	      (fun (a,b) ->
 		printf " = app(%n,%n)" a b )
-	      (A.get ts.rev_lookup i)
+	      (Arev_lookup.get ts.rev_lookup i)
 	  end
       done;
 
       printf "Injective info:\n";
       for i = 0 to n do
-	match A.get ts.constructor i with
+	match Aconstructor.get ts.constructor i with
 	  Not -> ()
 	| Self -> printf "  inj(%i)\n" i
 	| IApp(a,b) -> printf "  inj(%i) by app(%i,%i)\n" i a b
@@ -520,33 +527,37 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
 
     let add_lookup ts (a,b,c) =
-      {ts with
-	lookup = CCMap.add ((rep ts a),(rep ts b)) (a,b,c) ts.lookup;
-	rev_lookup = A.set ts.rev_lookup (rep ts c) ((a,b)::A.get ts.rev_lookup (rep ts c)) }
+      { ts with
+	lookup = CCMap.add ((rep ts a),(rep ts b)) (a,b,c) ts.lookup
+      ; rev_lookup =
+          Arev_lookup.set
+            ts.rev_lookup
+            (rep ts c)
+            ((a,b)::Arev_lookup.get ts.rev_lookup (rep ts c)) }
 
 
 
     let get_uselist ts r =
-      A.get ts.uselist r
+      Auselist.get ts.uselist r
 
     let add_use ts a fe : t =
       let a = rep ts a in
-      let oldul = A.get ts.uselist a in
-      {ts with uselist = A.set ts.uselist a (fe::oldul)}
+      let oldul = Auselist.get ts.uselist a in
+      {ts with uselist = Auselist.set ts.uselist a (fe::oldul)}
 
     let clear_uselist ts r =
-	{ts with uselist = A.set ts.uselist r [] }
+	{ts with uselist = Auselist.set ts.uselist r [] }
 
 
 
     let get_cl ts r =
-      A.get ts.classlist r
+      Aclasslist.get ts.classlist r
 
     let append_cl (ts : t) (r : constant) (cl : constant list) =
-      {ts with classlist = A.set ts.classlist r ((get_cl ts r) @ cl)}
+      {ts with classlist = Aclasslist.set ts.classlist r ((get_cl ts r) @ cl)}
 
     let clear_cl ts r =
-	{ts with classlist = A.set ts.classlist r [] }
+	{ts with classlist = Aclasslist.set ts.classlist r [] }
 
 
     let make_not_equal (ts : t) (a : constant) (b : constant) : t =
@@ -559,7 +570,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       let ulb = if List.exists (fun b -> b=(Not_equal a)) ulb then ulb else (Not_equal a)::ulb in
       {ts with
 	not_equal = CCMap.add (a,b) () ts.not_equal;
-	uselist = A.set (A.set ts.uselist a ula) b ulb}
+	uselist = Auselist.set (Auselist.set ts.uselist a ula) b ulb}
 
 
     let rec make_use_constructor d (ts,pending) use =
@@ -568,11 +579,11 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       | Complex_eq (a,b,c) when (rep_eq ts a d) ->
 	  begin
 	    let r =  rep ts c in
-	    match A.get ts.constructor r with
+	    match Aconstructor.get ts.constructor r with
           (* Can't make it an IApp, is already an constructor *)
 	      Self -> raise Contradiction
 	  (* Can make it an constructor *)
-	    | Not -> make_uses_constructor r ({ts with constructor = A.set ts.constructor r (IApp(a,b))},pending)
+	    | Not -> make_uses_constructor r ({ts with constructor = Aconstructor.set ts.constructor r (IApp(a,b))},pending)
 	  (* Already constructor, okay assuming we can make subterms equal *)
 	    | IApp(r1,r2) -> ts, (a,r1)::(b,r2)::pending
 	  end
@@ -590,12 +601,12 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
     *)
     let constructor_merge ts a b pending : t * ((constant * constant) list) =
     (* Should only call this with something that is an App *)
-      match A.get ts.constructor a , A.get ts.constructor b with
+      match Aconstructor.get ts.constructor a , Aconstructor.get ts.constructor b with
 	Not, Not -> ts, pending
       |	Not, i -> make_uses_constructor a (ts,pending)
       |	i, Not ->
 	  let (ts,pending) =  make_uses_constructor b (ts,pending) in
-	  {ts with constructor = A.set ts.constructor b i}, pending
+	  {ts with constructor = Aconstructor.set ts.constructor b i}, pending
       |	IApp(a,b), IApp(c,d) ->
 	  ts, (a,c)::(b,d)::pending
       |	_,_ ->
@@ -605,13 +616,13 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
     let no_live ts nr =
 	List.for_all
-	  (fun x -> match (A.get ts.unifiable x) with Standard -> false | _ -> true)
-	  (A.get ts.classlist (rep ts nr))
+	  (fun x -> match (Aunifiable.get ts.unifiable x) with Standard -> false | _ -> true)
+	  (Aclasslist.get ts.classlist (rep ts nr))
 
 
     let unifiable_merge ts a b : t =
       let vt =
-        match A.get ts.unifiable a , A.get ts.unifiable b with
+        match Aunifiable.get ts.unifiable a , Aunifiable.get ts.unifiable b with
         | Unifiable, Unifiable -> Unifiable
         | Unifiable, UnifiableExists
         | UnifiableExists, Unifiable
@@ -620,7 +631,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
         | _, UnifiableExists -> Deleted
         | _, a -> a
       in
-      {ts with unifiable = A.set ts.unifiable b vt}
+      {ts with unifiable = Aunifiable.set ts.unifiable b vt}
 
     let rec propogate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
@@ -645,8 +656,10 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	      else
 		let old_repa = rep ts a in
 		let repb = rep ts b in
-		let rl = (A.get ts.rev_lookup old_repa) @ (A.get ts.rev_lookup repb) in
-		let ts = {ts with rev_lookup = A.set ts.rev_lookup repb rl} in
+		let rl =
+                  (Arev_lookup.get ts.rev_lookup old_repa)
+                  @ (Arev_lookup.get ts.rev_lookup repb) in
+		let ts = {ts with rev_lookup = Arev_lookup.set ts.rev_lookup repb rl} in
 		let ts,pending = constructor_merge ts old_repa repb pending in
 		let cl = get_cl ts old_repa in
 		let ts = append_cl ts repb cl in
@@ -717,7 +730,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
     let make_constructor (ts : t) (a : constant) : t =
       (*assert (A.get ts.constructor (rep ts a) = Not);*)  (* FIXME: is this needed? *)
-      let ts = {ts with constructor = A.set ts.constructor (rep ts a) Self} in
+      let ts = {ts with constructor = Aconstructor.set ts.constructor (rep ts a) Self} in
       let ts,p = make_uses_constructor a (ts,[]) in
       propogate ts p
 
@@ -731,7 +744,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 		let ts = add_use ts a (Complex_eq (a,b,c)) in
 		let ts = add_use ts b (Complex_eq (a,b,c)) in
 		(* If a is constructor, then so should c be. *)
-		if A.get ts.constructor (rep ts a) <> Not then
+		if Aconstructor.get ts.constructor (rep ts a) <> Not then
 		  let ts,pending = make_use_constructor a (ts,[]) (Complex_eq (a,b,c)) in
 		  propogate ts pending
 		else
@@ -780,7 +793,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 
 
     let compress ts cs : (t * (constant -> constant)) =
-      let n = A.size ts.uselist in
+      let n = Auselist.size ts.uselist in
 	   (* The set of currently visible constants *)
       let set = Array.init n (fun _ -> false) in
 	   (* The mapping from old constant to new *)
@@ -810,7 +823,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	   (*  Using while rule as !i could be increased
 	      by body of loop *)
       while (!j < !i) do
-	let ul =  A.get ts.uselist (Array.get inv !j) in
+	let ul =  Auselist.get ts.uselist (Array.get inv !j) in
 	List.iter
 	  (function
 	      Complex_eq (e,f,g) ->
@@ -827,13 +840,13 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       let clas = Array.init !i (fun i -> [i]) in
       let constructor = Array.init !i
 	  (fun i ->
-	    match A.get ts.constructor (Array.get inv i) with
+	    match Aconstructor.get ts.constructor (Array.get inv i) with
 	      Not -> Not
 	    | Self -> Self
 	    | IApp (a,b) -> IApp (newrep a, newrep b)
 	      ) in
       let unifiable = Array.init !i
-	  (fun i -> (A.get ts.unifiable (Array.get inv i))) in
+	  (fun i -> (Aunifiable.get ts.unifiable (Array.get inv i))) in
 (* Build new reverse lookup map *)
       let revl = Array.init !i
 	  (fun i ->
@@ -844,7 +857,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 		     Some (newrep a, newrep b)
 		   else
 		     None
-		       ) (A.get ts.rev_lookup (Array.get inv i)))) in
+		       ) (Arev_lookup.get ts.rev_lookup (Array.get inv i)))) in
 (* Create new uselist *)
       let usel = Array.init !i
 	  (fun i ->
@@ -872,19 +885,18 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 		(get_uselist ts oi) in
 	    remove_duplicates (intcmp) ul
 	      ) in
-      let ts,map = {
-	uselist = A.unsafe_create usel (fun i -> []);
-	representative = A.unsafe_create reps (fun i -> i);
-	classlist = A.unsafe_create clas (fun i -> [i]);
+      let ts= {
+	uselist = Auselist.unsafe_create usel;
+	representative = Arepresentative.unsafe_create reps;
+	classlist = Aclasslist.unsafe_create clas;
 	lookup = !look;
-	rev_lookup = A.unsafe_create revl (fun i -> []);
+	rev_lookup = Arev_lookup.unsafe_create revl;
 	not_equal = !neq;
-	constructor = A.unsafe_create constructor (fun i -> Not);
-	unifiable = A.unsafe_create unifiable (fun i -> Standard);
-      },  (fun c -> Array.get map c)
-      in
+	constructor = Aconstructor.unsafe_create constructor;
+	unifiable = Aunifiable.unsafe_create unifiable;
+      } in
       assert (invariant ts);
-      ts,map
+      (ts, Array.get map)
 
     let compress_full ts =
       let cs = ref [] in
@@ -999,7 +1011,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	 try
 	   let ts = make_equal ts c0 c2 in
 	   let ts2,map = compress ts [r1;r2] in
-	   if A.size ts2.representative = 3
+	   if Arepresentative.size ts2.representative = 3
 	   then printf "Correct Test 7 a\n"
 	   else
 	     begin
@@ -1008,7 +1020,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	     end;
 	   let ts2 = make_not_equal ts c0 c1 in
 	   let ts2,map = compress ts2 [r1;r2] in
-	   if A.size ts2.representative = 3
+	   if Arepresentative.size ts2.representative = 3
 	   then printf "Correct Test 7 b\n"
 	   else
 	     begin
@@ -1017,7 +1029,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	     end;
 	   let ts2 = make_equal ts c0 c1 in
 	   let ts2,map = compress ts2 [r1;r2] in
-	   if A.size ts2.representative = 2
+	   if Arepresentative.size ts2.representative = 2
 	   then printf "Correct Test 7 c\n"
 	   else
 	     begin
@@ -1092,7 +1104,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	CHole c -> cont (try make_equal ts c con with Contradiction -> raise No_match)
       |	CPConstant c -> if rep_eq ts c con then cont ts else raise No_match
       |	CPApp (p1,p2) ->
-	  let cl = A.get ts.rev_lookup (rep ts con) in
+	  let cl = Arev_lookup.get ts.rev_lookup (rep ts con) in
           Backtrack.tryall
             (fun (c1,c2) ->
               Backtrack.chain
@@ -1107,7 +1119,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	    cont ts
 	  else
 	    begin
-	      match A.get ts.unifiable (rep ts c), A.get ts.unifiable (rep ts con) with
+	      match Aunifiable.get ts.unifiable (rep ts c), Aunifiable.get ts.unifiable (rep ts con) with
 	      Unifiable, _
 	    | UnifiableExists, Exists ->
 		cont (try make_equal ts c con with Contradiction -> raise No_match)
@@ -1123,7 +1135,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	    | Deleted, _ -> raise No_match
 	    end
       |	App (p1,p2) ->
-	  let cl = A.get ts.rev_lookup (rep ts con) in
+	  let cl = Arev_lookup.get ts.rev_lookup (rep ts con) in
 	  Backtrack.tryall
              (fun (c1,c2) ->
                Backtrack.chain
@@ -1139,7 +1151,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
     let unifies_any ts c1 cont =
       (* Very naive code, should do something clever like e-matching, but will do for now. *)
       let rec f n =
-	if n = A.size ts.uselist then
+	if n = Auselist.size ts.uselist then
 	  raise No_match
 	else
 	    if n <> rep ts n then f (n+1)
@@ -1170,7 +1182,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	  (make_equal ts c2 c1), []
 	end
       else
-	match A.get ts.constructor (rep ts c1), A.get ts.constructor (rep ts c2) with
+	match Aconstructor.get ts.constructor (rep ts c1), Aconstructor.get ts.constructor (rep ts c2) with
 	  IApp(a,b), IApp(c,d) ->
 	    begin
 	      let ts, cp1 = determined_exists ts cl a c in
@@ -1184,16 +1196,16 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
     let normalise ts c =
       rep ts c
     let others ts c =
-      A.get ts.classlist (rep ts c)
+      Aclasslist.get ts.classlist (rep ts c)
 
    let rec inter_list (i : int) (j : int) : int list =  if i > j then [] else (i :: inter_list (i+1) j)
 
-    let get_consts ts = inter_list 0 (A.size ts.representative - 1)
+    let get_consts ts = inter_list 0 (Arepresentative.size ts.representative - 1)
 
     let get_reps mask map ts =
       List.map map
-         (List.filter (fun i -> A.get ts.representative i = i && mask i)
-                      (inter_list 0 (A.size ts.representative - 1)))
+         (List.filter (fun i -> Arepresentative.get ts.representative i = i && mask i)
+                      (inter_list 0 (Arepresentative.size ts.representative - 1)))
 
 
     let rep_uneq ts c d =
@@ -1216,20 +1228,18 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	  rep_uneq ts c1 c2
 
     let delete ts r =
-      let current_sort = A.get ts.unifiable r in
+      let current_sort = Aunifiable.get ts.unifiable r in
       match current_sort with
 	Unifiable
       |	UnifiableExists
       |	Exists ->
-	  {ts with unifiable = A.set ts.unifiable r Deleted}
+	  {ts with unifiable = Aunifiable.set ts.unifiable r Deleted}
       | Deleted ->
           (* Double dispose *)
 	  ts (*assert false*)
       |	Standard ->
-	  {ts with unifiable = A.set ts.unifiable r Deleted}
+	  {ts with unifiable = Aunifiable.set ts.unifiable r Deleted}
 
   end
-
-module CC : PCC = PersistentCC( GrowablePersistentImpl)
 
 (*let _ = CC.test ()*)
