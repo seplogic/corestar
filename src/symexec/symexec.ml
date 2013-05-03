@@ -202,7 +202,9 @@ let compute_call_graph ps =
   let add_vertex p =
     if Hashtbl.mem von p.C.proc_name then
       raise (Fatal ("repeated procedure name " ^ p.C.proc_name));
-    Hashtbl.add von p.C.proc_name (CallGraph.V.create p) in
+    let v = CallGraph.V.create p in
+    Hashtbl.add von p.C.proc_name v;
+    CallGraph.add_vertex cg v in
   List.iter add_vertex ps;
   List.iter (ccg_add_edges cg von) ps;
   if !Config.verbosity >= 2 then output_cg cg;
@@ -511,8 +513,11 @@ end = struct
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
 
   let interpret proc_of_name procedure = match procedure.C.proc_body with
-    | None -> OK
+    | None ->
+        if log log_specs then fprintf logf "@[Interpreting empty procedure body: %s@." procedure.C.proc_name;
+        OK
     | Some body ->
+        if log log_specs then fprintf logf "@[Interpreting procedure body: %s@." procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let process_triple update triple =
           let update = update triple.Core.post in
@@ -534,6 +539,7 @@ end
 
 (* Assumes that components come in reversed topological order. *)
 let rec interpret_one_scc proc_of_name ps =
+  if log log_specs then fprintf logf "@[Interpreting %d procedure components@." (List.length ps);
   let module PI = ProcedureInterpreter in
   let rs = List.map (PI.interpret proc_of_name) ps in
   if List.exists ((=) PI.Spec_updated) rs
@@ -541,16 +547,21 @@ let rec interpret_one_scc proc_of_name ps =
   else List.for_all ((=) PI.OK) rs
 
 let interpret gs =
+  if log log_specs then fprintf logf "@[Interpreting %d procedures@." (List.length gs);
   let cg, von = compute_call_graph gs in
+  if log log_specs then
+   fprintf logf "@[Found %d vertices@." (CallGraph.fold_vertex (fun _ -> succ) cg 0 );
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
   let sccs = List.map (List.map CallGraph.V.label) sccs in
   if !Config.verbosity >= 3 then output_sccs sccs;
+  if log log_specs then fprintf logf "@[Found %d components@." (List.length sccs);
   let proc_of_name n = CallGraph.V.label (von n) in
   List.for_all (interpret_one_scc proc_of_name) sccs
 
 let verify q =
+  if log log_specs then fprintf logf "@[Verifying %s...@." q.C.q_name;
   let ps = List.map ast_to_inner_procedure q.C.q_procs in
   let gs = List.map mk_cfg ps in
   interpret gs

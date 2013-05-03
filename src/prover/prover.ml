@@ -319,6 +319,7 @@ let min_depth = 2
 let max_depth = 10
 
 let solve_idfs rules penalty goal =
+  if log log_prove then fprintf logf "@[Proving goal: %a@." pp_sequent goal;
   Backtrack.choose (flip (solve rules penalty) goal) ((<) max_depth) succ ([], Backtrack.max_penalty) min_depth
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)

@@ -21,3 +21,4 @@ val smt_custom_commands : string ref
 val args_default : (Arg.key * Arg.spec * Arg.doc) list
 val check_arg_specs : (Arg.key * Arg.spec * Arg.doc) list -> unit
 val abs_int_plugins : string list ref
+val use_abduction_ref : bool ref
