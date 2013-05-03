@@ -1,11 +1,11 @@
 
 
-Specification f:
+procedure f:
 ?
 assign  := {field(@parameter0:,"next",_x)}{field(@parameter0:,"next",@parameter1:)} ();
 end;
 
-Specification Test04:
+procedure Test04:
 ?
 call f(y,"0");
 call f(x,"y");

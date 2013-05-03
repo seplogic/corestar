@@ -1,11 +1,11 @@
 
 
-Specification f:
+procedure f:
 ?
 assign  := {}{$ret_v1=@parameter1: * field(@parameter0:,"next",@parameter1:)} ();
 end;
 
-Specification Test04:
+procedure Test04:
 ?
 call temp:=f(y);
 label a;

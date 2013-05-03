@@ -294,12 +294,9 @@ module Components = struct
     (* Ensures that all vertices appear as keys in the result. *)
     let reverse g =
       let gr = VH.create 1 in
-      let pe v u =
-        let succ_u = try VH.find gr u with Not_found -> VH.create 1 in
-        VH.replace succ_u v ();
-        VH.replace gr u succ_u;
-        if not (VH.mem gr v) then VH.add gr v (VH.create 1) in
+      let pe v u = VH.replace (VH.find gr u) v () in
       let pv v = G.iter_succ (pe v) g v in
+      G.iter_vertex (fun v -> VH.add gr v (VH.create 1)) g;
       G.iter_vertex pv g;
       gr
 

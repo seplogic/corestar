@@ -547,21 +547,18 @@ let rec interpret_one_scc proc_of_name ps =
   else List.for_all ((=) PI.OK) rs
 
 let interpret gs =
-  if log log_specs then fprintf logf "@[Interpreting %d procedures@." (List.length gs);
+  if log log_phase then fprintf logf "@[Interpreting %d procedures@." (List.length gs);
   let cg, von = compute_call_graph gs in
-  if log log_specs then
-   fprintf logf "@[Found %d vertices@." (CallGraph.fold_vertex (fun _ -> succ) cg 0 );
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
   let sccs = List.map (List.map CallGraph.V.label) sccs in
   if !Config.verbosity >= 3 then output_sccs sccs;
-  if log log_specs then fprintf logf "@[Found %d components@." (List.length sccs);
   let proc_of_name n = CallGraph.V.label (von n) in
   List.for_all (interpret_one_scc proc_of_name) sccs
 
 let verify q =
-  if log log_specs then fprintf logf "@[Verifying %s...@." q.C.q_name;
+  if log log_phase then fprintf logf "@[Verifying %s...@." q.C.q_name;
   let ps = List.map ast_to_inner_procedure q.C.q_procs in
   let gs = List.map mk_cfg ps in
   interpret gs
