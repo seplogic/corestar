@@ -85,6 +85,8 @@ let load fn =
   { q with C.q_name = fn }
 
 let verify fn =
+  if !Config.smt_run then Smt.smt_init();
+
   if log log_specs then fprintf logf "@[Verifying %s...@." fn;
   try if not (Symexec.verify (load fn)) then
     printf "@[%s: failed verification@]@\n" fn
