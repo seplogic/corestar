@@ -350,7 +350,8 @@ let search_rules rules =
   (* NOTE: try user provided rules first; the others explode the search space *)
 
 let frame_penalty g =
-  if Smt.frame_sequent_smt g then 0 else Backtrack.max_penalty
+  let p = if !Config.smt_run then Smt.frame_sequent_smt else Clogic.frame_sequent in
+  if p g then 0 else Backtrack.max_penalty
 
 let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
