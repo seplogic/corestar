@@ -514,10 +514,12 @@ end = struct
 
   let interpret proc_of_name procedure = match procedure.C.proc_body with
     | None ->
-        if log log_specs then fprintf logf "@[Interpreting empty procedure body: %s@." procedure.C.proc_name;
+        if log log_phase then
+          fprintf logf "@[Interpreting empty procedure body: %s@." procedure.C.proc_name;
         OK
     | Some body ->
-        if log log_specs then fprintf logf "@[Interpreting procedure body: %s@." procedure.C.proc_name;
+        if log log_phase then
+          fprintf logf "@[Interpreting procedure body: %s@." procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let process_triple update triple =
           let update = update triple.Core.post in
@@ -539,7 +541,8 @@ end
 
 (* Assumes that components come in reversed topological order. *)
 let rec interpret_one_scc proc_of_name ps =
-  if log log_specs then fprintf logf "@[Interpreting %d procedure components@." (List.length ps);
+  if log log_phase then
+    fprintf logf "@[Interpreting one scc, with %d procedure(s)@." (List.length ps);
   let module PI = ProcedureInterpreter in
   let rs = List.map (PI.interpret proc_of_name) ps in
   if List.exists ((=) PI.Spec_updated) rs

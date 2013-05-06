@@ -88,11 +88,14 @@ let verify fn =
   if !Config.smt_run then Smt.smt_init();
 
   if log log_specs then fprintf logf "@[Verifying %s...@." fn;
-  try if not (Symexec.verify (load fn)) then
-    printf "@[%s: failed verification@]@\n" fn
-  with Symexec.Fatal m -> eprintf "@[ERROR: %s@." m
+  try begin
+    if Symexec.verify (load fn) then
+      printf "@[%s: @{<g> OK@}@]@\n" fn
+    else
+      printf "@[%s: @{<b>NOK@}@]@\n" fn
+  end with Symexec.Fatal m -> eprintf "@[ERROR: %s@." m
 
 let () =
   printf "@[";
   Arg.parse Config.args_default verify "alt_abd [options] <files>";
-  printf "@]"
+  printf "@."

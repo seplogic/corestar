@@ -24,26 +24,7 @@ let tryall f =
 let chain fs x cont =
   List.fold_right flip fs cont x
 
-let wrap pre post f x cont =
-  f (pre x) (cont @@ post)
-
-let seq f g x cont =
-  cont |> flip g |> f x
-
-let rec repeat f x =
-  try
-    let y = f x in
-    repeat f y
-  with No_match -> x
-
-let id x = x
-
-let lexico fs =
-  let add acc f = repeat (f @@ acc) in
-  List.fold_left add id fs
-
-
-(* Early exit folding of structures *)
+(* READ THIS FUNCTION. Early exit folding of structures *)
 let rec early_exit_fold exitable plus leaf next acc c =
   if leaf c then acc else
   let new_acc = plus acc c in
@@ -72,7 +53,7 @@ let choose f = early_exit_fold exitable_choice (plus_choice f)
 let choose_list f = early_exit_fold_list exitable_choice (plus_choice f)
 
 let exitable_combination (_, penalty) = penalty > max_penalty
-    
+
 let plus_combination f (best_proof, best_penalty) c =
   let (proof, penalty) = f c in
   (best_proof @ proof, best_penalty + penalty)

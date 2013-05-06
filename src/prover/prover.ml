@@ -307,20 +307,30 @@ exception Failed_eg of Clogic.sequent list
 [> Backtrack.max_penalty] needs a proof.  Anything in-between is kind of acceptable as a
 leaf, but we should keep looking for something better. *)
 let rec solve rules penalty n goal =
+  if log log_prove then
+    fprintf logf "@\n@[<2>prove goal %a" Clogic.pp_sequent goal;
   let leaf = ([goal], penalty goal) in
-  if n = 0 then leaf else begin
-    let process_rule r =
-      let subgoals = r goal in
-      Backtrack.combine_list (solve rules penalty (n-1)) ([], 0) subgoals in
-    Backtrack.choose_list process_rule leaf rules
-  end
+  let result =
+    if n = 0 then leaf else begin
+      let process_rule r =
+        let subgoals = r goal in
+        Backtrack.combine_list (solve rules penalty (n-1)) ([], 0) subgoals in
+      Backtrack.choose_list process_rule leaf rules
+    end in
+  if log log_prove then fprintf logf "@]";
+  result
 
 let min_depth = 2
 let max_depth = 10
 
 let solve_idfs rules penalty goal =
-  if log log_prove then fprintf logf "@[Proving goal: %a@." pp_sequent goal;
-  Backtrack.choose (flip (solve rules penalty) goal) ((<) max_depth) succ ([], Backtrack.max_penalty) min_depth
+  if log log_prove then fprintf logf "@[@[<2>start idfs proving";
+  let solve = flip (solve rules penalty) goal in
+  let fail = ([], Backtrack.max_penalty) in
+  let give_up i = i > max_depth in
+  let r = Backtrack.choose solve give_up succ fail min_depth in
+  if log log_prove then fprintf logf "@]@\n@]";
+  r
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)
 let search_rules rules =
@@ -333,7 +343,11 @@ let search_rules rules =
       let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
       [ {seq with seq_ts = ts} ]
     with Assm_Contradiction -> [] in
-  try_rules @ (try_or_left :: try_or_right :: [try_smt])
+  let native_rules = (* try_or_left :: try_or_right :: *) List.rev try_rules in
+  let all_rules =
+    if !Config.smt_run then try_smt :: native_rules else native_rules in
+  List.rev all_rules
+  (* NOTE: try user provided rules first; the others explode the search space *)
 
 let frame_penalty g =
   if Smt.frame_sequent_smt g then 0 else Backtrack.max_penalty
