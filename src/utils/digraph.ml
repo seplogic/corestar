@@ -241,9 +241,9 @@ module Dot (X : DISPLAY) = struct
     | `Shape x -> fprintf f "shape=";
         (match x with
         | `Box -> fprintf f "box"
-        | #DotAttributes.shape -> failwith "TODO")
+        | #DotAttributes.shape -> failwith "TODO: Digraph.fprint_attribute")
     | #DotAttributes.edge
-    | #DotAttributes.graph -> failwith "TODO"
+    | #DotAttributes.graph -> failwith "TODO: Digraph.fprint_attribute"
 
   let fprint_attribute_list f =
     let rec fa_nel f = function

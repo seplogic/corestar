@@ -59,6 +59,3 @@ let fileout file_name f =
 
 let fileout_cfg file_name g =
   fileout file_name (fun o -> Dot.output_graph o g)
-
-let fixpoint _ = failwith "TODO"
-

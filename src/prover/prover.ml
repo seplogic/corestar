@@ -308,7 +308,7 @@ exception Failed_eg of Clogic.sequent list
 leaf, but we should keep looking for something better. *)
 let rec solve rules penalty n goal =
   if log log_prove then
-    fprintf logf "@\n@[<2>prove goal %a" Clogic.pp_sequent goal;
+    fprintf logf "@\n@[<2>prove goal@ %a" Clogic.pp_sequent goal;
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin

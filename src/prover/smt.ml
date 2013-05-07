@@ -221,7 +221,7 @@ let rec string_sexp_args (arg : Psyntax.args) : string =
   | Arg_op (name,args) ->
           Printf.sprintf "(%s %s)" (id_munge("op_"^name)) (string_sexp_args_list args)
   | Arg_record _ -> ""  (* shouldn't happen as converted to preds *)
-  | Arg_cons _ -> failwith "TODO"
+  | Arg_cons _ -> failwith "TODO: Smt.string_sexp_args"
 and string_sexp_args_list (argsl : Psyntax.args list) : string =
   match argsl with
   | [] -> ""
@@ -260,7 +260,7 @@ let string_sexp_pred (p : string * Psyntax.args) : (string * smttypeset) =
           ((if al = [] then name else
             Printf.sprintf "(%s %s)" name (string_sexp_args_list al)),
           types)
-      | _ -> failwith "TODO"
+      | _ -> failwith "TODO: Smt.string_sexp_pred"
 
 
 let rec string_sexp_form
@@ -357,7 +357,7 @@ let smt_check_sat () : bool =
         | Unsat -> false
         | Unknown -> if Config.smt_debug() then printf
           "@[[Warning: smt returned 'unknown' rather than 'sat']@."; true
-        | _ -> failwith "TODO" in
+        | _ -> failwith "TODO: Smt.smt_check_sat" in
       if Config.smt_debug () then printf "@[  %b@." x;
       Hashtbl.add smt_memo !smt_onstack x;
       x
