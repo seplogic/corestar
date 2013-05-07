@@ -45,8 +45,8 @@ val find : VarMap.key -> varmap -> args
 val add : VarMap.key -> args -> varmap -> varmap
 val empty : varmap
 val subst_args : varmap -> args -> args
-val string_args : Format.formatter -> args -> unit
-val string_args_list : Format.formatter -> args list -> unit
+val string_args : args pretty_printer
+val string_args_list : args list pretty_printer
 val ev_args : args -> VarSet.t -> VarSet.t
 val ev_args_list : args list -> VarSet.t -> VarSet.t
 val fv_args : args -> VarSet.t -> VarSet.t
@@ -110,8 +110,10 @@ type var = Vars.var
 type term = args
 type form = pform
 val mkVar : var -> term
+val mkPVar : string -> term
 val mkFun : string -> term list -> term
 val mkString : string -> term
+val mkNumericConst : string -> term
 val mkFalse : form
 val mkEQ : term * term -> form
 val mkNEQ : term * term -> form

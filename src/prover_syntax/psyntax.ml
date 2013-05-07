@@ -577,11 +577,15 @@ let expand_equiv_rule (name, guard, leftform, rightform, without) =
 
     type term = args
 
-    let mkVar : var -> term = fun x -> Arg_var x
+    let mkVar x = Arg_var x
+
+    let mkPVar x = Arg_var (Vars.concretep_str x)
 
     let mkFun : string -> term list -> term = fun n tl -> Arg_op(n, tl)
 
-    let mkString : string -> term = fun n -> Arg_string(n)
+    let mkString n = Arg_string n
+
+    let mkNumericConst n = Arg_op ("numeric_const", [Arg_string n])
 
     (*************************************
        Syntactic representation of formula

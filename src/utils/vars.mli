@@ -14,6 +14,7 @@
 (* Variables are of orthogonally ditinguished in fresh/concrete and e/a/p
 (existential/universal/program).  Concrete vars are hashconsed, by name. *)
 
+open Corestar_std
 
 type var
 
@@ -39,5 +40,5 @@ val concretea_str : string -> var
 val freshen : var -> var
 val freshen_exists : var -> var
 
-val pp_var : Format.formatter -> var -> unit
+val pp_var : var pretty_printer
 val string_var : var -> string
