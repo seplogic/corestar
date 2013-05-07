@@ -343,7 +343,7 @@ let search_rules rules =
       let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
       [ {seq with seq_ts = ts} ]
     with Assm_Contradiction -> [] in
-  let native_rules = (* try_or_left :: try_or_right :: *) List.rev try_rules in
+  let native_rules = try_or_left :: try_or_right :: List.rev try_rules in
   let all_rules =
     if !Config.smt_run then try_smt :: native_rules else native_rules in
   List.rev all_rules

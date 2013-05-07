@@ -587,6 +587,8 @@ let expand_equiv_rule (name, guard, leftform, rightform, without) =
 
     let mkNumericConst n = Arg_op ("numeric_const", [Arg_string n])
 
+    let mkStringConst s = Arg_op ("string_const", [Arg_string s])
+
     (*************************************
        Syntactic representation of formula
     **************************************)

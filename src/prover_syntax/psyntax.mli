@@ -114,6 +114,7 @@ val mkPVar : string -> term
 val mkFun : string -> term list -> term
 val mkString : string -> term
 val mkNumericConst : string -> term
+val mkStringConst : string -> term
 val mkFalse : form
 val mkEQ : term * term -> form
 val mkNEQ : term * term -> form

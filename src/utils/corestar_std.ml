@@ -56,6 +56,10 @@ let flip f x y = f y x
 
 let undefined _ = failwith "INTERNAL: undefined"
 
+let rec tails = function
+  | []  -> [[]]
+  | (_ :: xs) as t -> t :: tails xs
+
 module CharH = struct
   let is_space =
     let spaces = " \t\n\r\x0b\x0c" in
