@@ -50,9 +50,10 @@ type inner_core = inner_spec core_statement
 
 type ast_procedure = (ast_core list, ast_spec) procedure
 
-type question =
-  { q_procs : ast_procedure list
+type 'proc question =
+  { q_procs : 'proc list
   ; q_rules : Psyntax.logic
   ; q_infer : bool  (* [true] means do bi-abduction *)
   ; q_name : string }
 
+type ast_question = ast_procedure question

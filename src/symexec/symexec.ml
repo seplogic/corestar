@@ -226,7 +226,11 @@ module ProcedureInterpreter : sig
     | Spec_updated
     | Unknown
   val interpret
-    : (string -> CallGraph.V.label) -> CallGraph.V.label -> interpret_procedure_result
+    : (string -> CallGraph.V.label)
+      -> Psyntax.logic
+      -> bool
+      -> CallGraph.V.label
+      -> interpret_procedure_result
 end = struct
 
   type interpret_procedure_result =
@@ -512,7 +516,7 @@ end = struct
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
 
-  let interpret proc_of_name procedure = match procedure.C.proc_body with
+  let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
           fprintf logf "@[Interpreting empty procedure body: %s@." procedure.C.proc_name;
@@ -530,8 +534,12 @@ end = struct
           let cs = interpret_flowgraph update body triple.Core.pre in
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
-        let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
-        let ts = option [] (fun x->x) ts in (* XXX *)
+        let ts =
+          (if infer then begin
+            let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
+            let ts = option [] (fun x->x) ts in (* XXX *)
+            ts
+          end else ts) in
         let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
         let ts = option [] (fun x->x) ts in (* XXX *)
         procedure.C.proc_spec <- HashSet.of_list ts;
@@ -539,29 +547,37 @@ end = struct
 end
 (* }}} *)
 
-(* Assumes that components come in reversed topological order. *)
-let rec interpret_one_scc proc_of_name ps =
-  if log log_phase then
-    fprintf logf "@[Interpreting one scc, with %d procedure(s)@." (List.length ps);
-  let module PI = ProcedureInterpreter in
-  let rs = List.map (PI.interpret proc_of_name) ps in
-  if List.exists ((=) PI.Spec_updated) rs
-  then interpret_one_scc proc_of_name ps
-  else List.for_all ((=) PI.OK) rs
+let with_procs q ps = { q with C.q_procs = ps }
+let map_procs f q = with_procs q (List.map f q.C.q_procs)
 
-let interpret gs =
-  if log log_phase then fprintf logf "@[Interpreting %d procedures@." (List.length gs);
-  let cg, von = compute_call_graph gs in
+(* Assumes that components come in reversed topological order. *)
+let interpret_one_scc proc_of_name q =
+  if log log_phase then begin
+    fprintf logf "@[Interpreting one scc, with %d procedure(s)@."
+      (List.length q.C.q_procs)
+  end;
+  let module PI = ProcedureInterpreter in
+  let interpret = PI.interpret proc_of_name q.C.q_rules q.C.q_infer in
+  let rec fix () =
+    let rs = List.map interpret q.C.q_procs in
+    if List.exists ((=) PI.Spec_updated) rs
+    then fix ()
+    else List.for_all ((=) PI.OK) rs in
+  fix ()
+
+let interpret q =
+  if log log_phase then
+    fprintf logf "@[Interpreting %d procedures@." (List.length q.C.q_procs);
+  let cg, von = compute_call_graph q.C.q_procs in
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
   let sccs = List.map (List.map CallGraph.V.label) sccs in
   if !Config.verbosity >= 3 then output_sccs sccs;
   let proc_of_name n = CallGraph.V.label (von n) in
-  List.for_all (interpret_one_scc proc_of_name) sccs
+  let qs = List.map (with_procs q) sccs in
+  List.for_all (interpret_one_scc proc_of_name) qs
 
 let verify q =
-  if log log_phase then fprintf logf "@[Verifying %s...@." q.C.q_name;
-  let ps = List.map ast_to_inner_procedure q.C.q_procs in
-  let gs = List.map mk_cfg ps in
-  interpret gs
+  if log log_phase then fprintf logf "@[verifying procedure %s@." q.C.q_name;
+  q |> map_procs ast_to_inner_procedure |> map_procs mk_cfg |> interpret

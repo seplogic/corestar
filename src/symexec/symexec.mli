@@ -1,2 +1,2 @@
 exception Fatal of string
-val verify : Core.question -> bool
+val verify : Core.ast_question -> bool

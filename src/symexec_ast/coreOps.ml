@@ -73,7 +73,7 @@ let pp_proc pp_spec f { proc_name; proc_spec; proc_body } =
 
 let pp_ast_proc = pp_proc pp_ast_spec
 
-let pp_question f { q_procs; q_rules; q_infer; q_name } =
+let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
   fprintf f "@[infer %b@@\n%a@\n%a@]"
     q_infer
     (pp_list pp_ast_proc) q_procs

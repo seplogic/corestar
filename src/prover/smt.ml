@@ -26,7 +26,6 @@ open Unix
 exception SMT_error of string
 exception SMT_fatal_error
 
-(*let Config.smt_run = ref true;; *)
 let smt_fdepth = ref 0;;
 let smtout = ref Pervasives.stdin;;
 let smtin = ref Pervasives.stderr;;
@@ -56,7 +55,7 @@ let send_custom_commands =
       end done
       with End_of_file -> close_in cc
     )
-      
+
 let smt_init () : unit =
   smtpath :=
     if (!Config.solver_path <> "")
@@ -81,10 +80,10 @@ let smt_init () : unit =
       end
     with
     | Unix_error(err,f,a) ->
-      match err with
+      (match err with
       | ENOENT -> printf "@[@{<b>ERROR:@} Bad path for SMT solver: %s@." a;
                   Config.smt_run := false
-      | _ -> raise (Unix_error(err,f,a))
+      | _ -> raise (Unix_error(err,f,a)))
 
 
 let smt_fatal_recover () : unit  =
