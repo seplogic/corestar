@@ -11,7 +11,7 @@ module PS = Psyntax
 
 exception Fatal of string
 
-let bfs_limit = 1 lsl 5
+let bfs_limit = 1 lsl 7
 
 let substitute_list var =
   let gen = let x = ref 0 in fun () -> incr x; var !x in
@@ -543,7 +543,8 @@ end = struct
         let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
         let ts = option [] (fun x->x) ts in (* XXX *)
         procedure.C.proc_spec <- HashSet.of_list ts;
-        OK
+        if (List.length ts = 0) then NOK
+        else OK
 end
 (* }}} *)
 
