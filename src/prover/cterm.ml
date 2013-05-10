@@ -707,7 +707,7 @@ let is_pvar_free ts c =
   ok_arg (get_arg c)
 
 let get_equals_pvar_free ts pvar =
-  let pvar_c = VarMap.find pvar ts.pvars in
+  let pvar_c = VarMap.find pvar ts.pvars in (* TODO(rgrig): this crashes *)
   let equal_cs = CC.others ts.cc pvar_c in
   let pvar_free_equals = List.filter (is_pvar_free ts) equal_cs in
   List.map (reconstruct ts) pvar_free_equals

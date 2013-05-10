@@ -25,3 +25,4 @@ val logf : Format.formatter
 val debug : bool
 val buffer_dump : Buffer.t
 val proof_dump : Format.formatter ref
+val prof_phase : string -> unit

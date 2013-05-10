@@ -88,24 +88,6 @@ module StringMap : Map.S with type key = string
 (** A map from strings to something.  Consider using [array]. *)
 module IntMap : Map.S with type key = int
 
-(**
-  A few helpers for dealing with maps. This is a workaround for the lack of
-  some functions in the standard Map.S module. Whenever you define a map
-  [module M = Map.Make (...)] you can also define [module MH = MapHelper
-  (M)]. Normal functions like [M.fold] are used as before, but you can also
-  say things like [MH.filter].
-
-  Should be removed once we move to OCaml 3.12.
- *)
-module MapHelper :
-  functor (M : Map.S) -> sig
-    (**
-      [filter p m] returns a map with all the keys that satisfy predicate
-      [p]. Takes O(|m|+|n| lg |n|) time, where [n] is the result.
-     *)
-    val filter : (M.key -> 'a -> bool) -> 'a M.t -> 'a M.t
-  end
-
 module HashtblH : sig
   (** Builds a hashtable from an association list. *)
   val of_list : ('a * 'b) list -> ('a, 'b) Hashtbl.t

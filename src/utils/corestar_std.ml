@@ -91,11 +91,6 @@ module StringH = struct
     else String.sub s (m - n) n = suffix
 end
 
-module MapHelper = functor (M : Map.S) -> struct
-  let filter (p : M.key -> 'a -> bool) (map : 'a M.t) : 'a M.t =
-    M.fold (fun k v a -> if p k v then M.add k v a else a) map M.empty
-end
-
 module HashtblH = struct
   let of_list l =
     let h = Hashtbl.create (2 * List.length l + 1) in

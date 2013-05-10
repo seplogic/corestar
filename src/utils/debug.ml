@@ -77,7 +77,7 @@ let log_specs = 1 lsl 5
 let log_cfg = 1 lsl 6
 let log_mm = 1 lsl 7
 
-let log_active = log_phase lor log_exec lor log_prove
+let log_active = log_phase
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0
@@ -107,3 +107,18 @@ let proof_dump = ref (merge_formatters
 		  (formatter_of_buffer buffer_dump)
 		  (flagged_formatter std_formatter
                     (log log_prove || (!Config.verbosity >= 4))))
+
+(* {2} Profiling helpers *) (* {{{ *)
+
+let prof_time = ref 0.0
+let prof_phase = ref "init"
+let prof_phase m =
+  if log log_phase then begin
+    let t = Sys.time () in
+    fprintf logf "@[... phase %s done in %.1f s@." !prof_phase (t -. !prof_time);
+    fprintf logf "@[start phase %s@." m;
+    prof_time := t;
+    prof_phase := m
+  end
+
+(* }}} *)
