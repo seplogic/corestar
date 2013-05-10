@@ -526,21 +526,38 @@ end = struct
           fprintf logf "@[Interpreting procedure body: %s@." procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let process_triple update triple =
-          let update = update triple.Core.post in
+          if log log_phase then
+            fprintf logf "@[Processing triple: {%a}{%a}@." Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;
+          let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
-            { Core.pre = triple.Core.pre * missing_heap
-            ; post = current_heap } in
-          let cs = interpret_flowgraph update body triple.Core.pre in
+            { C.pre = triple.C.pre * missing_heap
+            ; C.post = current_heap } in
+          let cs = interpret_flowgraph update body triple.C.pre in
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
+          if log log_exec then (
+	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
+	    fprintf logf "@[Cfg 0:@\n";
+	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
+	    fprintf logf "@.");
         let ts =
           (if infer then begin
             let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
+            if log log_exec then (
+	      let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
+	      fprintf logf "@[Cfg 1:@\n";
+	      G.Cfg.iter_vertex pp_vertex body.P.cfg;
+	      fprintf logf "@.");
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
         let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
+          if log log_exec then (
+	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
+	    fprintf logf "@[Cfg 2:@\n";
+	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
+	    fprintf logf "@.");
         let ts = option [] (fun x->x) ts in (* XXX *)
         procedure.C.proc_spec <- HashSet.of_list ts;
         if (List.length ts = 0) then NOK

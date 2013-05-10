@@ -195,7 +195,7 @@ let rewrite_guard_check seq (ts,guard) =
 
 let simplify_sequent rm seq =
 try
-  (*  printf "Before simplification : %a@\n" pp_sequent seq ;*)
+  (*printf "Before simplification : %a@\n" pp_sequent seq;*)
   (* Try to prove each equality and inequality using ts.
    Note we assume ones we can prove to prove the rest.*)
   let remove test update =
@@ -263,7 +263,7 @@ try
         neqs=ob_neqs
       }
     } in
-   (*  printf "After simplification : %a@\n" pp_sequent seq; *)
+    (*printf "After simplification : %a@\n" pp_sequent seq;*)
     Some seq
   with Failed ->
     let obs,ts = convert_sf_without_eqs true ts false_sform in
@@ -333,9 +333,13 @@ let solve_idfs rules penalty goal =
   r
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)
-let search_rules rules =
+let search_rules logic =
+  let try_simplify s =
+    match simplify_sequent logic.rw_rules s with
+      | None -> raise Backtrack.No_match
+      | Some simp_s -> [simp_s] in
   let try_rule r = List.flatten @@ (apply_rule (Clogic.convert_rule r)) in (* RLP: Check flatten is OK *)
-  let try_rules = List.map try_rule rules in
+  let try_rules = try_simplify :: List.map try_rule logic.seq_rules in
   let try_or_left = Clogic.apply_or_left in
   let try_or_right = List.flatten @@ Clogic.apply_or_right in
   let try_smt seq =
@@ -357,11 +361,12 @@ let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
-    let rules = search_rules logic.seq_rules in
+    let rules = search_rules logic in
     let leaves, penalty = solve_idfs rules frame_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
-    Some (Clogic.get_frames leaves)
-  with Backtrack.No_match -> fprintf !proof_dump "Frame failed\n"; None
+      (if log log_prove then fprintf logf "Frame found\n";
+       Some (Clogic.get_frames leaves))
+  with Backtrack.No_match -> if log log_prove then fprintf logf "Frame failed\n"; None
 
 let check_imp logic sequent = is_some (check_frm logic sequent)
 
@@ -375,14 +380,15 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
     (* RLP: What does this bit do? *)
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
-    let rules = search_rules logic.seq_rules in
+    let rules = search_rules logic in
     let leaves, penalty = solve_idfs rules abduction_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
-    let frameanti seq =
-      Clogic.mk_ts_form seq.seq_ts seq.assumption,
-      Clogic.mk_ts_form seq.seq_ts seq.obligation in
-    Some (List.map frameanti leaves)
-  with Backtrack.No_match -> fprintf !proof_dump "Abduction failed\n"; None
+      let frameanti seq =
+	Clogic.mk_ts_form seq.seq_ts seq.assumption,
+	Clogic.mk_ts_form seq.seq_ts seq.obligation in
+      (if log log_prove then fprintf logf "Abduction suceeded\n";
+      Some (List.map frameanti leaves))
+  with Backtrack.No_match -> if log log_prove then fprintf logf "Abduction failed\n"; None
 
 
 let check_implication_frame_pform logic heap pheap  =

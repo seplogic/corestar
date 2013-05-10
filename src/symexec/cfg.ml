@@ -13,6 +13,12 @@ type cfg_vertex =
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
+let pp_vertex f = function
+  | Abs_cfg -> fprintf f "abstract"
+  | Call_cfg c -> fprintf f "call %s" c.C.call_name
+  | Nop_cfg -> fprintf f "nop"
+  | Spec_cfg specs -> HashSet.iter (fun s -> fprintf f "spec {%a}{%a} " P.string_inner_form s.C.pre P.string_inner_form s.C.post) specs
+
 module Cfg = DG.Make (struct type t = cfg_vertex end) (DG.UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
 module CfgVHashSet = HashSet.Make (Cfg.V)

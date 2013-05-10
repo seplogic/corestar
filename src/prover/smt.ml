@@ -461,7 +461,7 @@ let true_sequent_smt (seq : sequent) : bool =
 
 let frame_sequent_smt seq =
   Clogic.frame_sequent seq
-  || ( not !Config.smt_run
+  || ( not !Config.smt_run (* RLP: should this "not" be here? *)
      && Clogic.plain seq.obligation
      && (if Config.smt_debug () then
           printf "@[Calling SMT to get frame from@\n %a@." Clogic.pp_sequent seq;
