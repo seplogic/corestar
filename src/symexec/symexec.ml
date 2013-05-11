@@ -389,24 +389,38 @@ end = struct
       | t :: _ -> Sepprover.update_var_to v t f in
     PS.vs_fold replace_one
 
+  let pp_ok_configuration f { G.current_heap; missing_heap } =
+    fprintf f "@[(now:%a,@ missing:%a)@]"
+      Sepprover.string_inner_form current_heap
+      Sepprover.string_inner_form missing_heap
+
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
   sufficient to demonically split on the frames Fk, and then angelically on the
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
   let execute_one_triple
-      abduct make_framable pre_conf { Core.pre; post }
+      abduct make_framable pre_conf ({ Core.pre; post } as triple)
   =
+    if log log_exec then
+      fprintf logf "@[<2>execute %a@ from %a@ to get"
+        CoreOps.pp_inner_triple triple
+        pp_ok_configuration pre_conf;
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
       let mk_post_conf (a, f) =
         let ( * ) = Sepprover.conjoin_inner in
-        CT_ok
+        let conf =
           { G.missing_heap = pre_conf.G.missing_heap * make_framable a
           ; current_heap = post * f } in
+        if log log_exec then
+          fprintf logf "@\n%a" pp_ok_configuration conf;
+        CT_ok conf in
       afs |> List.map mk_post_conf |> make_demonic_choice in
-    option CT_error branch afs
+    let r = option CT_error branch afs in
+    if log log_exec then fprintf logf "@.";
+    r
 
   let execute abduct make_framable =
     let execute_one_triple = execute_one_triple abduct make_framable in
@@ -486,15 +500,15 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_infer body post =
-    let abduct = abduct Psyntax.empty_logic in (* XXX: load rules *)
+  let update_infer rules body post =
+    let abduct = abduct rules in
     let pvars = collect_pvars body.P.cfg in
     let make_framable = replace_pvars pvars in
     let execute = execute abduct make_framable (spec_of post body.P.stop) in
     update execute abstract
 
-  let update_check body post =
-    let abduct = frame Psyntax.empty_logic in (* XXX: load rules *)
+  let update_check rules body post =
+    let abduct = frame rules in
     let check_emp x = assert (x = emp); emp in
     let execute = execute abduct check_emp (spec_of post body.P.stop) in
     update execute abstract
@@ -504,7 +518,7 @@ end = struct
     | None, x | x, None -> x
     | Some x, Some y -> Some (f x y)
 
-  let concat_lol xs = List.fold_left (bin_option (@)) None xs
+  let lol_cat xs = List.fold_left (bin_option (@)) None xs
 
   (* PRE: procedure.P.[start&stop] <> G.Call_cfg _. *)
   let inline_call_specs proc_of_name procedure =
@@ -515,6 +529,17 @@ end = struct
           G.Cfg.V.create (G.Spec_cfg spec)
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
+
+  let normalize f = f (* {ts=ts; form=form} =
+    let form, ts = Clogic.normalise ts form in
+    {ts=ts; form=form} *)
+
+  let hashset_subset s1 s2 =
+    try HashSet.iter (HashSet.find s2) s1; true with Not_found -> false
+
+  let hashset_equals s1 s2 =
+    HashSet.length s1 = HashSet.length s2 &&
+    hashset_subset s1 s2
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
@@ -543,7 +568,8 @@ end = struct
 	    fprintf logf "@.");
         let ts =
           (if infer then begin
-            let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
+            let ts =
+              lol_cat (List.map (process_triple (update_infer rules body)) ts) in
             if log log_exec then (
 	      let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
 	      fprintf logf "@[Cfg after abduction:@\n";
@@ -552,31 +578,34 @@ end = struct
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
-        let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
+        let ts = lol_cat (List.map (process_triple (update_check rules body)) ts) in
           if log log_exec then (
 	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
 	    fprintf logf "@[Cfg after symbollic execution:@\n";
 	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
 	    fprintf logf "@.");
         let ts = option [] (fun x->x) ts in (* XXX *)
-	(* Check if we are OK or not (see comment for [verify]) *)
-	let new_specs = HashSet.of_list ts in
-	if infer then begin
-	  (* should also check posts and not use empty logic *)
-	  if List.length ts > 0 &&
-	    List.for_all (fun s -> not (G.P.inconsistent Psyntax.empty_logic s.C.pre)) ts then
+       	(* Check if we are OK or not (see comment for [verify]) *)
+        if infer then begin
+          let ts =
+            List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in
+	  (* Check if specifications have changed *)
+          let ts = List.map normalize ts in
+          let new_specs = HashSet.of_list ts in
+          if hashset_equals procedure.C.proc_spec new_specs then OK
+          else
             (procedure.C.proc_spec <- new_specs;
-	     printf "@[Abducted triples:@\n";
-	     List.iter (fun triple -> printf "@<2>{%a}{%a}@\n" Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;) ts;
-	     printf "@.";
-	     OK)
-	  else NOK
+             if log log_exec then begin
+               fprintf logf "@[Abducted triples:@\n";
+	       List.iter (fun triple -> fprintf logf "@<2>{%a}{%a}@\n" Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;) ts;
+	       fprintf logf "@."
+             end;
+	     Spec_updated)
 	end
 	else begin
-	  (* for eacs old spec, we should find the corresponding pre in new spec and check implication of posts *)
-	  if HashSet.length new_specs = HashSet.length procedure.C.proc_spec then
-            (procedure.C.proc_spec <- new_specs;
-	     OK)
+          let new_specs = HashSet.of_list ts in
+	  if HashSet.length new_specs = HashSet.length procedure.C.proc_spec
+          then OK
 	  else NOK
 	end
 end
@@ -615,7 +644,7 @@ let interpret q =
 
 (*
 Summary of result of symbolic execution:
- 
+
 Input: {pre} f {post} (we just consider a single function with a single spec for now)
 Output:
 When run without abduction:
@@ -623,14 +652,15 @@ OK if f run on pre implies post
 When run with abduction:
 {pre’} f {post’} is computed with pre' = pre * F for some F, then
 OK if pre’ is consistent and post’ => post
- 
+
 For a list of specs, we filter out the triples which are OK.
 Without abduction, all triples have to be OK for the function to be OK
 With abduction, at least one triple has to be OK for the function to be OK.
- 
+
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
+  printf "@[infer %b@." q.C.q_infer;
   if log log_phase then fprintf logf "@[verifying procedure %s@." q.C.q_name;
   if log log_phase then fprintf logf "@[abduction is turned %s@." (if q.C.q_infer then "ON" else "OFF");
   q |> map_procs ast_to_inner_procedure |> map_procs mk_cfg |> interpret

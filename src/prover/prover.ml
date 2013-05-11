@@ -383,11 +383,16 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
     let rules = search_rules logic in
     let leaves, penalty = solve_idfs rules abduction_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
-      let frameanti seq =
-	Clogic.mk_ts_form seq.seq_ts seq.assumption,
-	Clogic.mk_ts_form seq.seq_ts seq.obligation in
-      (if log log_prove then fprintf logf "Abduction suceeded\n";
-      Some (List.map frameanti leaves))
+      let antiframe_frame seq =
+	Clogic.mk_ts_form seq.seq_ts seq.obligation,
+	Clogic.mk_ts_form seq.seq_ts seq.assumption in
+      let result = List.map antiframe_frame leaves in
+      if log log_prove then (
+        let pp_fa f (aa, af) = fprintf f "@[<2>(%a,@,%a)@]@\n"
+          Clogic.pp_ts_formula aa Clogic.pp_ts_formula af in
+        fprintf logf "@[<2>Abduction suceeded@\n%a@\n@." (pp_list pp_fa) result
+      );
+      Some result
   with Backtrack.No_match -> if log log_prove then fprintf logf "Abduction failed\n"; None
 
 

@@ -15,12 +15,8 @@ open Core
 open Corestar_std
 open Format
 
-let ast_to_inner_form x = match Sepprover.convert x with
-    | None -> Sepprover.inner_falsum
-    | Some x -> x
-
 let ast_to_inner_triple { pre; post } =
-  let f = ast_to_inner_form in { pre = f pre; post = f post }
+  let f = Sepprover.convert in { pre = f pre; post = f post }
 
 let ast_to_inner_spec = HashSet.map ast_to_inner_triple
 
@@ -39,6 +35,7 @@ let pp_args_in = pp_list_sep "," Psyntax.string_args
 let pp_triple pf f { pre; post } =
   fprintf f "{%a}@,{%a}" pf pre pf post
 let pp_ast_triple = pp_triple Psyntax.string_form
+let pp_inner_triple = pp_triple Sepprover.string_inner_form
 
 let pp_spec pf f ts = pp_list_sep " " (pp_triple pf) f (HashSet.elements ts)
 let pp_ast_spec = pp_spec Psyntax.string_form

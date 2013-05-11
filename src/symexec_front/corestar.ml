@@ -11,15 +11,15 @@ module PS = Psyntax
 
 (* NOTE: The lists of rules, procedures, etc, in the result are
 reversed compared to the argument. *)
-let question_of_entries =
+let question_of_entries xs =
   let f q = function
     | PA.ProverQuery pq ->
         eprintf "@[WARNING: Ignoring prover query.@." (* TODO(rgrig) *);
         q
     | PA.Rule r -> { q with C.q_rules = PS.add_rule q.C.q_rules r }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
-  let z = { CoreOps.empty_question with C.q_infer = Config.use_abduction () } in
-  List.fold_left f z
+  let z = { CoreOps.empty_question with C.q_infer = !Config.use_abduction } in
+  List.fold_left f z xs
 
 let path = System.getenv_dirlist (System.getenv "COREPATH")
 let parse fn = System.parse_file Parser.file Lexer.token fn "core"

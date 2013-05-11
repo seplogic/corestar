@@ -22,7 +22,7 @@ module PS = Psyntax
 module VS = Psyntax.VarSet
 
 let empty_inner_form =
-  match P.convert PS.mkEmpty with
+  match P.convert_opt PS.mkEmpty with
     None -> assert false;
   | Some emp -> emp
 
@@ -47,6 +47,7 @@ let sub_triple sub { Core.pre; post} =
 
 let ev_triple { Core.pre; post } = PS.ev_form_acc post (PS.ev_form pre)
 
+(*
 let simple_jsr logic state triple =
   let ev = ev_triple triple in
   let sub = PS.subst_kill_vars_to_fresh_exist ev in
@@ -58,6 +59,7 @@ let simple_jsr logic state triple =
     let r = map_option star_post fs in
     List.map (VS.fold P.kill_var ev) r in
   option_map add_post frames
+*)
 
 let logical_vars_to_prog triple =
   let ev = PS.ev_form triple.Core.pre in
@@ -75,11 +77,11 @@ for all F found by the prover.
 TODO(rgrig): Doesn't seem sound to me, because of "found by the prover". *)
 let refinement_extra logic triple1 triple2 extra =
   let triple2 = logical_vars_to_prog triple2 in
-  let stronger q = P.implies logic q triple2.Core.post in
+  let stronger q = true (* XXX P.implies logic q triple2.Core.post *) in
   let all_stronger qs = List.for_all stronger qs in
-  let run_from state =
-    option false all_stronger (simple_jsr logic state triple1) in
-  option true run_from (P.convert (PS.mkStar extra triple2.Core.pre))
+  let run_from state = true in
+(* XXX    option false all_stronger (simple_jsr logic state triple1) in *)
+  run_from (P.convert (PS.mkStar extra triple2.Core.pre))
 
 (*  triple2 ==> triple1
 That is

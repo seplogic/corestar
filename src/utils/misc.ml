@@ -102,3 +102,13 @@ let cross_product l1 l2 =
 let fresh_int () =
   let n = ref (-1) in
   fun () -> incr n; assert (!n >= 0); !n (* checks for overflow *)
+
+let hash_of_list one plus key value xs =
+  let h = Hashtbl.create (List.length xs) in
+  let entry x = match key x, value x with
+    | None, _ | _, None -> ()
+    | Some k, Some v ->
+        (try Hashtbl.add h k (plus v (Hashtbl.find h k))
+        with Not_found -> Hashtbl.add h k (one v)) in
+  List.iter entry xs;
+  h

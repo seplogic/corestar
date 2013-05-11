@@ -38,3 +38,11 @@ val cross_product : ('a list) -> ('b list) -> (('a * 'b) list)
 
 val fresh_int : unit -> unit -> int
   (** [fresh_int ()] is a generator for the sequence 0, 1, 2, ... *)
+
+val hash_of_list
+  : ('value -> 'summary) (* computes summary out of first value *)
+    -> ('value -> 'summary -> 'summary) (* updates summary with a value *)
+    -> ('elem -> 'key option)
+    -> ('elem -> 'value option)
+    -> 'elem list
+    -> ('key, 'summary) Hashtbl.t

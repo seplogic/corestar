@@ -44,8 +44,7 @@ let check_arg_specs xs =
   if HashSet.length (HashSet.of_list xs) <> List.length xs then
     failwith "INTERNAL: Bad specs for [Arg.parse]."
 
-let use_abduction_ref = ref true
-let use_abduction () = !use_abduction_ref
+let use_abduction = ref true
 
 let args_default =
   [ "-v", Arg.Unit (fun () -> incr verbosity), "increase verbosity"
@@ -55,5 +54,5 @@ let args_default =
   ; "-b", Arg.Set_string smt_custom_commands, "background predicate"
   ; "-ai", Arg.String set_abs_int_plugins, "AI plugins, separated by :"
   ; "-join", Arg.Set abs_int_join_ref, "numeric abstraction"
-  ; "-noabd", Arg.Clear use_abduction_ref, "do not use abduction"  ]
+  ; "-noabd", Arg.Clear use_abduction, "do not use abduction"  ]
 let () = check_arg_specs args_default

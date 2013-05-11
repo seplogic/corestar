@@ -32,8 +32,12 @@ open Psyntax
       let form,ts = Clogic.convert_sf false (Cterm.new_ts ()) Clogic.false_sform in
       Clogic.mk_ts_form ts form
 
-    let convert : form -> inner_form option
-      = fun form ->
+    let convert form =
+      try Clogic.convert_with_eqs false form
+      with Contradiction -> inner_falsum
+
+    (* Deprecated: Use [convert] instead. *)
+    let convert_opt form =
         try Some (Clogic.convert_with_eqs false form)
         with Contradiction -> None
 
@@ -101,14 +105,7 @@ open Psyntax
        Entailment operations
      ******************************************)
 
-    let implies : logic -> inner_form -> form -> bool
-      = fun logic inner_form1 form2 -> Prover.check_implication_pform logic inner_form1 form2
-
-    let implies_opt : logic -> inner_form option -> form -> bool
-      = fun logic inner_form1 form2 ->
-	match inner_form1 with
-	  None -> true
-	| Some inner_form1 -> Prover.check_implication_pform logic inner_form1 form2
+    let implies = Prover.check_implication
 
     let inconsistent : logic -> inner_form -> bool
       = fun logic inner_form1 -> Prover.check_inconsistency logic inner_form1
@@ -118,7 +115,7 @@ open Psyntax
 	match inner_form1 with
 	  None -> true
 	| Some inner_form1 -> Prover.check_inconsistency logic inner_form1
-
+(*
     let frame : logic -> inner_form -> form -> inner_form list option
       = fun logic inner_form1 form2 ->
 	Prover.check_implication_frame_pform logic inner_form1 form2
@@ -129,7 +126,7 @@ open Psyntax
 	    None -> Some []
 	  | Some inner_form1 ->
 	      Prover.check_implication_frame_pform logic inner_form1 form2
-
+*)
     let frame_inner (l : logic) (i1 : inner_form) (i2 : inner_form) : inner_form list option =
       Prover.check_frame l i1 i2
 

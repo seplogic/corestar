@@ -7,6 +7,7 @@ val iter : ('a -> unit) -> 'a t -> unit
 val fold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 val length : 'a t -> int
 val mem : 'a t -> 'a -> bool
+val find : 'a t -> 'a -> unit
 val remove : 'a t -> 'a -> unit
 val singleton : 'a -> 'a t
 val of_list : 'a list -> 'a t
@@ -24,6 +25,7 @@ module type S = sig
   val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
   val length : t -> int
   val mem : t -> elt -> bool
+  val find : t -> elt -> unit
   val remove : t -> elt -> unit
   val singleton : elt -> t
   val of_list : elt list -> t

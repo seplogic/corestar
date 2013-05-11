@@ -18,6 +18,8 @@ let of_list es =
 
 let mem = Hashtbl.mem
 
+let find = Hashtbl.find
+
 let iter f h = Hashtbl.iter (fun x _ -> f x) h
 
 let fold f h z = Hashtbl.fold (fun x _ r -> f x r) h z
@@ -49,6 +51,7 @@ module type S = sig
   val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
   val length : t -> int
   val mem : t -> elt -> bool
+  val find : t -> elt -> unit
   val remove : t -> elt -> unit
   val singleton : elt -> t
   val of_list : elt list -> t
@@ -64,6 +67,7 @@ module Make (E : HashedType) = struct
   let fold f = H.fold (fun x _ r -> f x r)
   let length = H.length
   let mem = H.mem
+  let find = H.find
   let remove = H.remove
   let singleton e = let h = create 1 in add h e; h
   let of_list es =

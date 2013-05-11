@@ -16,8 +16,10 @@
 
 val empty_inner_form : Sepprover.inner_form
 val sub_triple : Psyntax.varmap -> Core.ast_triple -> Core.ast_triple
+(*
 val simple_jsr : Psyntax.logic ->
   Sepprover.inner_form -> Core.ast_triple -> Sepprover.inner_form list option
+*)
 
 (* These are not used by coreStar itself, but may be useful to the frontend. *)
 val join_triples : Core.ast_triple -> Core.ast_triple -> Core.ast_triple
