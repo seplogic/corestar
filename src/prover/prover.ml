@@ -320,10 +320,11 @@ let rec solve rules penalty n goal =
   if log log_prove then fprintf logf "@]";
   result
 
+
 let min_depth = 2
 let max_depth = 10
 
-let solve_idfs rules penalty goal =
+let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) rules penalty goal =
   if log log_prove then fprintf logf "@[@[<2>start idfs proving";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
@@ -357,18 +358,18 @@ let frame_penalty g =
   let p = if !Config.smt_run then Smt.frame_sequent_smt else Clogic.frame_sequent in
   if p g then 0 else Backtrack.max_penalty
 
-let check_frm (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
+let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
   try
     let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic in
-    let leaves, penalty = solve_idfs rules frame_penalty seq in
+    let leaves, penalty = solve_idfs ~min_depth:min_depth ~max_depth:max_depth rules frame_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
       (if log log_prove then fprintf logf "Frame found\n";
        Some (Clogic.get_frames leaves))
   with Backtrack.No_match -> if log log_prove then fprintf logf "Frame failed\n"; None
 
-let check_imp logic sequent = is_some (check_frm logic sequent)
+let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent = is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
 
 (* Many choices possible here... *)
 let abduction_penalty g = List.length g.assumption.disjuncts
@@ -449,7 +450,8 @@ let check_frame logic ts_form1 ts_form2 =
 (*  check_implication_inner logic ts heap1 ([],[],[False]) *)
 (* TODO: Check whether this makes sense *)
 let check_inconsistency logic ts_form =
-  check_implication logic ts_form (Clogic.convert_with_eqs false mkFalse)
+  let seq = Clogic.make_implies_inner ts_form (Clogic.convert_with_eqs false mkFalse) in
+  check_imp ~min_depth:0 ~max_depth:2 logic seq
 
 
 let check_implies_list fl1 pf =
