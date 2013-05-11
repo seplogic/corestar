@@ -18,7 +18,7 @@ let question_of_entries =
         q
     | PA.Rule r -> { q with C.q_rules = PS.add_rule q.C.q_rules r }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
-  let z = { CoreOps.empty_question with C.q_infer = !Config.use_abduction } in
+  let z = { CoreOps.empty_question with C.q_infer = Config.use_abduction () } in
   List.fold_left f z
 
 let path = System.getenv_dirlist (System.getenv "COREPATH")

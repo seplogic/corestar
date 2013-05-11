@@ -538,7 +538,7 @@ end = struct
         let ts = HashSet.elements procedure.C.proc_spec in
           if log log_exec then (
 	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
-	    fprintf logf "@[Cfg 0:@\n";
+	    fprintf logf "@[Cfg initially:@\n";
 	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
 	    fprintf logf "@.");
         let ts =
@@ -546,7 +546,7 @@ end = struct
             let ts = concat_lol (List.map (process_triple (update_infer body)) ts) in
             if log log_exec then (
 	      let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
-	      fprintf logf "@[Cfg 1:@\n";
+	      fprintf logf "@[Cfg after abduction:@\n";
 	      G.Cfg.iter_vertex pp_vertex body.P.cfg;
 	      fprintf logf "@.");
             let ts = option [] (fun x->x) ts in (* XXX *)
@@ -555,13 +555,30 @@ end = struct
         let ts = concat_lol (List.map (process_triple (update_check body)) ts) in
           if log log_exec then (
 	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
-	    fprintf logf "@[Cfg 2:@\n";
+	    fprintf logf "@[Cfg after symbollic execution:@\n";
 	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
 	    fprintf logf "@.");
         let ts = option [] (fun x->x) ts in (* XXX *)
-        procedure.C.proc_spec <- HashSet.of_list ts;
-        if (List.length ts = 0) then NOK
-        else OK
+	(* Check if we are OK or not (see comment for [verify]) *)
+	let new_specs = HashSet.of_list ts in
+	if infer then begin
+	  (* should also check posts and not use empty logic *)
+	  if List.length ts > 0 &&
+	    List.for_all (fun s -> not (G.P.inconsistent Psyntax.empty_logic s.C.pre)) ts then
+            (procedure.C.proc_spec <- new_specs;
+	     printf "@[Abducted triples:@\n";
+	     List.iter (fun triple -> printf "@<2>{%a}{%a}@\n" Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;) ts;
+	     printf "@.";
+	     OK)
+	  else NOK
+	end
+	else begin
+	  (* for eacs old spec, we should find the corresponding pre in new spec and check implication of posts *)
+	  if HashSet.length new_specs = HashSet.length procedure.C.proc_spec then
+            (procedure.C.proc_spec <- new_specs;
+	     OK)
+	  else NOK
+	end
 end
 (* }}} *)
 
@@ -596,6 +613,24 @@ let interpret q =
   let qs = List.map (with_procs q) sccs in
   List.for_all (interpret_one_scc proc_of_name) qs
 
+(*
+Summary of result of symbolic execution:
+ 
+Input: {pre} f {post} (we just consider a single function with a single spec for now)
+Output:
+When run without abduction:
+OK if f run on pre implies post
+When run with abduction:
+{pre’} f {post’} is computed with pre' = pre * F for some F, then
+OK if pre’ is consistent and post’ => post
+ 
+For a list of specs, we filter out the triples which are OK.
+Without abduction, all triples have to be OK for the function to be OK
+With abduction, at least one triple has to be OK for the function to be OK.
+ 
+For a list of functions, all functions have to be OK.
+*)
 let verify q =
   if log log_phase then fprintf logf "@[verifying procedure %s@." q.C.q_name;
+  if log log_phase then fprintf logf "@[abduction is turned %s@." (if q.C.q_infer then "ON" else "OFF");
   q |> map_procs ast_to_inner_procedure |> map_procs mk_cfg |> interpret

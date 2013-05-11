@@ -20,5 +20,5 @@ val smt_custom_commands : string ref
 val smt_debug : unit -> bool
 val smt_run : bool ref
 val solver_path : string ref
-val use_abduction : bool ref
+val use_abduction : unit -> bool
 val verbosity : int ref
