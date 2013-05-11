@@ -57,3 +57,17 @@ type 'proc question =
   ; q_name : string }
 
 type ast_question = ast_procedure question
+
+type 'proc inner_question =
+  { q_procs_inner : 'proc list
+  ; q_rules_inner : Sepprover.inner_logic
+  ; q_infer_inner : bool  (* [true] means do bi-abduction *)
+  ; q_name_inner : string }
+
+type ast_inner_question = ast_procedure inner_question
+
+let convert_question q = 
+  { q_procs_inner = q.q_procs
+  ; q_rules_inner = Sepprover.convert_logic q.q_rules
+  ; q_infer_inner = q.q_infer
+  ; q_name_inner = q.q_name }

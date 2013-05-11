@@ -589,6 +589,21 @@ let convert_rule (sr : sequent_rule) : inner_sequent_rule =
        where = where;
      }
 
+type logic = {
+  seq_rules : inner_sequent_rule list;
+  rw_rules : Psyntax.rewrite_rule list; (* RLP: No need to convert these it seems... *)
+  consdecl : string list;
+}
+let empty_logic =
+  { seq_rules = []
+  ; rw_rules = []
+  ; consdecl = [] }
+
+let convert_logic l =
+  { seq_rules = List.map convert_rule l.Psyntax.seq_rules
+  ; rw_rules = l.Psyntax.rw_rules
+  ; consdecl = l.Psyntax.consdecl }
+
 
 (* Match in syntactic ones too *)
 let rec match_foo op ts form seqs cont =

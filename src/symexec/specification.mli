@@ -29,6 +29,6 @@ val logical_vars_to_prog : Core.ast_triple -> Core.ast_triple
 val refinement_extra :
   Psyntax.logic -> Core.ast_triple -> Core.ast_triple -> Psyntax.form -> bool
 val refinement : Psyntax.logic -> Core.ast_triple -> Core.ast_triple -> bool*) (* deprecated *)
-val refinement_inner : Psyntax.logic -> Core.inner_triple -> Core.inner_triple -> bool
+val refinement_inner : Sepprover.inner_logic -> Core.inner_triple -> Core.inner_triple -> bool
 val refinement_inner_extra :
-  Psyntax.logic -> Core.inner_triple -> Core.inner_triple -> Sepprover.inner_form -> bool
+  Sepprover.inner_logic -> Core.inner_triple -> Core.inner_triple -> Sepprover.inner_form -> bool

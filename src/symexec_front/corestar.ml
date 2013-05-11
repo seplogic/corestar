@@ -26,7 +26,7 @@ let parse fn = System.parse_file Parser.file Lexer.token fn "core"
 let load fn =
   let xs = Load.load ~path parse fn in
   let q = question_of_entries (List.rev xs) in
-  { q with C.q_name = fn }
+  C.convert_question { q with C.q_name = fn }
 
 let verify fn =
   if !Config.smt_run then Smt.smt_init ();

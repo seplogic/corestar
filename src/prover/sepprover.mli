@@ -16,10 +16,12 @@
 open Corestar_std
 
 type inner_form
+type inner_logic
 
 val inner_truth : inner_form
 val inner_falsum : inner_form
 val convert : Psyntax.form -> inner_form
+val convert_logic : Psyntax.logic -> inner_logic
 val convert_opt : Psyntax.form -> inner_form option (* deprecated *)
 val conjoin : Psyntax.form -> inner_form -> inner_form (* deprecated *)
 val conjoin_inner : inner_form -> inner_form -> inner_form
@@ -32,22 +34,22 @@ val join_over_numeric : inner_form -> inner_form -> inner_form * inner_form
 val update_var_to : Psyntax.var -> Psyntax.term -> inner_form -> inner_form
 val string_inner_form : inner_form pretty_printer
 
-val implies : Psyntax.logic -> inner_form -> inner_form -> bool
-val inconsistent : Psyntax.logic -> inner_form -> bool
-val inconsistent_opt : Psyntax.logic -> inner_form option -> bool
+val implies : inner_logic -> inner_form -> inner_form -> bool
+val inconsistent : inner_logic -> inner_form -> bool
+val inconsistent_opt : inner_logic -> inner_form option -> bool
 (*
 val frame
-  : Psyntax.logic -> inner_form -> Psyntax.form -> inner_form list option
+  : inner_logic -> inner_form -> Psyntax.form -> inner_form list option
 val frame_opt
-  : Psyntax.logic -> inner_form option -> Psyntax.form -> inner_form list option
+  : inner_logic -> inner_form option -> Psyntax.form -> inner_form list option
   *)
 val frame_inner
-  : Psyntax.logic -> inner_form -> inner_form -> inner_form list option
+  : inner_logic -> inner_form -> inner_form -> inner_form list option
 val abduct_inner
-  : Psyntax.logic -> inner_form -> inner_form
+  : inner_logic -> inner_form -> inner_form
     -> (inner_form * inner_form) list option
-val abs : Psyntax.logic -> inner_form -> inner_form list
-val abs_opt : Psyntax.logic -> inner_form option -> inner_form list
+val abs : inner_logic -> inner_form -> inner_form list
+val abs_opt : inner_logic -> inner_form option -> inner_form list
 val pprint_proof : Format.formatter -> unit
 val pprint_counter_example : Format.formatter -> unit -> unit
 val print_counter_example : unit -> unit

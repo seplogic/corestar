@@ -81,6 +81,13 @@ type inner_sequent_rule = {
   where : Psyntax.where list;
 }
 val convert_rule : sequent_rule -> inner_sequent_rule
+type logic = {
+  seq_rules : inner_sequent_rule list;
+  rw_rules : Psyntax.rewrite_rule list; (* RLP: No need to convert these it seems... *)
+  consdecl : string list;
+}
+val empty_logic : logic
+val convert_logic : Psyntax.logic -> logic
 val match_form : bool -> Cterm.term_structure -> formula -> syntactic_form ->
   ('a -> 'a -> 'a) -> (Cterm.term_structure * formula -> 'a) -> 'a
 val apply_or_left : sequent -> sequent list

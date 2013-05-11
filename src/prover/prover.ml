@@ -337,11 +337,11 @@ let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth)
 let search_rules logic =
   let try_identity s = if s.obligation = s.assumption then [] else raise Backtrack.No_match in
   let try_simplify s =
-    match simplify_sequent logic.rw_rules s with
+    match simplify_sequent logic.Clogic.rw_rules s with
       | None -> raise Backtrack.No_match
       | Some simp_s -> [simp_s] in
-  let try_rule r = List.flatten @@ (apply_rule (Clogic.convert_rule r)) in (* RLP: Check flatten is OK *)
-  let try_rules = try_identity :: try_simplify :: List.map try_rule logic.seq_rules in
+  let try_rule r = List.flatten @@ (apply_rule r) in (* RLP: Check flatten is OK *)
+  let try_rules = try_identity :: try_simplify :: List.map try_rule logic.Clogic.seq_rules in
   let try_or_left = Clogic.apply_or_left in
   let try_or_right = List.flatten @@ Clogic.apply_or_right in
   let try_smt seq =
@@ -359,16 +359,16 @@ let frame_penalty g =
   let p = if !Config.smt_run then Smt.frame_sequent_smt else Clogic.frame_sequent in
   if p g then 0 else Backtrack.max_penalty
 
-let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) (logic : logic) (seq : sequent) : Clogic.ts_formula list option =
+let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic (seq : sequent) : Clogic.ts_formula list option =
   try
-    let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
+    let ts = List.fold_right Cterm.add_constructor logic.Clogic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic in
     let leaves, penalty = solve_idfs ~min_depth:min_depth ~max_depth:max_depth rules frame_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
-      (if log log_prove then fprintf logf "Frame found\n";
+      (if log log_prove then fprintf logf "@[<2>Frame found@\n@]";
        Some (Clogic.get_frames leaves))
-  with Backtrack.No_match -> if log log_prove then fprintf logf "Frame failed\n"; None
+  with Backtrack.No_match -> if log log_prove then fprintf logf "@[<2>Frame failed@\n@]"; None
 
 let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent = is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
 
@@ -382,7 +382,7 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
   try
     let seq = Clogic.make_implies_inner hypothesis conclusion in
     (* RLP: What does this bit do? *)
-    let ts = List.fold_right Cterm.add_constructor logic.consdecl seq.seq_ts in
+    let ts = List.fold_right Cterm.add_constructor logic.Clogic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic in
     let leaves, penalty = solve_idfs rules abduction_penalty seq in
@@ -394,10 +394,10 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
       if log log_prove then (
         let pp_fa f (aa, af) = fprintf f "@[<2>(%a,@,%a)@]@\n"
           Clogic.pp_ts_formula aa Clogic.pp_ts_formula af in
-        fprintf logf "@[<2>Abduction suceeded@\n%a@\n@." (pp_list pp_fa) result
+        fprintf logf "@[<2>Abduction suceeded@\n%a@\n@]" (pp_list pp_fa) result
       );
       Some result
-  with Backtrack.No_match -> if log log_prove then fprintf logf "Abduction failed\n"; None
+  with Backtrack.No_match -> if log log_prove then fprintf logf "@[<2>Abduction failed@\n@]"; None
 
 
 let check_implication_frame_pform logic heap pheap  =
@@ -405,7 +405,7 @@ let check_implication_frame_pform logic heap pheap  =
 
 
 let check_implication_pform
-    (logic : logic)
+    logic
     (heap : ts_formula)
     (pheap : pform) : bool =
   check_imp logic (Clogic.make_implies heap pheap)
@@ -414,7 +414,7 @@ let check_implication_pform
 (* abstract P by applying frame inference to P => emp *)
 (* result should be collection of abstracted frames F implying P *)
 let abs
-    (logic : logic)
+    logic
     (ts_form : ts_formula)
     : ts_formula list  =
   match check_frm logic  (Clogic.make_implies ts_form []) with
@@ -460,5 +460,5 @@ let check_inconsistency logic ts_form =
 let check_implies_list fl1 pf =
   List.for_all
     (fun f1 ->
-      check_implication_pform empty_logic f1 pf
+      check_implication_pform Clogic.empty_logic f1 pf
     ) fl1

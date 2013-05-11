@@ -227,7 +227,7 @@ module ProcedureInterpreter : sig
     | Unknown
   val interpret
     : (string -> CallGraph.V.label)
-      -> Psyntax.logic
+      -> Sepprover.inner_logic
       -> bool
       -> CallGraph.V.label
       -> interpret_procedure_result
@@ -419,7 +419,7 @@ end = struct
         CT_ok conf in
       afs |> List.map mk_post_conf |> make_demonic_choice in
     let r = option CT_error branch afs in
-    if log log_exec then fprintf logf "@.";
+    if log log_exec then fprintf logf "@\n@]";
     r
 
   let execute abduct make_framable =
@@ -544,15 +544,15 @@ end = struct
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
-          fprintf logf "@[Interpreting empty procedure body: %s@." procedure.C.proc_name;
+          fprintf logf "@[Interpreting empty procedure body: %s@\n@]" procedure.C.proc_name;
         OK
     | Some body ->
         if log log_phase then
-          fprintf logf "@[Interpreting procedure body: %s@." procedure.C.proc_name;
+          fprintf logf "@[Interpreting procedure body: %s@\n@]" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let process_triple update triple =
           if log log_phase then
-            fprintf logf "@[Processing triple: {%a}{%a}@." Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;
+            fprintf logf "@[Processing triple: %a@\n@]" CoreOps.pp_inner_triple triple;
           let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
@@ -565,7 +565,7 @@ end = struct
 	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
 	    fprintf logf "@[Cfg initially:@\n";
 	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	    fprintf logf "@.");
+	    fprintf logf "@]");
         let ts =
           (if infer then begin
             let ts =
@@ -574,7 +574,7 @@ end = struct
 	      let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
 	      fprintf logf "@[Cfg after abduction:@\n";
 	      G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	      fprintf logf "@.");
+	      fprintf logf "@]");
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
@@ -583,7 +583,7 @@ end = struct
 	    let pp_vertex v = fprintf logf "@<2> vertex: %a@\n" Cfg.pp_vertex (G.Cfg.V.label v) in
 	    fprintf logf "@[Cfg after symbollic execution:@\n";
 	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	    fprintf logf "@.");
+	    fprintf logf "@]");
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
@@ -598,7 +598,7 @@ end = struct
              if log log_exec then begin
                fprintf logf "@[Abducted triples:@\n";
 	       List.iter (fun triple -> fprintf logf "@<2>{%a}{%a}@\n" Sepprover.string_inner_form triple.C.pre Sepprover.string_inner_form triple.C.post;) ts;
-	       fprintf logf "@."
+	       fprintf logf "@]"
              end;
 	     Spec_updated)
 	end
@@ -611,19 +611,19 @@ end = struct
 end
 (* }}} *)
 
-let with_procs q ps = { q with C.q_procs = ps }
-let map_procs f q = with_procs q (List.map f q.C.q_procs)
+let with_procs q ps = { q with C.q_procs_inner = ps }
+let map_procs f q = with_procs q (List.map f q.C.q_procs_inner)
 
 (* Assumes that components come in reversed topological order. *)
 let interpret_one_scc proc_of_name q =
   if log log_phase then begin
-    fprintf logf "@[Interpreting one scc, with %d procedure(s)@."
-      (List.length q.C.q_procs)
+    fprintf logf "@[Interpreting one scc, with %d procedure(s)@\n@]"
+      (List.length q.C.q_procs_inner)
   end;
   let module PI = ProcedureInterpreter in
-  let interpret = PI.interpret proc_of_name q.C.q_rules q.C.q_infer in
+  let interpret = PI.interpret proc_of_name q.C.q_rules_inner q.C.q_infer_inner in
   let rec fix () =
-    let rs = List.map interpret q.C.q_procs in
+    let rs = List.map interpret q.C.q_procs_inner in
     if List.exists ((=) PI.Spec_updated) rs
     then fix ()
     else List.for_all ((=) PI.OK) rs in
@@ -631,8 +631,8 @@ let interpret_one_scc proc_of_name q =
 
 let interpret q =
   if log log_phase then
-    fprintf logf "@[Interpreting %d procedures@." (List.length q.C.q_procs);
-  let cg, von = compute_call_graph q.C.q_procs in
+    fprintf logf "@[Interpreting %d procedures@]" (List.length q.C.q_procs_inner);
+  let cg, von = compute_call_graph q.C.q_procs_inner in
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
     X.scc_list cg in
@@ -660,7 +660,7 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
-  printf "@[infer %b@." q.C.q_infer;
-  if log log_phase then fprintf logf "@[verifying procedure %s@." q.C.q_name;
-  if log log_phase then fprintf logf "@[abduction is turned %s@." (if q.C.q_infer then "ON" else "OFF");
+  printf "@[infer %b@]" q.C.q_infer_inner;
+  if log log_phase then fprintf logf "@[verifying procedure %s@]" q.C.q_name_inner;
+  if log log_phase then fprintf logf "@[abduction is turned %s@]" (if q.C.q_infer_inner then "ON" else "OFF");
   q |> map_procs ast_to_inner_procedure |> map_procs mk_cfg |> interpret

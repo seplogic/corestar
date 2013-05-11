@@ -41,6 +41,10 @@ open Psyntax
         try Some (Clogic.convert_with_eqs false form)
         with Contradiction -> None
 
+    type inner_logic = Clogic.logic
+	
+    let convert_logic = Clogic.convert_logic
+
     let conjoin : form -> inner_form -> inner_form
       = fun form inner_form -> Clogic.conjoin false inner_form (Clogic.convert_to_inner form)
 
@@ -107,35 +111,35 @@ open Psyntax
 
     let implies = Prover.check_implication
 
-    let inconsistent : logic -> inner_form -> bool
+    let inconsistent : inner_logic -> inner_form -> bool
       = fun logic inner_form1 -> Prover.check_inconsistency logic inner_form1
 
-    let inconsistent_opt : logic -> inner_form option -> bool
+    let inconsistent_opt : inner_logic -> inner_form option -> bool
       = fun logic inner_form1 ->
 	match inner_form1 with
 	  None -> true
 	| Some inner_form1 -> Prover.check_inconsistency logic inner_form1
 (*
-    let frame : logic -> inner_form -> form -> inner_form list option
+    let frame : inner_logic -> inner_form -> form -> inner_form list option
       = fun logic inner_form1 form2 ->
 	Prover.check_implication_frame_pform logic inner_form1 form2
 
-    let frame_opt : logic -> inner_form option -> form -> inner_form list option
+    let frame_opt : inner_logic -> inner_form option -> form -> inner_form list option
 	= fun logic inner_form1 form2 ->
 	  match inner_form1 with
 	    None -> Some []
 	  | Some inner_form1 ->
 	      Prover.check_implication_frame_pform logic inner_form1 form2
 *)
-    let frame_inner (l : logic) (i1 : inner_form) (i2 : inner_form) : inner_form list option =
+    let frame_inner (l : inner_logic) (i1 : inner_form) (i2 : inner_form) : inner_form list option =
       Prover.check_frame l i1 i2
 
     let abduct_inner = Prover.abduct
 
-    let abs : logic -> inner_form -> inner_form list
+    let abs : inner_logic -> inner_form -> inner_form list
       = Prover.abs
 
-    let abs_opt : logic -> inner_form option -> inner_form list
+    let abs_opt : inner_logic -> inner_form option -> inner_form list
       = fun l form -> match form with None -> [] | Some form -> Prover.abs l form
 
     let implies_list : inner_form list -> form -> bool
