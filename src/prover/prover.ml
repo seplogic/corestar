@@ -335,12 +335,13 @@ let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth)
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)
 let search_rules logic =
+  let try_identity s = if s.obligation = s.assumption then [] else raise Backtrack.No_match in
   let try_simplify s =
     match simplify_sequent logic.rw_rules s with
       | None -> raise Backtrack.No_match
       | Some simp_s -> [simp_s] in
   let try_rule r = List.flatten @@ (apply_rule (Clogic.convert_rule r)) in (* RLP: Check flatten is OK *)
-  let try_rules = try_simplify :: List.map try_rule logic.seq_rules in
+  let try_rules = try_identity :: try_simplify :: List.map try_rule logic.seq_rules in
   let try_or_left = Clogic.apply_or_left in
   let try_or_right = List.flatten @@ Clogic.apply_or_right in
   let try_smt seq =
@@ -371,8 +372,10 @@ let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) 
 
 let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent = is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
 
-(* Many choices possible here... *)
-let abduction_penalty g = List.length g.assumption.disjuncts
+(* Two on each side then we should look for more *)
+let abduction_penalty g = 
+  let count spat = Clogic.RMSet.fold (fun n _ -> succ n) 0 spat in
+  6 * (count g.assumption.spat + count g.obligation.spat)
 
 (* RLP: this code typechecks, but not at all sure it does the right thing... *)
 let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
