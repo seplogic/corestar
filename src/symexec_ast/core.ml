@@ -26,11 +26,11 @@ type call_core =
   ; call_rets : args_out
   ; call_args : args_in }
 
-type ('body, 'spec) procedure =
+type ('body, 'spec, 'logic) procedure =
   { proc_name : string
   ; mutable proc_spec : 'spec
   ; proc_body : 'body option
-  ; proc_rules : Psyntax.logic }
+  ; proc_rules : 'logic }
 
 type 'spec assignment_core =
   { asgn_rets : args_out
@@ -48,26 +48,14 @@ type 'spec core_statement =
 type ast_core = ast_spec core_statement
 type inner_core = inner_spec core_statement
 
-type ast_procedure = (ast_core list, ast_spec) procedure
+type ast_procedure = (ast_core list, ast_spec, Psyntax.logic) procedure
+type inner_procedure = (inner_core list, inner_spec, Sepprover.inner_logic) procedure
 
-type 'proc question =
+type ('proc, 'logic) question =
   { q_procs : 'proc list
-  ; q_rules : Psyntax.logic
+  ; q_rules : 'logic
   ; q_infer : bool  (* [true] means do bi-abduction *)
   ; q_name : string }
 
-type ast_question = ast_procedure question
-
-type 'proc inner_question =
-  { q_procs_inner : 'proc list
-  ; q_rules_inner : Sepprover.inner_logic
-  ; q_infer_inner : bool  (* [true] means do bi-abduction *)
-  ; q_name_inner : string }
-
-type ast_inner_question = ast_procedure inner_question
-
-let convert_question q = 
-  { q_procs_inner = q.q_procs
-  ; q_rules_inner = Sepprover.convert_logic q.q_rules
-  ; q_infer_inner = q.q_infer
-  ; q_name_inner = q.q_name }
+type ast_question = (ast_procedure, Psyntax.logic) question
+type inner_question = (inner_procedure, Sepprover.inner_logic) question

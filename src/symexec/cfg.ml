@@ -17,7 +17,7 @@ let pp_vertex f = function
   | Abs_cfg -> fprintf f "abstract"
   | Call_cfg c -> fprintf f "call %s" c.C.call_name
   | Nop_cfg -> fprintf f "nop"
-  | Spec_cfg specs -> HashSet.iter (fun s -> fprintf f "spec {%a}{%a} " P.string_inner_form s.C.pre P.string_inner_form s.C.post) specs
+  | Spec_cfg specs -> HashSet.iter (fun s -> fprintf f "spec {%a} " CoreOps.pp_inner_triple s) specs
 
 module Cfg = DG.Make (struct type t = cfg_vertex end) (DG.UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
@@ -31,8 +31,22 @@ type ok_configuration =
   { current_heap : P.inner_form
   ; missing_heap : P.inner_form }
 
+let pp_ok_configuration f { current_heap; missing_heap } =
+  fprintf f "(now:%a,@ missing:%a)"
+    Sepprover.string_inner_form current_heap
+    Sepprover.string_inner_form missing_heap
+    
 type split_type = Angelic | Demonic
+
+let pp_split_type f = function
+  | Angelic -> fprintf f "angelic"
+  | Demonic -> fprintf f "demonic"
+
 type configuration = ErrorConf | OkConf of ok_configuration * split_type
+
+let pp_configuration f = function
+  | ErrorConf -> fprintf f "Error"
+  | OkConf (c, st) -> fprintf f "%a: %a" pp_split_type st pp_ok_configuration c
 
 module ConfigurationGraph =
   DG.Make (struct type t = configuration end) (DG.UnlabeledEdge)

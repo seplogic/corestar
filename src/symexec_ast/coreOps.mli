@@ -32,7 +32,7 @@ val pp_inner_spec : inner_spec pretty_printer
 val pp_ast_core : ast_core pretty_printer
 val pp_inner_core : inner_core pretty_printer
 val pp_ast_proc : ast_procedure pretty_printer
-val pp_ast_question : ast_procedure question pretty_printer
+val pp_ast_question : ast_question pretty_printer
 
 
 (** {2 Special variable names} *)
@@ -43,4 +43,4 @@ val parameter : int -> string
 val parameter_var : int -> Vars.var
 
 (** {2 Useful constants} *)
-val empty_question : 'a question
+val empty_question : 'b -> ('a, 'b) question

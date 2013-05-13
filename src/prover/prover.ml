@@ -308,7 +308,7 @@ exception Failed_eg of Clogic.sequent list
 leaf, but we should keep looking for something better. *)
 let rec solve rules penalty n goal =
   if log log_prove then
-    fprintf logf "@\n@[<2>prove goal@ %a" Clogic.pp_sequent goal;
+    fprintf logf "@,@[<v 2>prove goal@ @[%a@]" Clogic.pp_sequent goal;
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin
@@ -317,7 +317,7 @@ let rec solve rules penalty n goal =
         Backtrack.combine_list (solve rules penalty (n-1)) ([], 0) subgoals in
       Backtrack.choose_list process_rule leaf rules
     end in
-  if log log_prove then fprintf logf "@]";
+  if log log_prove then fprintf logf "@]@?";
   result
 
 
@@ -325,12 +325,12 @@ let min_depth = 2
 let max_depth = 10
 
 let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) rules penalty goal =
-  if log log_prove then fprintf logf "@[@[<2>start idfs proving";
+  if log log_prove then fprintf logf "@,@[<v 2>start idfs proving";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve give_up succ fail min_depth in
-  if log log_prove then fprintf logf "@]@\n@]";
+  if log log_prove then fprintf logf "@]@,@?";
   r
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)
@@ -366,9 +366,9 @@ let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) 
     let rules = search_rules logic in
     let leaves, penalty = solve_idfs ~min_depth:min_depth ~max_depth:max_depth rules frame_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
-      (if log log_prove then fprintf logf "@[<2>Frame found@\n@]";
+      (if log log_prove then fprintf logf "@[Frames found: %d@]@,@?" (List.length leaves);
        Some (Clogic.get_frames leaves))
-  with Backtrack.No_match -> if log log_prove then fprintf logf "@[<2>Frame failed@\n@]"; None
+  with Backtrack.No_match -> if log log_prove then fprintf logf "@[Frame failed@]@,@?"; None
 
 let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent = is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
 
@@ -392,12 +392,12 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
 	Clogic.mk_ts_form seq.seq_ts seq.assumption in
       let result = List.map antiframe_frame leaves in
       if log log_prove then (
-        let pp_fa f (aa, af) = fprintf f "@[<2>(%a,@,%a)@]@\n"
+        let pp_fa f (aa, af) = fprintf f "@,@[(A: %a,@ F: %a)@]"
           Clogic.pp_ts_formula aa Clogic.pp_ts_formula af in
-        fprintf logf "@[<2>Abduction suceeded@\n%a@\n@]" (pp_list pp_fa) result
+        fprintf logf "@[<v 2>Abduction suceeded, found %d antiframe/frame pair(s):%a@]@,@?" (List.length result) (pp_list pp_fa) result
       );
       Some result
-  with Backtrack.No_match -> if log log_prove then fprintf logf "@[<2>Abduction failed@\n@]"; None
+  with Backtrack.No_match -> if log log_prove then fprintf logf "@[Abduction failed@]@,@?"; None
 
 
 let check_implication_frame_pform logic heap pheap  =
@@ -454,7 +454,7 @@ let check_frame logic ts_form1 ts_form2 =
 (* TODO: Check whether this makes sense *)
 let check_inconsistency logic ts_form =
   let seq = Clogic.make_implies_inner ts_form (Clogic.convert_with_eqs false mkFalse) in
-  check_imp ~min_depth:0 ~max_depth:2 logic seq
+  check_imp ~min_depth:2 ~max_depth:2 logic seq
 
 
 let check_implies_list fl1 pf =
