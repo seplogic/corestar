@@ -58,4 +58,7 @@ val get_counter_example : unit -> string
 val implies_list : inner_form list -> Psyntax.form -> bool
 
 val get_equals_pvar_free : Psyntax.var -> inner_form -> Psyntax.args list
+  (** NOTE: [get_equals_pvar_free v f] is the empty list when [v] doesn't occur
+  in [f]. *)
+
 val get_pvars : inner_form -> Psyntax.var list

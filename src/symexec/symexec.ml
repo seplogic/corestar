@@ -30,16 +30,11 @@ let specialize_spec rets args =
     ; post = substitute_args args (substitute_rets rets post) } in
   HashSet.map f
 
-let collect_assignables x = x (* XXX *)
-
-let collect_params x = x (* XXX *)
-
 (* }}} *)
 let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
   let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
   let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
   { C.proc_name; proc_spec; proc_body; proc_rules = Psyntax.empty_logic (*XXX*) }
-
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
@@ -269,7 +264,7 @@ end = struct
   let pp_context f c =
     let pp_tripleset f s =
       CS.iter (fun v -> fprintf f "@[%a@]" Cfg.pp_configuration (CG.V.label v)) s in
-    let pp_fvertex v = 
+    let pp_fvertex v =
       fprintf f "@[<v 2>pre conditions:%a@]" pp_tripleset (SD.find c.pre_of v);
       fprintf f "@[<v 2>post conditions:%a@]" pp_tripleset (SD.find c.post_of v) in
     let pp_vertex v = fprintf f "@ @[%a@]" Cfg.pp_configuration (CG.V.label v) in
@@ -304,6 +299,10 @@ end = struct
   let make_angelic c = G.OkConf (c, G.Angelic)
   let make_demonic c = G.OkConf (c, G.Demonic)
 
+  let is_ok_conf_vertex v = match CG.V.label v with
+    | G.OkConf _ -> true
+    | _ -> false
+
   let make_angelic_choice = function
     | [] -> CT_error
     | [c] -> c
@@ -318,7 +317,8 @@ end = struct
   let update_pre_confs context s =
     let old_pre = pre_confs context s in
     let new_pre = CS.create 1 in
-    let add_new_pre c = if not (CS.mem old_pre c) then CS.add new_pre c in
+    let add_new_pre c =
+      if is_ok_conf_vertex c && not (CS.mem old_pre c) then CS.add new_pre c in
     let add_posts_of s = CS.iter add_new_pre (post_confs context s) in
     G.Cfg.iter_pred add_posts_of context.flowgraph s;
     CS.iter (CS.add old_pre) new_pre;
@@ -407,7 +407,7 @@ end = struct
       match Sepprover.get_equals_pvar_free v f with
       | [] -> Sepprover.kill_var v f
       | t :: _ -> Sepprover.update_var_to v t f in
-    PS.vs_fold replace_one
+    PS.VarSet.fold replace_one
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -562,6 +562,11 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
+  let mk_evar_for_pvar pvar m =
+    assert (not (PS.VarMap.mem pvar m));
+    let evar = Vars.freshe_str (Vars.string_var pvar) in
+    PS.VarMap.add pvar evar m
+
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
@@ -571,7 +576,9 @@ end = struct
         if log log_phase then
           fprintf logf "@[Interpreting procedure body: %s@]@," procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
-        let assignables = collect_assignables body in
+        let pvars = collect_pvars body.P.cfg in
+(*        let evar_of_pvar =
+          PS.VarSet.fold mk_evar_for_pvar pvars PS.VarMap.empty in *)
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@[Processing triple: %a@]@," CoreOps.pp_inner_triple triple;
@@ -580,7 +587,6 @@ end = struct
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = triple.C.pre * missing_heap
             ; C.post = current_heap } in
-          let params = collect_params triple.C.pre in
           (* TODO introduce x=x', and remmber x->x', for each x in params@assgn*)
           let cs = interpret_flowgraph update body triple.C.pre in
           option_map (List.map triple_of_conf) cs in

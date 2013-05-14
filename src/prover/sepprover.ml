@@ -145,9 +145,8 @@ open Psyntax
     let implies_list : inner_form list -> form -> bool
       = Prover.check_implies_list
 
-    let get_equals_pvar_free : var -> inner_form -> Psyntax.args list
-      = fun v form ->
-        Cterm.get_equals_pvar_free form.Clogic.ts v
+    let get_equals_pvar_free v form =
+      Cterm.get_equals_pvar_free form.Clogic.ts v
 
     let get_pvars : inner_form -> Psyntax.var list
       = fun form ->

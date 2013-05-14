@@ -11,6 +11,9 @@
       LICENSE.txt
  ********************************************************)
 
+open Format
+
+(* TODO(rgrig): Don't open these. *)
 open Congruence
 open Printing
 open Psyntax
@@ -707,10 +710,12 @@ let is_pvar_free ts c =
   ok_arg (get_arg c)
 
 let get_equals_pvar_free ts pvar =
-  let pvar_c = VarMap.find pvar ts.pvars in (* TODO(rgrig): this crashes *)
-  let equal_cs = CC.others ts.cc pvar_c in
-  let pvar_free_equals = List.filter (is_pvar_free ts) equal_cs in
-  List.map (reconstruct ts) pvar_free_equals
+  try
+    let pvar_c = VarMap.find pvar ts.pvars in
+    let equal_cs = CC.others ts.cc pvar_c in
+    let pvar_free_equals = List.filter (is_pvar_free ts) equal_cs in
+    List.map (reconstruct ts) pvar_free_equals
+  with Not_found -> []
 
 let get_pvars ts =
   VarMap.fold (fun k _ ks -> k :: ks) ts.pvars []
