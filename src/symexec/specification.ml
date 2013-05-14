@@ -99,5 +99,5 @@ let refinement_inner logic triple1 triple2 =
   P.implies logic triple1.Core.post triple2.Core.post
 
 let refinement_inner_extra logic triple1 triple2 extra =
-  P.implies logic triple2.Core.pre (Sepprover.conjoin_inner triple1.Core.pre extra) &&
+  P.implies logic (Sepprover.conjoin_inner triple2.Core.pre extra) triple1.Core.pre &&
   P.implies logic triple1.Core.post triple2.Core.post

@@ -18,7 +18,7 @@ let question_of_entries xs =
         q
     | PA.Rule r -> { q with C.q_rules = PS.add_rule q.C.q_rules r }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
-  let z = { CoreOps.empty_question with C.q_infer = !Config.use_abduction } in
+  let z = { (CoreOps.empty_question PS.empty_logic) with C.q_infer = !Config.use_abduction } in
   List.fold_left f z xs
 
 let path = System.getenv_dirlist (System.getenv "COREPATH")
@@ -26,7 +26,7 @@ let parse fn = System.parse_file Parser.file Lexer.token fn "core"
 let load fn =
   let xs = Load.load ~path parse fn in
   let q = question_of_entries (List.rev xs) in
-  C.convert_question { q with C.q_name = fn }
+  { q with C.q_name = fn }
 
 let verify fn =
   if !Config.smt_run then Smt.smt_init ();

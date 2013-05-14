@@ -82,8 +82,8 @@ let return_var n = Vars.concretep_str (Printf.sprintf "$ret_v%d" n)
 let parameter n = Printf.sprintf "@parameter%d:" n
 let parameter_var n = (Vars.concretep_str (parameter n))
 
-let empty_question =
+let empty_question empty_logic =
   { q_procs = []
-  ; q_rules = Psyntax.empty_logic
+  ; q_rules = empty_logic
   ; q_infer = false
   ; q_name = "empty_question" }
