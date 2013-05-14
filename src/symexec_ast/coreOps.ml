@@ -82,6 +82,12 @@ let return_var n = Vars.concretep_str (Printf.sprintf "$ret_v%d" n)
 let parameter n = Printf.sprintf "@parameter%d:" n
 let parameter_var n = (Vars.concretep_str (parameter n))
 
+let has_prefix p v = StringH.starts_with p (Vars.string_var v)
+
+let is_parameter = has_prefix "@parameter"
+let is_return = has_prefix "$ret"
+let is_global = has_prefix "$g"
+
 let empty_question empty_logic =
   { q_procs = []
   ; q_rules = empty_logic

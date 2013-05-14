@@ -394,7 +394,7 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
       if log log_prove then (
         let pp_fa f (aa, af) = fprintf f "@,@[(A: %a,@ F: %a)@]"
           Clogic.pp_ts_formula aa Clogic.pp_ts_formula af in
-        fprintf logf "@[<v 2>Abduction suceeded, found %d antiframe/frame pair(s):%a@]@,@?" (List.length result) (pp_list pp_fa) result
+        fprintf logf "@[<2>Abduction suceeded, found %d antiframe/frame pair(s):%a@]@,@?" (List.length result) (pp_list pp_fa) result
       );
       Some result
   with Backtrack.No_match -> if log log_prove then fprintf logf "@[Abduction failed@]@,@?"; None

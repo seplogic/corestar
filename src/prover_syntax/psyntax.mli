@@ -116,6 +116,7 @@ val mkString : string -> term
 val mkNumericConst : string -> term
 val mkStringConst : string -> term
 val mkFalse : form
+val mkTrue : form
 val mkEQ : term * term -> form
 val mkNEQ : term * term -> form
 val mkPPred : string * term list -> form
@@ -123,14 +124,15 @@ val mkSPred : string * term list -> form
 val mkOr : form * form -> form
 val mkBigOr : form list -> form
 val mkStar : form -> form -> form
+val mkBigStar : form list -> form
 val mkEmpty : form
 val fv_form : pform -> VarSet.t
 val ev_form_acc : pform -> VarSet.t -> VarSet.t
 val ev_form : pform -> VarSet.t
 val string_form : form pretty_printer
 val string_form_at : pform_at pretty_printer
-val prog_var : string -> var
-val fresh_exists_var : unit -> var
+val prog_var : string -> var (* deprecated, use Vars *)
+val fresh_exists_var : unit -> var (* deprecated, use Vars *)
 type variable_subst = varmap
 val empty_subst : variable_subst
 val add_subst : var -> term -> variable_subst -> variable_subst

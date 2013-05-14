@@ -261,6 +261,7 @@ and pform = pform_at list
 
 
 let mkFalse = [P_False]
+let mkTrue = []
 
 let isFalse f =
   match f with
@@ -615,7 +616,9 @@ let expand_equiv_rule (name, guard, leftform, rightform, without) =
     let mkOr : form * form -> form  = fun (f1, f2) -> mkOr(f1,f2)
 
     (* Star conjunction of two formula *)
-    let mkStar : form -> form -> form = fun f1 f2 -> pconjunction f1 f2
+    let mkStar = pconjunction
+
+    let mkBigStar = List.fold_left mkStar mkTrue
 
     (* Empty formula/heap*)
     let mkEmpty : form = mkEmpty

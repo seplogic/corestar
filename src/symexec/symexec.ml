@@ -11,7 +11,7 @@ module PS = Psyntax
 
 exception Fatal of string
 
-let bfs_limit = 1 lsl 7
+let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
@@ -262,13 +262,15 @@ end = struct
   (* NOTE: Be careful, these are imperative data structures. *)
 
   let pp_context f c =
+    (* XXX(rg) temporary commented to silence warnings
     let pp_tripleset f s =
       CS.iter (fun v -> fprintf f "@[%a@]" Cfg.pp_configuration (CG.V.label v)) s in
     let pp_fvertex v =
-      fprintf f "@[<v 2>pre conditions:%a@]" pp_tripleset (SD.find c.pre_of v);
-      fprintf f "@[<v 2>post conditions:%a@]" pp_tripleset (SD.find c.post_of v) in
+      fprintf f "@[<2>pre conditions:%a@]" pp_tripleset (SD.find c.pre_of v);
+      fprintf f "@[<2>post conditions:%a@]" pp_tripleset (SD.find c.post_of v) in
+    *)
     let pp_vertex v = fprintf f "@ @[%a@]" Cfg.pp_configuration (CG.V.label v) in
-    fprintf f "@[<v 2>Configuration graph:";
+    fprintf f "@[<2>Configuration graph:";
     CG.iter_vertex pp_vertex c.confgraph;
     fprintf f "@]@,@?";
 
@@ -418,7 +420,7 @@ end = struct
       abduct make_framable pre_conf ({ Core.pre; post } as triple)
   =
     if log log_exec then
-      fprintf logf "@[execute %a@ from %a@ to get@[<v 2>"
+      fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_inner_triple triple
         Cfg.pp_ok_configuration pre_conf;
     let afs = abduct pre_conf.G.current_heap pre in
@@ -434,7 +436,7 @@ end = struct
         CT_ok conf in
       afs |> List.map mk_post_conf |> make_demonic_choice in
     let r = option CT_error branch afs in
-    if log log_exec then fprintf logf "@]@]@,@?";
+    if log log_exec then fprintf logf "@]@,@?";
     r
 
   let execute abduct make_framable =
@@ -521,9 +523,8 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_infer rules body post =
+  let update_infer pvars rules body post =
     let abduct = abduct rules in
-    let pvars = collect_pvars body.P.cfg in
     let make_framable = replace_pvars pvars in
     let execute = execute abduct make_framable (spec_of post body.P.stop) in
     update execute abstract
@@ -562,45 +563,54 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
-  let mk_evar_for_pvar pvar m =
-    assert (not (PS.VarMap.mem pvar m));
-    let evar = Vars.freshe_str (Vars.string_var pvar) in
-    PS.VarMap.add pvar evar m
+  let extend_precondition pvars pre =
+    let is_interesting v =
+      (CoreOps.is_parameter v
+      || CoreOps.is_global v)
+      && (Sepprover.get_equals_pvar_free v pre = []) in
+    let process_var v acc =
+      if not (is_interesting v) then acc else begin
+        let w = Vars.freshe_str (Vars.string_var v) in
+        PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
+      end in
+    let conjuncts = PS.VarSet.fold process_var pvars [] in
+    let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
+    Sepprover.conjoin_inner pre conjuncts
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
-          fprintf logf "@[Interpreting empty procedure body: %s@]@," procedure.C.proc_name;
+          fprintf logf "@[Interpreting empty procedure body: %s@\n@]" procedure.C.proc_name;
         OK
     | Some body ->
         if log log_phase then
-          fprintf logf "@[Interpreting procedure body: %s@]@," procedure.C.proc_name;
+          fprintf logf "@[Interpreting procedure body: %s@\n@]" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let pvars = collect_pvars body.P.cfg in
-(*        let evar_of_pvar =
-          PS.VarSet.fold mk_evar_for_pvar pvars PS.VarMap.empty in *)
         let process_triple update triple =
           if log log_phase then
-            fprintf logf "@[Processing triple: %a@]@," CoreOps.pp_inner_triple triple;
+            fprintf logf "@[Processing triple: %a@\n@]" CoreOps.pp_inner_triple triple;
           let update = update triple.C.post in
+          let pre = extend_precondition pvars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
-            { C.pre = triple.C.pre * missing_heap
+            { C.pre = pre * missing_heap
             ; C.post = current_heap } in
-          (* TODO introduce x=x', and remmber x->x', for each x in params@assgn*)
-          let cs = interpret_flowgraph update body triple.C.pre in
+          let cs = interpret_flowgraph update body pre in
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
-            let ts =
-              lol_cat (List.map (process_triple (update_infer rules body)) ts) in
+            let process_triple_infer =
+              process_triple (update_infer pvars rules body) in
+            let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
-        let ts = lol_cat (List.map (process_triple (update_check rules body)) ts) in
+        let process_triple_check = process_triple (update_check rules body) in
+        let ts = lol_cat (List.map process_triple_check ts) in
           if log log_exec then (
-            fprintf logf "@[confgraph after symbolic execution: TODO@]");
+            fprintf logf "@[confgraph after symbolic execution: TODO@\n@]");
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
@@ -613,7 +623,7 @@ end = struct
           else
             (procedure.C.proc_spec <- new_specs;
              if log log_exec then begin
-               fprintf logf "@[<v 2>Abducted triples:";
+               fprintf logf "@[<2>Abducted triples:";
 	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_inner_triple triple;) ts;
 	       fprintf logf "@]@,@?"
              end;
@@ -659,6 +669,13 @@ let interpret q =
   let qs = List.map (with_procs q) sccs in
   List.for_all (interpret_one_scc proc_of_name) qs
 
+let print_specs ps =
+  let triple f t = fprintf f "@\n@[<2>%a@]" CoreOps.pp_inner_triple t in
+  let proc f p =
+    fprintf f "@\n@[<2>%s%a@]"
+      p.C.proc_name
+      (pp_list triple) (HashSet.elements p.C.proc_spec) in
+  printf "@[<2>@{<g>INFERRED@}:%a@\n@]@?" (pp_list proc) ps
 
 let convert_question q =
   let logic = Sepprover.convert_logic q.C.q_rules in
@@ -689,9 +706,11 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
-  if log log_phase then fprintf logf "@[<v 2>Verifying procedure %s@,@?" q.C.q_name;
-  if log log_phase then fprintf logf "@[abduction is turned %s@]@,@?" (if q.C.q_infer then "ON" else "OFF");
-  let r = q |> convert_question |> map_procs mk_cfg |> interpret in
-  if log log_phase then fprintf logf "@]@?";
+  if log log_exec then
+    fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
+  let q = convert_question q in
+  let r = q |> map_procs mk_cfg |> interpret in
+  if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
+  if log log_exec then fprintf logf "@]@?";
   r
 (* }}} *)

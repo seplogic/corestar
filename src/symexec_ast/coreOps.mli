@@ -42,5 +42,9 @@ val return_var : int -> Vars.var
 val parameter : int -> string
 val parameter_var : int -> Vars.var
 
+val is_parameter : Vars.var -> bool
+val is_return : Vars.var -> bool
+val is_global : Vars.var -> bool
+
 (** {2 Useful constants} *)
 val empty_question : 'b -> ('a, 'b) question
