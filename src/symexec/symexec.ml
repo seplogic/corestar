@@ -510,9 +510,11 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
+  let empty_inner_triple = { Core.pre = emp; post = emp }
+
   let spec_of post =
     let post = HashSet.singleton { Core.pre = post; post } in
-    let nop = HashSet.singleton { Core.pre = emp; post = emp } in
+    let nop = HashSet.singleton empty_inner_triple in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -565,16 +567,21 @@ end = struct
 
   let extend_precondition pvars pre =
     let is_interesting v =
-      (CoreOps.is_parameter v
-      || CoreOps.is_global v)
+      (CoreOps.is_parameter v || CoreOps.is_global v)
       && (Sepprover.get_equals_pvar_free v pre = []) in
     let process_var v acc =
       if not (is_interesting v) then acc else begin
+        printf "@[seen %a@\n@]" Vars.pp_var v;
         let w = Vars.freshe_str (Vars.string_var v) in
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in
-    let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
+    printf "@[<2>conjuncts before@ %a@\n@]"
+      (pp_list_sep ", " PS.string_form) conjuncts;
+    let conjuncts = PS.mkBigStar conjuncts in
+    printf "@[<2>conjuncts intermediate@ %a@\n@]" PS.string_form conjuncts;
+    let conjuncts = Sepprover.convert conjuncts in
+    printf "@[<2>conjuncts after@ %a@\n@]" Sepprover.string_inner_form conjuncts;
     Sepprover.conjoin_inner pre conjuncts
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
@@ -603,6 +610,7 @@ end = struct
           (if infer then begin
             let process_triple_infer =
               process_triple (update_infer pvars rules body) in
+            let ts = empty_inner_triple :: ts in
             let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts

@@ -595,34 +595,15 @@ let expand_equiv_rule (name, guard, leftform, rightform, without) =
     **************************************)
     type form  = pform
 
-    (* False *)
-    let mkFalse : form = mkFalse
-
-    (* Inequality between two terms *)
-    let mkNEQ : term * term -> form = fun (a1,a2) ->  mkNEQ(a1,a2)
-
-    (* Equality between two terms *)
-    let mkEQ : term * term -> form = fun (a1,a2) -> mkEQ(a1,a2)
-
-    (* A pure predicate *)
-    let mkPPred : string * term list -> form
-        = fun (n,al) -> mkPPred(n, al)
-
-    (* A spatial predicate *)
-    let mkSPred : string * term list -> form
-        = fun (n,al) ->  mkSPred(n, al)
-
-    (* Disjunction of two formula *)
-    let mkOr : form * form -> form  = fun (f1, f2) -> mkOr(f1,f2)
-
     (* Star conjunction of two formula *)
     let mkStar = pconjunction
 
-    let mkBigStar = List.fold_left mkStar mkTrue
+    let mkBigStar xs =
+      let y = List.concat xs in
+      if List.mem P_False y then mkFalse else y
 
     (* Empty formula/heap*)
     let mkEmpty : form = mkEmpty
-
 
     (* returns the set of free variables  in the term *)
     let fv_form_acc f acc = fv_form f acc
