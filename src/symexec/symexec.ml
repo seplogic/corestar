@@ -1,5 +1,5 @@
 (** Symbolic execution (with and without spec inference) happens here. *)
-
+(* modules, constants *) (* {{{ *)
 open Corestar_std
 open Debug
 open Format
@@ -12,6 +12,8 @@ module PS = Psyntax
 exception Fatal of string
 
 let bfs_limit = 1 lsl 7
+(* }}} *)
+(* helpers for substitutions *) (* {{{ *)
 
 let substitute_list var =
   let gen = let x = ref 0 in fun () -> incr x; var !x in
@@ -28,6 +30,17 @@ let specialize_spec rets args =
     ; post = substitute_args args (substitute_rets rets post) } in
   HashSet.map f
 
+let collect_assignables x = x (* XXX *)
+
+let collect_params x = x (* XXX *)
+
+(* }}} *)
+let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
+  let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
+  let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
+  { C.proc_name; proc_spec; proc_body; proc_rules = Psyntax.empty_logic (*XXX*) }
+
+(* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
   (struct type t = C.inner_core end)
@@ -213,6 +226,7 @@ let output_sccs cs =
   fprintf f "@[%a@]@?" (pp_list pp_component) cs;
   close_out file
 
+(* }}} *)
 (* symbolic execution for one procedure {{{ *)
 module ProcedureInterpreter : sig
   type interpret_procedure_result =
@@ -557,6 +571,7 @@ end = struct
         if log log_phase then
           fprintf logf "@[Interpreting procedure body: %s@]@," procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
+        let assignables = collect_assignables body in
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@[Processing triple: %a@]@," CoreOps.pp_inner_triple triple;
@@ -565,35 +580,21 @@ end = struct
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = triple.C.pre * missing_heap
             ; C.post = current_heap } in
+          let params = collect_params triple.C.pre in
+          (* TODO introduce x=x', and remmber x->x', for each x in params@assgn*)
           let cs = interpret_flowgraph update body triple.C.pre in
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
-          if log log_exec then (
-	    let pp_vertex v = fprintf logf "@,vertex: %a" Cfg.pp_vertex (G.Cfg.V.label v) in
-	    fprintf logf "@[<v 2>Cfg after symbollic execution:";
-	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	    fprintf logf "@]@,@?");
         let ts =
           (if infer then begin
             let ts =
               lol_cat (List.map (process_triple (update_infer rules body)) ts) in
-            if log log_exec then (
-	      let pp_vertex v = fprintf logf "@,vertex: %a" Cfg.pp_vertex (G.Cfg.V.label v) in
-	      fprintf logf "@[<v 2>Cfg after symbollic execution:";
-	      G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	      fprintf logf "@]@,@?");
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
         let ts = lol_cat (List.map (process_triple (update_check rules body)) ts) in
           if log log_exec then (
-(*
-	    let pp_vertex v = fprintf logf "@\nvertex: %a" Cfg.pp_vertex (G.Cfg.V.label v) in
-	    fprintf logf "@[<2>Cfg after symbollic execution:";
-	    G.Cfg.iter_vertex pp_vertex body.P.cfg;
-	    fprintf logf "@]@\n@?"
-*)
-	  fprintf logf "@[Cfg after symbollic execution:@]");
+            fprintf logf "@[confgraph after symbolic execution: TODO@]");
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
@@ -620,7 +621,7 @@ end = struct
 	end
 end
 (* }}} *)
-
+(* high level loop for interpreting *) (* {{{ *)
 let with_procs q ps = { q with C.q_procs = ps }
 let map_procs f q = with_procs q (List.map f q.C.q_procs)
 
@@ -687,3 +688,4 @@ let verify q =
   let r = q |> convert_question |> map_procs mk_cfg |> interpret in
   if log log_phase then fprintf logf "@]@?";
   r
+(* }}} *)
