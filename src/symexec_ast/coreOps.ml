@@ -57,7 +57,7 @@ let pp_core pp_spec f = function
 let pp_ast_core = pp_core pp_ast_spec
 let pp_inner_core = pp_core pp_inner_spec
 
-let pp_logic _ _ = failwith "XXX"
+let pp_logic _ _ = failwith "TODO"
 
 let pp_proc pp_spec f { proc_name; proc_spec; proc_body } =
   let pp_body f body =

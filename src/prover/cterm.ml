@@ -43,7 +43,7 @@ module CMap = Map.Make(
     end)
 
 type term_structure =
-    {
+  {
     cc : CC.t;
     function_symbols : CC.constant SMap.t;
     strings : CC.constant SMap.t;
@@ -118,6 +118,8 @@ let find_good_rep ts rep =
               rep
 )
 
+(* TODO(rgrig): DON'T do this while printing. Just have a separate simplify. *)
+(* otherwise, pretty printing is useless for debug *)
 let has_pp_c ts c : bool =
   try
     match CMap.find c ts.originals with
@@ -132,7 +134,8 @@ let has_pp_c ts c : bool =
   with Not_found ->
     false
 
-
+(* TODO(rgrig): Oh, NO! Just have a separate simplify function and let the user
+call it explicitly before printing, *if* desired. *)
 (* Remove pattern match variables from pretty print where possible *)
 let rec get_pargs norm ts rs rep : Psyntax.args =
   if List.mem rep rs then
@@ -219,22 +222,30 @@ let rec get_pargs_norecs norm ts rs rep : Psyntax.args =
      (let cname = Printf.sprintf "NOT_FOUND%i" (CC.const_int rep ts.cc) in
       Arg_var (Vars.freshe_str cname))
 
+let reconstruct ts c =
+  let get_arg h = CMap.find h ts.originals in
+  let rec reconstruct_arg = function
+  | FArg_var v -> Arg_var v
+  | FArg_string s -> Arg_string s
+  | FArg_op (s, hs) -> Arg_op (s, List.map reconstruct_handle hs)
+  | FArg_cons (s, hs) -> Arg_cons (s, List.map reconstruct_handle hs)
+  | FArg_record shs -> Arg_record (List.map (fun (s, h) -> (s, reconstruct_handle h)) shs)
+  and reconstruct_handle h = reconstruct_arg (get_arg h) in
+  reconstruct_arg (get_arg c)
 
-
-
-let pp_c norm ts ppf c : unit =
+let pp_c ts ppf c : unit =
   try
-    Psyntax.string_args ppf (get_pargs norm ts [] c);
+    Psyntax.string_args ppf (reconstruct ts c)
   with Not_found ->
     (* Should call has_pp_c to check it can be pretty printed *)
     Format.fprintf ppf "No PP" (*assert false*)
 
 let pp_ts' pp ppf first ts =
-  CC.pretty_print' (has_pp_c ts) (pp_c false ts) pp ppf first ts.cc
+  CC.pretty_print' (fun _ -> true) (pp_c ts) pp ppf first ts.cc
 
 let pp_ts = pp_whole pp_ts' pp_star
 
-let pp_c ts ppf c = CC.pp_c ts.cc (pp_c true ts) ppf c
+let pp_c ts ppf c = CC.pp_c ts.cc (pp_c ts) ppf c
 
 
 let rec add_term params pt ts : 'a * term_structure =
@@ -684,17 +695,6 @@ let add_constructor
       let cc =  CC.make_constructor cc c in
       {ts with cc = cc; function_symbols = SMap.add fn c ts.function_symbols}
     end
-
-let reconstruct ts c =
-  let get_arg h = CMap.find h ts.originals in
-  let rec reconstruct_arg = function
-  | FArg_var v -> Arg_var v
-  | FArg_string s -> Arg_string s
-  | FArg_op (s, hs) -> Arg_op (s, List.map reconstruct_handle hs)
-  | FArg_cons (s, hs) -> Arg_cons (s, List.map reconstruct_handle hs)
-  | FArg_record shs -> Arg_record (List.map (fun (s, h) -> (s, reconstruct_handle h)) shs)
-  and reconstruct_handle h = reconstruct_arg (get_arg h) in
-  reconstruct_arg (get_arg c)
 
 (* could we use rep_not_used_in? *)
 let is_pvar_free ts c =

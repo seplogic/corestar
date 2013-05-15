@@ -12,9 +12,11 @@
  ********************************************************)
 
 open Corestar_std
-
-open Backtrack
+open Debug
 open Format
+
+(* TODO(rgrig): don't open these *)
+open Backtrack
 open Misc
 open Printing
 open Psyntax
@@ -358,7 +360,7 @@ module CC : PCC =
 
 
 
-    let invariant (ts : t) : bool = if true then true else
+    let invariant (ts : t) : bool = not safe || begin
       let n = Arepresentative.size ts.representative  - 1 in
       (* Check reps have class list *)
       for i = 0 to n do
@@ -401,19 +403,16 @@ module CC : PCC =
 
 	  ) ts.lookup;
       (* check rev_lookup has appropriate lookup *)
-      for i = 0 to n do
-	let rl = Arev_lookup.get ts.rev_lookup i in
-	assert (List.for_all
-	  (fun (r1,r2) ->
-	    match lookup ts (r1,r2) with
-	      Some (a,b,c) ->
-		rep_eq ts c i
-	    | None -> assert false
-		  ) rl
-		  )
+      for cc = 0 to n do
+	let rs = Arev_lookup.get ts.rev_lookup cc in
+        let check_pair (aa, bb) = match lookup ts (aa, bb) with
+	  | Some (a,b,c) ->
+              assert (rep_eq ts cc c && rep_eq ts aa a && rep_eq ts bb b)
+	  | None -> assert false in
+	List.iter check_pair rs
       done;
-
       true
+    end
 
     let pp_c ts pp ppf i =
        (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)
@@ -451,7 +450,7 @@ module CC : PCC =
 
     let pretty_print' has_pp pp_term pp ppf first ts =
       let eqs = get_eqs has_pp (fun x->x) ts in
-      let neqs = get_neqs (fun x -> true) (fun x->x) ts in
+      let neqs = get_neqs (fun _ -> true) (fun x->x) ts in
       let first =
         List.fold_left (pp.separator (pp_eq pp_term) ppf) first eqs in
       List.fold_left (pp.separator (pp_neq pp_term) ppf) first neqs
@@ -619,7 +618,7 @@ module CC : PCC =
 	  (fun x -> match (Aunifiable.get ts.unifiable x) with Standard -> false | _ -> true)
 	  (Aclasslist.get ts.classlist (rep ts nr))
 
-
+    (* TODO(rgrig): Why is this not commutative? *)
     let unifiable_merge ts a b : t =
       let vt =
         match Aunifiable.get ts.unifiable a , Aunifiable.get ts.unifiable b with
@@ -633,7 +632,7 @@ module CC : PCC =
       in
       {ts with unifiable = Aunifiable.set ts.unifiable b vt}
 
-    let rec propogate (ts : t) (pending : (constant * constant) list) : t =
+    let rec propagate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
 	  [] -> ts
 	| (a,b)::pending ->
@@ -652,7 +651,7 @@ module CC : PCC =
 	      if rep_uneq ts a b then
 		raise Contradiction
 	      else if rep_eq ts a b then
-		propogate ts pending
+		propagate ts pending
 	      else
 		let old_repa = rep ts a in
 		let repb = rep ts b in
@@ -686,7 +685,11 @@ module CC : PCC =
 		    (pending,ts)
 		    ul in
 		let ts = clear_uselist ts old_repa in
-		propogate ts pending
+                if safe && !cc_debug then begin
+                  printf "@\nresulting in@\n"; print ts;
+                  printf "@\n with %d pending@\n" (List.length pending);
+                end;
+		propagate ts pending
 	    end
 
 
@@ -724,7 +727,7 @@ module CC : PCC =
 
     let make_equal (ts : t) (a : constant)  (b : constant) : t =
       assert (invariant ts);
-      let ts = propogate ts [(a,b)] in
+      let ts = propagate ts [(a,b)] in
       assert (invariant ts);
       ts
 
@@ -732,7 +735,7 @@ module CC : PCC =
       (*assert (A.get ts.constructor (rep ts a) = Not);*)  (* FIXME: is this needed? *)
       let ts = {ts with constructor = Aconstructor.set ts.constructor (rep ts a) Self} in
       let ts,p = make_uses_constructor a (ts,[]) in
-      propogate ts p
+      propagate ts p
 
     let merge (ts : t) (fe : flat_eq) : t =
       match fe with
@@ -746,10 +749,10 @@ module CC : PCC =
 		(* If a is constructor, then so should c be. *)
 		if Aconstructor.get ts.constructor (rep ts a) <> Not then
 		  let ts,pending = make_use_constructor a (ts,[]) (Complex_eq (a,b,c)) in
-		  propogate ts pending
+		  propagate ts pending
 		else
 		  ts
-	    | Some (e,f,g) -> propogate ts [(c,g)]
+	    | Some (e,f,g) -> propagate ts [(c,g)]
 	  end
 
 

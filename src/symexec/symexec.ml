@@ -322,7 +322,11 @@ end = struct
     let old_pre = pre_confs context s in
     let new_pre = CS.create 1 in
     let add_new_pre c =
-      if is_ok_conf_vertex c && not (CS.mem old_pre c) then CS.add new_pre c in
+      if is_ok_conf_vertex c && not (CS.mem old_pre c) then begin
+        printf "@[<2>copy pre as post:@ %a@]@\n" (* XXX *)
+          Cfg.pp_configuration (CG.V.label c);
+        CS.add new_pre c
+      end in
     let add_posts_of s = CS.iter add_new_pre (post_confs context s) in
     G.Cfg.iter_pred add_posts_of context.flowgraph s;
     CS.iter (CS.add old_pre) new_pre;
@@ -457,8 +461,7 @@ end = struct
   let pec_init context ne_succ_cnt q v = match CG.V.label v with
     | G.ErrorConf -> ConfBfs.enque q v
     | G.OkConf (_, G.Angelic) ->
-(*        let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
-        let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in *)
+        (* TODO(rgrig): simplify? *)
         let cnt = CG.fold_succ (fun _ -> succ) context.confgraph v 0 in
         CD.add ne_succ_cnt v cnt 
     | _ -> ()
@@ -579,13 +582,14 @@ end = struct
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in
-    printf "@[<2>conjuncts before@ %a@\n@]"
-      (pp_list_sep ", " PS.string_form) conjuncts;
-    let conjuncts = PS.mkBigStar conjuncts in
-    printf "@[<2>conjuncts intermediate@ %a@\n@]" PS.string_form conjuncts;
-    let conjuncts = Sepprover.convert conjuncts in
-    printf "@[<2>conjuncts after@ %a@\n@]" Sepprover.string_inner_form conjuncts;
-    Sepprover.conjoin_inner pre conjuncts
+    let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
+          printf "@[<2>before@ (pre:%a,@ conjuncts:%a)@]@\n" (* XXX *)
+            Sepprover.string_inner_form pre
+            Sepprover.string_inner_form conjuncts;
+    let r = Sepprover.conjoin_inner pre conjuncts in
+          printf "@[<2>after@ %a@]@\n" (* XXX *)
+            Sepprover.string_inner_form r;
+    r
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->

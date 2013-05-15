@@ -11,7 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
-
+open Corestar_std
 open Format
 
 type term_structure
@@ -85,6 +85,7 @@ val make_not_equal_t : bool -> term_structure -> Psyntax.args -> Psyntax.args ->
 
 val blank_pattern_vars : term_structure -> term_structure
 
+val pp_ts : term_structure pretty_printer
 val pp_ts' : Printing.sep_wrapper -> formatter -> bool -> term_structure -> bool
 
 val get_pargs : bool -> term_structure -> term_handle list -> term_handle -> Psyntax.args
