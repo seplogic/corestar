@@ -138,10 +138,13 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     let f e = f (tip e) in
     ESet.iter f es
 
+  let fold_of_iter iter f g v zero =
+    let acc = ref zero in iter (fun w -> acc := f w !acc) g v; !acc
+
   let iter_succ f g = iter_pred_or_succ f g.out_edges E.dst
   let iter_pred f g = iter_pred_or_succ f g.in_edges E.src
-  let fold_succ _ = failwith "todo"
-  let fold_pred _ = failwith "todo"
+  let fold_succ f = fold_of_iter iter_succ f
+  let fold_pred f = fold_of_iter iter_pred f
 
   let create ?(size = 1) () =
     { out_edges = VMap.create size
