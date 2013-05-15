@@ -84,9 +84,11 @@ let parameter_var n = (Vars.concretep_str (parameter n))
 
 let has_prefix p v = StringH.starts_with p (Vars.string_var v)
 
+let global_prefix = "$g"
+
 let is_parameter = has_prefix "@parameter"
 let is_return = has_prefix "$ret"
-let is_global = has_prefix "$g"
+let is_global = has_prefix global_prefix
 
 let empty_question empty_logic =
   { q_procs = []
