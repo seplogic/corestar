@@ -288,10 +288,12 @@ end = struct
   let pre_confs context = confs context.pre_of
 
   let remove_conf context c =
-    let s = CD.find context.statement_of c in
-    CS.remove (post_confs context s) c;
-    let f t = CS.remove (pre_confs context t) c in
-    G.Cfg.iter_succ f context.flowgraph s;
+    begin try
+      let s = CD.find context.statement_of c in
+      CS.remove (post_confs context s) c;
+     let f t = CS.remove (pre_confs context t) c in
+     G.Cfg.iter_succ f context.flowgraph s
+    with Not_found -> () end; (* [c] was intermediate, not attached to statements *)
     CG.remove_vertex context.confgraph c
 
   let conf_of_vertex v = match CG.V.label v with
@@ -455,9 +457,10 @@ end = struct
   let pec_init context ne_succ_cnt q v = match CG.V.label v with
     | G.ErrorConf -> ConfBfs.enque q v
     | G.OkConf (_, G.Angelic) ->
-        let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
-        let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in
-        CD.add ne_succ_cnt v cnt
+(*        let f v = match CG.V.label v with G.ErrorConf -> 0 | _ -> 1 in
+        let cnt = CG.fold_succ (fun v n -> f v + n) context.confgraph v 0 in *)
+        let cnt = CG.fold_succ (fun _ -> succ) context.confgraph v 0 in
+        CD.add ne_succ_cnt v cnt 
     | _ -> ()
 
   let pec_process context ne_succ_cnt q =
@@ -470,7 +473,7 @@ end = struct
               assert (n >= 0);
               if n = 0 then ConfBfs.enque q u
           | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
-          | G.ErrorConf -> failwith "ErrorConf has no successors"
+          | G.ErrorConf -> failwith "ErrorConf should have no successors"
       end in
     CG.iter_pred process_pred context.confgraph
 
