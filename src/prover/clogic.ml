@@ -353,7 +353,8 @@ let rec add_pair_list fresh xs ts rs =
       add_pair_list fresh xs ts ((c1,c2)::rs)
 
 
-(* TODO: Will convert eqs into ts for or which is wrong. *)
+(* TODO: Equalities in disjuncts are ignored. Is this sound on the rhs of
+ entailments? If so, explain why; otherwise, fix. *)
 let rec convert_sf fresh (ts :term_structure) (sf : syntactic_form) : formula * term_structure =
   let spat, ts = smset_to_list fresh sf.sspat ts in
   let plain, ts = smset_to_list fresh sf.splain ts in

@@ -578,7 +578,7 @@ end = struct
     let process_var v acc =
       if not (is_interesting v) then acc else begin
         printf "@[seen %a@\n@]" Vars.pp_var v;
-        let w = Vars.freshe_str (Vars.string_var v) in
+        let w = Vars.freshen_exists v in
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in

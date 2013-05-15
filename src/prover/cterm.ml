@@ -84,6 +84,65 @@ let new_ts () =
   var = c2;
   tuple = c3;
 }
+
+(* helpers for [conjoin] *) (* {{{ *)
+
+let term_size t = 0 (* TODO: but, don't use [Map.cardinal] *)
+let max_id t = failwith "XXX"
+
+let get_special_ids t = [ t.record; t.exists; t.var; t.tuple ]
+let get_varmaps t = [ t.pvars; t.apvars; t.evars; t.avars; t.aevars ]
+let get_smaps t = [ t.function_symbols; t.strings; t.record_labels ]
+
+let get_id find get_maps t v =
+  let rec f = function
+    | [] -> raise Not_found
+    | m :: ms -> (try find v m with Not_found -> f ms) in
+  f (get_maps t)
+let get_id_of_var = get_id VarMap.find get_varmaps
+let get_id_of_str = get_id SMap.find get_smaps
+
+(* }}} *)
+
+let conjoin t1 t2 =
+  let t1, t2 = if term_size t1 > term_size t2 then t2, t1 else t1, t2 in
+  let subst = Hashtbl.create 0 in
+  let union i1 i2 =
+    assert (not (Hashtbl.mem subst i1)); Hashtbl.add subst i1 i2 in
+  let fresh_id =
+    let n = ref (max_id t2 - 1) in
+    fun i1 -> incr n; union i1 (!n; failwith "XXX") in
+  let record get_id v i1 =
+    (try union i1 (get_id t2 v) with Not_found -> fresh_id i1) in
+  List.iter (VarMap.iter (record get_id_of_var)) (get_varmaps t1);
+  List.iter (SMap.iter (record get_id_of_str)) (get_smaps t1);
+  List.iter2 union (get_special_ids t1) (get_special_ids t2);
+  let merge_cc _ = failwith "XXX ->Congruence" in
+  let merge_smap _ = failwith "XXX" in
+  let merge_varmaps _ = failwith "XXX" in
+  let merge_cmap cm1 cm2 =
+    let cmap_normalize _ = failwith "XXX" in
+    let compute_term_subst _ = failwith "XXX" in
+    let cm2, cm2inv = cmap_normalize cm2 in
+    compute_term_subst cm1 cm2inv subst
+(*      x    x   f(1)   f(2)
+        1 -> 2    10  -> 20 *)
+  in
+  { cc = merge_cc subst t1.cc t2.cc
+  ; function_symbols = merge_smap t1.function_symbols t2.function_symbols
+  ; strings = merge_smap t1.strings t2.strings
+  ; pvars = merge_varmaps t1.pvars t2.pvars
+  ; apvars = merge_varmaps t1.apvars t2.apvars
+  ; evars = merge_varmaps t1.evars t2.evars
+  ; avars = merge_varmaps t1.avars t2.avars
+  ; aevars = merge_varmaps t1.aevars t2.aevars
+  ; record_labels = merge_smap t1.record_labels t2.record_labels
+  ; record = t2.record
+  ; exists = t2.exists
+  ; var = t2.var
+  ; tuple = t2.tuple
+  ; originals = merge_cmap t1.originals t2.originals }
+
 let local_debug = false
 
 let is_good_rep ts rep =
