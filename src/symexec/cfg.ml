@@ -73,9 +73,21 @@ module Dot = DG.Dot (struct
     | Spec_cfg s -> l (string_of CoreOps.pp_inner_spec s)
 end)
 
+module DotConf = DG.Dot (struct
+  include DG.DotDefault (ConfigurationGraph)
+  let vertex_attributes v =
+    let l x = [ `Label x ] in
+    fprintf str_formatter "%a" pp_configuration (V.label v);
+    let s = flush_str_formatter () in
+    l s
+end)
+
 let fileout file_name f =
   let o = open_out file_name in
   f o; close_out o
 
 let fileout_cfg file_name g =
   fileout file_name (fun o -> Dot.output_graph o g)
+
+let fileout_confgraph file_name g =
+  fileout file_name (fun o -> DotConf.output_graph o g)

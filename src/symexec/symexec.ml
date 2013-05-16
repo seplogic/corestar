@@ -495,8 +495,11 @@ end = struct
     prune_error_confs context;
     post_confs context stop |> CS.elements |> List.map conf_of_vertex
 
+  let output_confgraph n g =
+    G.fileout_confgraph (n ^ "_confgraph.dot") g
+
   (* Builds a graph of configurations, in BFS order. *)
-  let interpret_flowgraph update procedure pre =
+  let interpret_flowgraph proc_name update procedure pre =
     let context = initialize procedure pre in
     let q = StatementBfs.initialize false in
     let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
@@ -512,7 +515,8 @@ end = struct
       None
     end
     else begin
-      if log log_exec then fprintf logf "%a" pp_context context;
+(*      if log log_exec then fprintf logf "%a" pp_context context; *)
+      if log log_exec then output_confgraph proc_name context.confgraph;
       Some (get_new_specs context procedure.P.stop)
     end
 
@@ -610,7 +614,7 @@ end = struct
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = pre * missing_heap
             ; C.post = current_heap } in
-          let cs = interpret_flowgraph update body pre in
+          let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
         let ts =
