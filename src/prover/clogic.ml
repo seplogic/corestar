@@ -410,6 +410,10 @@ let conjoin fresh (f : ts_formula) (sf : syntactic_form) =
   let nf = conjunction nf f.form in
   {ts = ts; form = nf;}
 
+let conjoin_inner ts1 ts2 =
+  { ts = Cterm.conjoin ts1.ts ts2.ts
+  ; form = conjunction ts1.form ts2.form }
+
 
 let make_syntactic' get_eqs get_neqs ts_form =
   let ts,form = break_ts_form ts_form in

@@ -52,7 +52,8 @@ val normalise :
   Cterm.term_structure -> formula -> formula * Cterm.term_structure
 val convert_to_inner : Psyntax.pform -> syntactic_form
 val convert_to_pform : syntactic_form -> Psyntax.pform
-val conjoin : bool -> ts_formula -> syntactic_form -> ts_formula
+val conjoin : bool -> ts_formula -> syntactic_form -> ts_formula (* deprecated *)
+val conjoin_inner : ts_formula -> ts_formula -> ts_formula
 type sequent =
   { matched : RMSet.multiset
   ; seq_ts : Cterm.term_structure

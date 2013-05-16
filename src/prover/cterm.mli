@@ -27,6 +27,8 @@ type pattern
 *)
 val new_ts : unit -> term_structure
 
+val conjoin : term_structure -> term_structure -> term_structure
+
 (* Convert a Psyntax.args with AnyVars into a pattern to match *)
 (*val make_pattern : Psyntax.args -> term_structure -> (pattern * term_structure)))))))))*)
 

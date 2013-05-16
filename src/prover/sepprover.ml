@@ -48,8 +48,9 @@ open Psyntax
     let conjoin : form -> inner_form -> inner_form
       = fun form inner_form -> Clogic.conjoin false inner_form (Clogic.convert_to_inner form)
 
-    let conjoin_inner : inner_form -> inner_form -> inner_form
-      = fun if1 if2 -> Clogic.conjoin false if1 (Clogic.make_syntactic if2)
+    let conjoin_inner f1 f2 =
+      try Clogic.conjoin_inner f1 f2
+      with Contradiction -> inner_falsum
 
     let kill_var : var -> inner_form -> inner_form
       = fun v inner_form ->

@@ -11,6 +11,8 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
+open Debug
 open Format
 
 (* TODO(rgrig): Don't open these. *)
@@ -85,11 +87,6 @@ let new_ts () =
   tuple = c3;
 }
 
-(* helpers for [conjoin] *) (* {{{ *)
-
-let term_size t = 0 (* TODO: but, don't use [Map.cardinal] *)
-let max_id t = failwith "XXX"
-
 let get_special_ids t = [ t.record; t.exists; t.var; t.tuple ]
 let get_varmaps t = [ t.pvars; t.apvars; t.evars; t.avars; t.aevars ]
 let get_smaps t = [ t.function_symbols; t.strings; t.record_labels ]
@@ -102,46 +99,143 @@ let get_id find get_maps t v =
 let get_id_of_var = get_id VarMap.find get_varmaps
 let get_id_of_str = get_id SMap.find get_smaps
 
+let inv t = ()
+  (* TODO(rgrig): This doesn't hold. What should?
+  let wg get k = (try get t k with Not_found -> assert false) in
+  let get_id_of_var = wg get_id_of_var in
+  let get_id_of_str = wg get_id_of_str in
+  let check_leaves c = function
+    | FArg_var v -> assert (c = get_id_of_var v)
+    | FArg_string s -> assert (c = get_id_of_str s)
+    | _ -> () in
+  CMap.iter check_leaves t.originals
+  *)
+
+(* helpers for [conjoin] *) (* {{{ *)
+
+let term_size t = CC.size t.cc
+  (* TODO: but, don't use [Map.cardinal]; for now, a heuristic *)
+
+let c_mk_subst () = Hashtbl.create 0, Hashtbl.create 0
+let c_subst_find_gen (only_t1, common) id =
+  try (true, Hashtbl.find only_t1 id)
+  with Not_found -> (false, Hashtbl.find common id)
+let c_subst_find subst id = snd (c_subst_find_gen subst id)
+let c_subst_is_new (only_t1, common) id =
+  not (Hashtbl.mem only_t1 id || Hashtbl.mem common id)
+let c_subst_union ((_, common) as subst) i1 i2 =
+  assert (c_subst_is_new subst i1);
+  Hashtbl.add common i1 i2
+let c_subst_fresh ((only_t1, _) as subst) i1 i2 =
+  assert (c_subst_is_new subst i1);
+  Hashtbl.add only_t1 i1 i2
+
+let cmap_normalize cm =
+  let norm_cm = ref CMap.empty in
+  let termmap = Hashtbl.create 0 in
+  let record id t =
+    try Hashtbl.find termmap t
+    with Not_found ->
+      (Hashtbl.add termmap t id; norm_cm := CMap.add id t !norm_cm; id) in
+  let normalize =
+    let rep = Hashtbl.create 0 in
+    let rec f id =
+      (try Hashtbl.find rep id with Not_found -> begin
+      let record = record id in
+      let new_id = match CMap.find id cm with
+        | FArg_var _ as t -> record t
+        | FArg_string _ as t -> record t
+        | FArg_op (name, ts) -> record (FArg_op (name, List.map f ts))
+        | FArg_cons (name, ts) -> record (FArg_cons (name, List.map f ts))
+        | FArg_record fs ->
+            let field (name, t) = (name, f t) in
+            record (FArg_record (List.map field fs)) in
+      Hashtbl.add rep id new_id; new_id end) in
+    f in
+  CMap.iter (fun id _ -> ignore (normalize id)) cm;
+  (!norm_cm, termmap)
+
+(*      x    x   f(1)   f(2)
+        1 -> 2    10  -> 20   *)
+let compute_term_subst get_fresh subst cm1 cm2inv =
+  let record id1 t =
+    try
+      let id2 = Hashtbl.find cm2inv t in
+      c_subst_union subst id1 id2; id2
+    with Not_found ->
+      let id2 = get_fresh () in
+      c_subst_fresh subst id1 id2; id2 in
+  let rec f id1 =
+    try c_subst_find subst id1 with Not_found -> begin
+      let record = record id1 in
+      match CMap.find id1 cm1 with
+        | FArg_var _ as t -> record t
+        | FArg_string _ as t -> record t
+        | FArg_op (name, ts) -> record (FArg_op (name, List.map f ts))
+        | FArg_cons (name, ts) -> record (FArg_cons (name, List.map f ts))
+        | FArg_record fs ->
+            let field (name, t) = (name, f t) in
+            record (FArg_record (List.map field fs))
+    end in
+  CMap.iter (fun id1 _ -> ignore (f id1)) cm1
+
 (* }}} *)
 
 let conjoin t1 t2 =
+  if safe then (inv t1; inv t2);
   let t1, t2 = if term_size t1 > term_size t2 then t2, t1 else t1, t2 in
-  let subst = Hashtbl.create 0 in
-  let union i1 i2 =
-    assert (not (Hashtbl.mem subst i1)); Hashtbl.add subst i1 i2 in
-  let fresh_id =
-    let n = ref (max_id t2 - 1) in
-    fun i1 -> incr n; union i1 (!n; failwith "XXX") in
+  let cc = ref t2.cc in
+  let subst = c_mk_subst () in
+  let fresh_id () = let id, new_cc = CC.fresh !cc in cc := new_cc; id in
   let record get_id v i1 =
-    (try union i1 (get_id t2 v) with Not_found -> fresh_id i1) in
+    (try c_subst_union subst i1 (get_id t2 v)
+    with Not_found -> c_subst_fresh subst i1 (fresh_id ())) in
   List.iter (VarMap.iter (record get_id_of_var)) (get_varmaps t1);
   List.iter (SMap.iter (record get_id_of_str)) (get_smaps t1);
-  List.iter2 union (get_special_ids t1) (get_special_ids t2);
-  let merge_cc _ = failwith "XXX ->Congruence" in
-  let merge_smap _ = failwith "XXX" in
-  let merge_varmaps _ = failwith "XXX" in
+  List.iter2 (c_subst_union subst) (get_special_ids t1) (get_special_ids t2);
+  let merge_sv_maps fold find add m1 m2 =
+    let f s c1 m2 =
+      let sub_c1 = (try c_subst_find subst c1 with Not_found -> assert false) in
+      try let c2 = find s m2 in assert (sub_c1 = c2); m2
+      with Not_found -> add s sub_c1 m2 in
+    fold f m1 m2 in
+  let merge_smaps = merge_sv_maps SMap.fold SMap.find SMap.add in
+  let merge_varmaps = merge_sv_maps VarMap.fold VarMap.find VarMap.add in
   let merge_cmap cm1 cm2 =
-    let cmap_normalize _ = failwith "XXX" in
-    let compute_term_subst _ = failwith "XXX" in
     let cm2, cm2inv = cmap_normalize cm2 in
-    compute_term_subst cm1 cm2inv subst
-(*      x    x   f(1)   f(2)
-        1 -> 2    10  -> 20 *)
-  in
-  { cc = merge_cc subst t1.cc t2.cc
-  ; function_symbols = merge_smap t1.function_symbols t2.function_symbols
-  ; strings = merge_smap t1.strings t2.strings
+    compute_term_subst fresh_id subst cm1 cm2inv;
+    let get_id id1 =
+      (try c_subst_find subst id1 with Not_found -> assert false) in
+    let f id1 term1 =
+      let term2 = (match term1 with
+        | FArg_var _ as t -> t
+        | FArg_string _ as t -> t
+        | FArg_op (name, ts) -> FArg_op (name, List.map get_id ts)
+        | FArg_cons (name, ts) -> FArg_cons (name, List.map get_id ts)
+        | FArg_record fs ->
+            let field (name, t) = (name, get_id t) in
+            FArg_record (List.map field fs)) in
+      CMap.add (get_id id1) term2 in
+    CMap.fold f cm1 cm2 in
+  let originals = merge_cmap t1.originals t2.originals in
+  let t = { cc =
+      (try CC.merge_cc (c_subst_find_gen subst) t1.cc t2.cc
+      with Not_found -> assert false)
+  ; function_symbols = merge_smaps t1.function_symbols t2.function_symbols
+  ; strings = merge_smaps t1.strings t2.strings
   ; pvars = merge_varmaps t1.pvars t2.pvars
   ; apvars = merge_varmaps t1.apvars t2.apvars
   ; evars = merge_varmaps t1.evars t2.evars
   ; avars = merge_varmaps t1.avars t2.avars
   ; aevars = merge_varmaps t1.aevars t2.aevars
-  ; record_labels = merge_smap t1.record_labels t2.record_labels
+  ; record_labels = merge_smaps t1.record_labels t2.record_labels
   ; record = t2.record
   ; exists = t2.exists
   ; var = t2.var
   ; tuple = t2.tuple
-  ; originals = merge_cmap t1.originals t2.originals }
+  ; originals } in
+  if safe then inv t;
+  t
 
 let local_debug = false
 

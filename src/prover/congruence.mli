@@ -27,12 +27,14 @@ module type PCC =
       | CPConstant of constant
       | CPApp of pattern_curry * pattern_curry
     val create : unit -> t
+    val size : t -> int
     val add_term : t -> term -> constant * t
     val add_app : t -> constant -> constant -> constant * t
     val fresh : t -> constant * t
     val fresh_unifiable : t -> constant * t
     val fresh_exists : t -> constant * t
     val fresh_unifiable_exists : t -> constant * t
+    val merge_cc : (constant -> bool * constant) -> t -> t -> t
     val make_equal : t -> constant -> constant -> t
     val rep_eq : t -> constant -> constant -> bool
     val rep_uneq : t -> constant -> constant -> bool
