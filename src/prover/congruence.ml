@@ -467,7 +467,7 @@ module CC : PCC =
         end in
       let union c1 c2 =
         let c1, c2 = if Random.bool () then c1, c2 else c2, c1 in
-        set_representative cc2 c1 c2 in
+        set_representative cc2 (rep cc2 c1) (rep cc2 c2) in
       (* add equalities *)
       for i = 0 to n1 - 1 do union (sub i) (sub (rep cc1 i)) done;
       (* update lookup and rev_lookup *)
@@ -775,7 +775,7 @@ module CC : PCC =
 		let cl = get_classlist ts old_repa in
 		let ts = append_cl ts repb cl in
 		let ts = List.fold_left (fun ts c -> set_rep ts c repb)  ts cl in
-                let ts = set_classlist ts old_repa [] in (* is this necessary? *)
+                let ts = set_classlist ts old_repa [] in
 		let ts = unifiable_merge ts old_repa repb in
 		let ul = get_uselist ts old_repa in
 		let (pending,ts) = List.fold_left
