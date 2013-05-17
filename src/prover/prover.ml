@@ -322,7 +322,7 @@ let rec solve rules penalty n goal =
 
 
 let min_depth = 2
-let max_depth = 10
+let max_depth = 4
 
 let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) rules penalty goal =
   if log log_prove then fprintf logf "@,@[<v 2>start idfs proving";

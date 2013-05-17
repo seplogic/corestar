@@ -181,6 +181,8 @@ module type PCC =
       val test : unit -> unit
 
       val delete : t -> constant -> t
+
+      val invariant : t -> bool
       (* }}} *)
     end
 
@@ -300,40 +302,6 @@ module CC : PCC =
 
     let size cc = Auselist.size cc.uselist
 
-    let fresh ts : int * t =
-      let c = Auselist.size ts.uselist in
-      c,
-      {ts with
-	uselist = Auselist.grow ts.uselist 1;
-	representative = Arepresentative.grow ts.representative 1;
-	classlist = Aclasslist.grow ts.classlist 1;
-        rev_lookup = Arev_lookup.grow ts.rev_lookup 1;
-	constructor = Aconstructor.grow ts.constructor 1;
-	unifiable = Aunifiable.grow ts.unifiable 1;
-      }
-
-    let fresh_unifiable ts : int * t =
-      let c,ts = fresh ts in
-      c, {ts with unifiable = Aunifiable.set ts.unifiable c Unifiable}
-
-    let fresh_unifiable_exists ts : int * t =
-      let c,ts = fresh ts in
-      c, {ts with unifiable = Aunifiable.set ts.unifiable c UnifiableExists}
-
-    let fresh_exists ts : int * t =
-      let c,ts = fresh ts in
-      c, {ts with unifiable = Aunifiable.set ts.unifiable c Exists}
-
-    (* TODO(rgrig): Why is this not commutative? *)
-    let merge_unify u1 u2 = match u1, u2 with
-      | Unifiable, Unifiable -> Unifiable
-      | Unifiable, UnifiableExists
-      | UnifiableExists, Unifiable
-      | UnifiableExists, UnifiableExists -> UnifiableExists
-      | _, Unifiable
-      | _, UnifiableExists -> Deleted
-      | _, a -> a
-
     let get_uselist cc = Auselist.get cc.uselist
     let set_uselist cc i v = { cc with uselist = Auselist.set cc.uselist i v }
     let get_representative cc = Arepresentative.get cc.representative
@@ -347,11 +315,9 @@ module CC : PCC =
     let get_unifiable cc = Aunifiable.get cc.unifiable
     let set_unifiable cc i v = { cc with unifiable = Aunifiable.set cc.unifiable i v }
 
-    let rep ts a =
-      Arepresentative.get ts.representative a
-
-    let set_rep ts a r =
-      {ts with representative = Arepresentative.set ts.representative a r }
+    (* deprecate *)
+    let rep = get_representative
+    let set_rep = set_representative
 
     let rep_eq (ts : t) (c : constant) (c2 : constant) : bool =
       rep ts c = rep ts c2
@@ -375,31 +341,38 @@ module CC : PCC =
 	(* Same rep, therefore not not equal. *)
 	false
 
-
     let lookup ts (a,b) =
       try
 	Some (CCMap.find ((rep ts a),(rep ts b)) ts.lookup )
       with Not_found -> None
 
-
-
     let invariant (ts : t) : bool = not safe || begin
-      let n = Arepresentative.size ts.representative  - 1 in
+      let n = size ts - 1 in
       (* Check reps have class list *)
       for i = 0 to n do
 	let r = Arepresentative.get ts.representative i in
 	let cl = Aclasslist.get ts.classlist r in
+        if not (List.exists ((=) i) cl) then begin
+          eprintf "@[<2>INTERNAL: bad union-find, see %d@\nrep:" i;
+          for i = 0 to n do eprintf "@ %d" (get_representative ts i) done;
+          eprintf "@\ncls: ";
+          for i = 0 to n do
+            eprintf "@ [%d: %a]" i (pp_list_sep " " pp_int) (get_classlist ts i)
+          done;
+          eprintf "@\n@]@?";
+          assert false
+        end;
 	assert (List.exists ((=) i) cl)
       done;
       (* check class list has reps *)
       for i = 0 to n do
 	let cl = Aclasslist.get ts.classlist i in
-	assert (List.for_all (fun c -> Arepresentative.get ts.representative c = i) cl)
+	assert (List.for_all (fun c -> get_representative ts c = i) cl)
       done;
       (* check lookup has appropriate rev_lookup and uses *)
       CCMap.iter
 	(fun (a,b) (c,d,e) ->
-	  let rl = Arev_lookup.get ts.rev_lookup (rep ts e) in
+	  let rl = Arev_lookup.get ts.rev_lookup (get_representative ts e) in
 	  assert (rep_eq ts a c);
 	  assert (rep_eq ts b d);
 	  (* Check reverse map exists *)
@@ -437,11 +410,56 @@ module CC : PCC =
       true
     end
 
+    let fresh ts : int * t =
+      assert (invariant ts);
+      let c = size ts in
+      let ts =
+        {ts with
+          uselist = Auselist.grow ts.uselist 1;
+          representative = Arepresentative.grow ts.representative 1;
+          classlist = Aclasslist.grow ts.classlist 1;
+          rev_lookup = Arev_lookup.grow ts.rev_lookup 1;
+          constructor = Aconstructor.grow ts.constructor 1;
+          unifiable = Aunifiable.grow ts.unifiable 1;
+        } in
+      assert (invariant ts);
+      (c, ts)
+
+
+    let fresh_unifiable ts : int * t =
+      let c,ts = fresh ts in
+      let ts = {ts with unifiable = Aunifiable.set ts.unifiable c Unifiable} in
+      assert (invariant ts);
+      (c, ts)
+
+    let fresh_unifiable_exists ts : int * t =
+      let c,ts = fresh ts in
+      let ts =
+        {ts with unifiable = Aunifiable.set ts.unifiable c UnifiableExists} in
+      assert (invariant ts);
+      (c, ts)
+
+    let fresh_exists ts : int * t =
+      let c,ts = fresh ts in
+      let ts = {ts with unifiable = Aunifiable.set ts.unifiable c Exists} in
+      assert (invariant ts);
+      (c, ts)
+
+    (* TODO(rgrig): Why is this not commutative? *)
+    let merge_unify u1 u2 = match u1, u2 with
+      | Unifiable, Unifiable -> Unifiable
+      | Unifiable, UnifiableExists
+      | UnifiableExists, Unifiable
+      | UnifiableExists, UnifiableExists -> UnifiableExists
+      | _, Unifiable
+      | _, UnifiableExists -> Deleted
+      | _, a -> a
+
+
     let merge_cc subst cc1 cc2 =
       if safe then assert (invariant cc1 && invariant cc2);
       let sub = snd @@ subst in
-      let n1 = Arepresentative.size cc1.representative in
-      let n2 = Arepresentative.size cc2.representative in
+      let n1, n2 = size cc1, size cc2 in
       let cc1, cc2 = ref cc1, ref cc2 in   (* DANGER *)
       let ws set cc i v = cc := set !cc i v in
       let set_uselist = ws set_uselist in
@@ -462,8 +480,9 @@ module CC : PCC =
       let rec rep cc c =
         let r = get_representative !cc c in
         if r = c then r else begin
-          let r = rep cc r in
-          set_representative cc c r; r
+          let r' = rep cc r in
+          assert (cc <> cc1 || r = r'); (* shouldn't change cc1 *)
+          set_representative cc c r'; r'
         end in
       let union c1 c2 =
         let c1, c2 = if Random.bool () then c1, c2 else c2, c1 in
@@ -501,9 +520,8 @@ module CC : PCC =
             assert (rep cc2 (sub a) = rep cc2 aa);
             assert (rep cc2 (sub b) = rep cc2 bb);
             r
-(*	| Not, x | x, Not -> Not (* TODO: Do something sensible here *)
-        | _ -> failwith "INTERNAL: Should this raise Contradiction?"
-*) 
+        (* TODO: Do something sensible here. *)
+(*         | _ -> failwith "INTERNAL: Should this raise Contradiction?" in *)
 	| _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
@@ -845,9 +863,12 @@ module CC : PCC =
 
     let make_constructor (ts : t) (a : constant) : t =
       (*assert (A.get ts.constructor (rep ts a) = Not);*)  (* FIXME: is this needed? *)
+      assert (invariant ts);
       let ts = {ts with constructor = Aconstructor.set ts.constructor (rep ts a) Self} in
       let ts,p = make_uses_constructor a (ts,[]) in
-      propagate ts p
+      let ts = propagate ts p in
+      assert (invariant ts);
+      ts
 
     let merge (ts : t) (fe : flat_eq) : t =
       match fe with
@@ -885,12 +906,15 @@ module CC : PCC =
 
 
     let add_app (ts : t) (c1 : constant ) (c2 : constant) : constant * t =
-      match lookup ts (c1,c2) with
+      assert (invariant ts);
+      let c, ts = (match lookup ts (c1,c2) with
 	None ->
 	  let c, ts = fresh ts in
 	  let ts = merge ts (Complex (c1,c2,c)) in
 	  c, ts
-      | Some (e,f,g) -> rep ts g, ts
+      | Some (e,f,g) -> rep ts g, ts) in
+      assert (invariant ts);
+      (c, ts)
 
 
     let rec add_curry_term (ts  : t) (term1 : curry_term) : constant * t  =
@@ -1219,17 +1243,17 @@ module CC : PCC =
        let x2,cc1 = fresh cc1 in
        let y1,cc1 = fresh cc1 in
        let y2,cc1 = fresh cc1 in
-       
+
        let cc2 = create () in
        let nil,cc2 = fresh cc2 in
        let x2,cc2 = fresh cc2 in
        let x2,cc2 = fresh cc2 in
        let y2,cc2 = fresh cc2 in
        let y2,cc2 = fresh cc2 in
-       
+
        let subst x = (true, x) in
 
-       let cc3 = merge_cc subst cc1 cc2 in
+       let _ = merge_cc subst cc1 cc2 in
        ()
 
 (* Can probably remove pattern match by using unifiable variables in terms.*)
@@ -1342,6 +1366,7 @@ module CC : PCC =
                       (inter_list 0 (Arepresentative.size ts.representative - 1)))
 
 
+    (* TODO: Is it intended to export this one rather than the earlier one? *)
     let rep_uneq ts c d =
       try
 	ignore (make_equal ts c d); false
@@ -1376,4 +1401,4 @@ module CC : PCC =
 
   end
 
-let _ = CC.test ()
+(* let _ = CC.test () *)

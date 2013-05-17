@@ -184,9 +184,9 @@ let compute_term_subst get_fresh subst cm1 cm2inv =
 let conjoin t1 t2 =
   if safe then (inv t1; inv t2);
   let t1, t2 = if term_size t1 > term_size t2 then t2, t1 else t1, t2 in
-  let cc = ref t2.cc in
+  let cc2 = ref t2.cc in
   let subst = c_mk_subst () in
-  let fresh_id () = let id, new_cc = CC.fresh !cc in cc := new_cc; id in
+  let fresh_id () = let id, new_cc = CC.fresh !cc2 in cc2 := new_cc; id in
   let record get_id v i1 =
     (try c_subst_union subst i1 (get_id t2 v)
     with Not_found -> c_subst_fresh subst i1 (fresh_id ())) in
@@ -219,7 +219,7 @@ let conjoin t1 t2 =
     CMap.fold f cm1 cm2 in
   let originals = merge_cmap t1.originals t2.originals in
   let t = { cc =
-      (try CC.merge_cc (c_subst_find_gen subst) t1.cc t2.cc
+      (try CC.merge_cc (c_subst_find_gen subst) t1.cc !cc2
       with Not_found -> assert false)
   ; function_symbols = merge_smaps t1.function_symbols t2.function_symbols
   ; strings = merge_smaps t1.strings t2.strings
@@ -570,8 +570,10 @@ let ground_pattern_tuple (ptl : args list) (ts : term_structure) : term_handle *
 
 let add_term fresh term ts =
   (* Add new term *)
+  assert (CC.invariant ts.cc);
   let c,ts = add_term (params_term fresh) term ts in
-  c,ts
+  assert (CC.invariant ts.cc);
+  (c, ts)
 
 
 

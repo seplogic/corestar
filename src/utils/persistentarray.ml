@@ -71,12 +71,14 @@ module Make (Creator : CREATOR) : S with type elt = Creator.elt
     let unsafe_create a = (ref (RealArray a), Array.length a)
 
     let rec get (a,ir) i =
+      assert (0 <= i && i < ir);
       reroot (a,ir);
       match !a with
         RealArray a -> Array.get a i
       | Diff (j, x, a) -> if i=j then x else get a i
 
     let rec set (a,ir) i x =
+      assert (0 <= i && i < ir);
       reroot (a,ir);
       match !a with
         RealArray a' as n ->

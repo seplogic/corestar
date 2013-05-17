@@ -321,13 +321,8 @@ end = struct
   let update_pre_confs context s =
     let old_pre = pre_confs context s in
     let new_pre = CS.create 1 in
-(*    let has_pre p pset = CS.*)
     let add_new_pre c =
-      if is_ok_conf_vertex c && not (CS.mem old_pre c) then begin
-        printf "@[<2>copy pre as post:@ %a@]@\n" (* XXX *)
-          Cfg.pp_configuration (CG.V.label c);
-        CS.add new_pre c
-      end in
+      if is_ok_conf_vertex c && not (CS.mem old_pre c) then CS.add new_pre c in
     let add_posts_of s = CS.iter add_new_pre (post_confs context s) in
     G.Cfg.iter_pred add_posts_of context.flowgraph s;
     CS.iter (CS.add old_pre) new_pre;
@@ -455,6 +450,43 @@ end = struct
       |> List.map (execute_one_triple pre_conf)
       |> make_angelic_choice
 
+  type ('x, 'xs) abs_collection =
+    { ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
+    ; ac_add : 'x -> 'xs -> 'xs
+    ; ac_mk : unit -> 'xs }
+
+  let abstract ac add_edge implies confs =
+    let add_edges l c = List.iter (flip add_edge c) l in
+    let partition add_ns (ys, ns) p xs =
+      let f x (ys, ns) =
+        if p x then (x :: ys, ns) else (ys, add_ns x ns) in
+      ac.ac_fold f xs (ys, ns) in
+    let find p xs = fst (partition (fun _ _ -> ()) ([], ()) p xs) in
+
+    let f c weakest = (* Warning x^2 *)
+      let c_implies = find (implies c) weakest in (* c=> c_implies *)
+      match c_implies with
+	| [] ->
+	  begin (* c needs to be added *)
+	    let implies_c, not_implies_c = (* ∀x in implies_c: x => c *)
+              partition ac.ac_add ([], ac.ac_mk ()) (flip implies c) weakest in
+            add_edges implies_c c;
+            ac.ac_add c not_implies_c
+	  end
+        | r :: _ -> add_edge c r; weakest in
+    ac.ac_fold f confs (ac.ac_mk ())
+
+  let implies_conf logic v1 v2 = match CG.V.label v1, CG.V.label v2 with
+    | G.ErrorConf, G.ErrorConf -> true
+    | G.ErrorConf, _ | _, G.ErrorConf -> false
+    | G.OkConf (c1, _), G.OkConf (c2, _) ->
+      Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
+      Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
+
+  let implies_triple logic t1 t2 =
+    Sepprover.implies logic t1.C.post t2.C.post &&
+    Sepprover.implies logic t2.C.pre t1.C.pre
+
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
 
@@ -466,38 +498,18 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract logic confgraph confs =
-    let weakest = CS.create 0 in
-
-    let implies v1 v2 =
-      match CG.V.label v1, CG.V.label v2 with
-	| G.ErrorConf, G.ErrorConf -> true
-	| G.ErrorConf, _ | _, G.ErrorConf -> false
-	| G.OkConf (c1, _), G.OkConf (c2, _) ->
-	  Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
-	  Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap in
-    let filter p s =
-      let safe_p x = try p x with _ -> fprintf logf "@[PROVER DIED, moving on...@]@?"; false in
-      CS.fold (fun x l -> if safe_p x then x::l else l) s [] in
-    let remove_all = List.iter (CS.remove weakest) in
-    let add = CS.add weakest in
-    let add_edge = CG.add_edge confgraph in
-    let add_edges l c = List.iter (fun v -> add_edge v c) l in
-    let iter = CS.iter in
-
-    let f c = (* Warning x^2 *)
-      let c_implies = filter (implies c) weakest in (* c=> c_implies *)
-      match c_implies with
-	| [] ->
-	  begin (* c needs to be added *)
-	    let implies_c = filter (flip implies c) weakest in (* implies_c => c *)
-	    remove_all implies_c;
-	    add c;
-	    add_edges implies_c c
-	  end
-	| (r::_) -> add_edge c r in
-    iter f confs;
-    weakest
+  let abstract_conf logic confgraph =
+    abstract
+      { ac_fold = CS.fold
+      ; ac_add = (fun x xs -> CS.add xs x; xs)
+      ; ac_mk = (fun () -> CS.create 0) }
+      (CG.add_edge confgraph) (implies_conf logic)
+  let abstract_triple logic =
+    abstract
+      { ac_fold = List.fold_right
+      ; ac_add = (fun x xs -> x :: xs)
+      ; ac_mk = (fun () -> []) }
+      (fun _ _ -> ()) (implies_triple logic)
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -543,10 +555,12 @@ end = struct
 
   let confgraph_counter = ref 0
   let output_confgraph_i n i g =
-    let ccc = incr confgraph_counter; !confgraph_counter in
-    let fname = sprintf "%s_confgraph_%d_%d.dot" n ccc i in
-    if log log_exec then fprintf logf "@[Outputing confgraph to file: %s@]@\n@?" fname;
-    G.fileout_confgraph fname g
+    if !confgraph_counter < 100 then begin
+      let ccc = incr confgraph_counter; !confgraph_counter in
+      let fname = sprintf "%s_confgraph_%05d_%d.dot" n ccc i in
+      if log log_exec then fprintf logf "@[Outputing confgraph to file: %s@]@\n@?" fname;
+      G.fileout_confgraph fname g
+    end
 
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph proc_name update procedure pre =
@@ -589,13 +603,13 @@ end = struct
     let abduct = abduct rules in
     let make_framable = replace_pvars pvars in
     let execute = execute abduct make_framable (spec_of post body.P.stop) in
-    update execute (abstract rules)
+    update execute (abstract_conf rules)
 
   let update_check rules body post =
     let abduct = frame rules in
     let check_emp x = assert (x = emp); emp in
     let execute = execute abduct check_emp (spec_of post body.P.stop) in
-    update execute (abstract rules)
+    update execute (abstract_conf rules)
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
   let bin_option f x y = match x, y with
@@ -673,28 +687,32 @@ end = struct
         let ts = HashSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
+            if log log_phase then
+              fprintf logf "@[symexec inferring %s@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer pvars rules body) in
             let ts = empty_inner_triple :: ts in
             let ts = lol_cat (List.map process_triple_infer ts) in
+            let ts = option_map (abstract_triple rules) ts in
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
+        if log log_phase then
+          fprintf logf "@[symexec checking %s@]@\n@?" procedure.C.proc_name;
         let process_triple_check = process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
-          if log log_exec then (
-            fprintf logf "@[confgraph after symbolic execution: TODO@\n@]@?");
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
-          let ts =
+          let new_ts =
             List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in
-	  (* Check if specifications have changed *)
-          let ts = List.map normalize ts in
-          let new_specs = HashSet.of_list ts in
-          if hashset_equals procedure.C.proc_spec new_specs then OK
+	  (* Check if specifications ar better changed *)
+          let old_ts = HashSet.elements procedure.C.proc_spec in
+          let not_better nt =
+            List.exists (fun ot -> implies_triple rules ot nt) old_ts in
+          if List.for_all not_better new_ts then OK
           else
-            (procedure.C.proc_spec <- new_specs;
+            (procedure.C.proc_spec <- HashSet.of_list new_ts;
              if log log_exec then begin
                fprintf logf "@[<2>Abducted triples:";
 	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_inner_triple triple;) ts;

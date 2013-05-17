@@ -66,7 +66,7 @@
 
 open Format
 
-let safe = true
+let safe = false
 
 let log_exec = 1 lsl 0
 let log_load = 1 lsl 1

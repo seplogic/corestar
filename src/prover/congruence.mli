@@ -76,5 +76,7 @@ module type PCC =
   
     val test : unit -> unit
     val delete : t -> constant -> t
+
+    val invariant : t -> bool
   end
 module CC : PCC
