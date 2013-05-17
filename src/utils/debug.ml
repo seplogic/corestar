@@ -76,8 +76,9 @@ let log_prove = 1 lsl 4
 let log_specs = 1 lsl 5
 let log_cfg = 1 lsl 6
 let log_mm = 1 lsl 7
+let log_prove_detail = 1 lsl 8
 
-let log_active = log_phase lor log_exec lor log_prove
+let log_active = log_phase lor log_exec
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0

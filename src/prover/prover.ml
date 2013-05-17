@@ -78,11 +78,12 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
     let ass,ts =
       try
       convert_sf fresh  seq.seq_ts pseq.assumption_diff
-      with Contradiction ->
-        fprintf !(Debug.proof_dump)
-          "Failed to add formula to lhs: %a@\n"
+      with Contradiction -> begin
+        if log log_prove_detail then
+          fprintf logf "Failed to add formula to lhs: %a@\n"
           pp_syntactic_form pseq.assumption_diff;
-      raise Contradiction
+        raise Contradiction
+      end
     in
     let assumption = conjunction ass seq.assumption in
 
@@ -90,11 +91,12 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
     let sam,ts =
       try
         convert_sf fresh ts pseq.assumption_same
-      with Contradiction ->
-        fprintf !(Debug.proof_dump)
-          "Failed to add formula to matched: %a@\n"
+      with Contradiction -> begin
+        if log log_prove_detail then
+          fprintf logf "Failed to add formula to matched: %a@\n"
           pp_syntactic_form pseq.assumption_same;
-        assert false in
+        assert false
+      end in
     let matched = RMSet.union sam.spat seq.matched in
 
     (* Construct new obligation portion *)
@@ -108,9 +110,11 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
           convert_sf_without_eqs true ts false_sform
         with Contradiction -> assert false in
     Some { assumption; obligation; matched; seq_ts }
-  end with Contradiction ->
-    fprintf !(Debug.proof_dump) "Contradiction detected!!@\n";
+  end with Contradiction -> begin
+    if log log_prove_detail then
+      fprintf logf "Contradiction detected!!@\n";
     None
+  end
 
 
 let sequent_join_fresh = sequent_join true
@@ -179,7 +183,7 @@ let apply_rule sr seq =
     && contains seq_ts obligation sr.without_right
     && check sr.where seq in (* TODO: do we want to use the old asm / ob here for the SMT guard? *)
   if not ok then raise Backtrack.No_match;
-  fprintf !(Debug.proof_dump) "@[Match rule %s@]@\n" sr.name;
+  if log log_prove_detail then fprintf logf "@[Match rule %s@]@\n" sr.name;
   List.map (map_option (sequent_join_fresh seq)) sr.premises)))
 
 let rewrite_guard_check seq (ts,guard) =
@@ -217,9 +221,11 @@ try
   let ass,ts =
     try
       out_normalise seq.seq_ts ass
-    with Contradiction ->
-      fprintf !(Debug.proof_dump)"Success: %a@\n" pp_sequent seq;
+    with Contradiction -> begin
+      if log log_prove_detail then
+        fprintf logf "Success: %a@\n" pp_sequent seq;
       raise Success
+    end
   in
   try
     let obs,_ =
@@ -322,7 +328,7 @@ let rec solve rules penalty n goal =
 
 
 let min_depth = 2
-let max_depth = 4
+let max_depth = 3
 
 let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) rules penalty goal =
   if log log_prove then fprintf logf "@,@[<v 2>start idfs proving";

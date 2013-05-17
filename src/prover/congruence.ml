@@ -458,9 +458,22 @@ module CC : PCC =
 
     let merge_cc subst cc1 cc2 =
       if safe then assert (invariant cc1 && invariant cc2);
-      let sub = snd @@ subst in
       let n1, n2 = size cc1, size cc2 in
       let cc1, cc2 = ref cc1, ref cc2 in   (* DANGER *)
+      let subst =
+        let extra = Hashtbl.create 0 in
+        fun c1 -> begin
+          try (true, Hashtbl.find extra c1)
+          with Not_found -> begin
+            try subst c1
+            with Not_found -> begin
+              let c2 = let id, new_cc = fresh !cc2 in cc2 := new_cc; id in
+              Hashtbl.add extra c1 c2; (true, c2)
+            end
+          end
+        end in
+      let sub = snd @@ subst in
+      for i = 0 to n1 - 1 do ignore (sub i) done;
       let ws set cc i v = cc := set !cc i v in
       let set_uselist = ws set_uselist in
       let set_representative = ws set_representative in

@@ -555,7 +555,7 @@ end = struct
 
   let confgraph_counter = ref 0
   let output_confgraph_i n i g =
-    if !confgraph_counter < 100 then begin
+    if !confgraph_counter < 1000 then begin
       let ccc = incr confgraph_counter; !confgraph_counter in
       let fname = sprintf "%s_confgraph_%05d_%d.dot" n ccc i in
       if log log_exec then fprintf logf "@[Outputing confgraph to file: %s@]@\n@?" fname;
