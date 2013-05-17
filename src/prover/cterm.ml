@@ -124,8 +124,8 @@ let c_subst_find subst id = snd (c_subst_find_gen subst id)
 let c_subst_is_new (only_t1, common) id =
   not (Hashtbl.mem only_t1 id || Hashtbl.mem common id)
 let c_subst_union ((_, common) as subst) i1 i2 =
-  assert (c_subst_is_new subst i1);
-  Hashtbl.add common i1 i2
+  assert (try c_subst_find subst i1 = i2 with Not_found -> true);
+  Hashtbl.replace common i1 i2
 let c_subst_fresh ((only_t1, _) as subst) i1 i2 =
   assert (c_subst_is_new subst i1);
   Hashtbl.add only_t1 i1 i2

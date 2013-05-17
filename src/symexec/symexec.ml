@@ -321,6 +321,7 @@ end = struct
   let update_pre_confs context s =
     let old_pre = pre_confs context s in
     let new_pre = CS.create 1 in
+(*    let has_pre p pset = CS.*)
     let add_new_pre c =
       if is_ok_conf_vertex c && not (CS.mem old_pre c) then begin
         printf "@[<2>copy pre as post:@ %a@]@\n" (* XXX *)
@@ -344,7 +345,7 @@ end = struct
       let ok_vertex t = G.OkConf (conf_of_vertex parent, t) in
       function
         | CT_error -> add_child (new_post G.ErrorConf)
-        | CT_ok c -> add_child (new_post (ok_vertex G.Demonic))
+        | CT_ok c -> add_child (new_post (G.OkConf (c, G.Demonic)))
         | CT_split (t, qs) ->
             let child = CG.V.create (ok_vertex t) in add_child child;
             List.iter (graph_of_tree child) qs in
@@ -454,7 +455,49 @@ end = struct
       |> List.map (execute_one_triple pre_conf)
       |> make_angelic_choice
 
-  let abstract context confs = confs (* XXX *)
+  (* The notation "weakest" and "implies" refer only to the current heap.
+     For ok_configurations (M1, H1) and (M2, H2), we observe that
+
+     [[(M1, H1)]] /\ M2 => M1 /\ H1 => H2
+     ------------------------------------
+             [[(M2, H2)]]
+
+     where [[(M, H)]] is roughly that "if M is added to the preconditon, then H will be true of the current heap".
+
+     In this sense, implies (M1, H1) (M2, H2) actually checks
+     [[(M2, H2)]] => [[(M1, H1)]]. *)
+  let abstract logic confgraph confs =
+    let weakest = CS.create 0 in
+
+    let implies v1 v2 =
+      match CG.V.label v1, CG.V.label v2 with
+	| G.ErrorConf, G.ErrorConf -> true
+	| G.ErrorConf, _ | _, G.ErrorConf -> false
+	| G.OkConf (c1, _), G.OkConf (c2, _) ->
+	  Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
+	  Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap in
+    let filter p s =
+      let safe_p x = try p x with _ -> fprintf logf "@[PROVER DIED, moving on...@]@?"; false in
+      CS.fold (fun x l -> if safe_p x then x::l else l) s [] in
+    let remove_all = List.iter (CS.remove weakest) in
+    let add = CS.add weakest in
+    let add_edge = CG.add_edge confgraph in
+    let add_edges l c = List.iter (fun v -> add_edge v c) l in
+    let iter = CS.iter in
+
+    let f c = (* Warning x^2 *)
+      let c_implies = filter (implies c) weakest in (* c=> c_implies *)
+      match c_implies with
+	| [] ->
+	  begin (* c needs to be added *)
+	    let implies_c = filter (flip implies c) weakest in (* implies_c => c *)
+	    remove_all implies_c;
+	    add c;
+	    add_edges implies_c c
+	  end
+	| (r::_) -> add_edge c r in
+    iter f confs;
+    weakest
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -498,6 +541,13 @@ end = struct
   let output_confgraph n g =
     G.fileout_confgraph (n ^ "_confgraph.dot") g
 
+  let confgraph_counter = ref 0
+  let output_confgraph_i n i g =
+    let ccc = incr confgraph_counter; !confgraph_counter in
+    let fname = sprintf "%s_confgraph_%d_%d.dot" n ccc i in
+    if log log_exec then fprintf logf "@[Outputing confgraph to file: %s@]@\n@?" fname;
+    G.fileout_confgraph fname g
+
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph proc_name update procedure pre =
     let context = initialize procedure pre in
@@ -505,6 +555,7 @@ end = struct
     let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
     enque_succ procedure.P.start;
     let rec bfs budget =
+      if log log_exec then output_confgraph_i proc_name budget context.confgraph;
       if budget = 0 || StatementBfs.is_done q then budget else begin
         let s = StatementBfs.deque q in
         if update context s then enque_succ s;
@@ -515,8 +566,7 @@ end = struct
       None
     end
     else begin
-(*      if log log_exec then fprintf logf "%a" pp_context context; *)
-      if log log_exec then output_confgraph proc_name context.confgraph;
+(*      if log log_exec then output_confgraph proc_name context.confgraph; *)
       Some (get_new_specs context procedure.P.stop)
     end
 
@@ -539,13 +589,13 @@ end = struct
     let abduct = abduct rules in
     let make_framable = replace_pvars pvars in
     let execute = execute abduct make_framable (spec_of post body.P.stop) in
-    update execute abstract
+    update execute (abstract rules)
 
   let update_check rules body post =
     let abduct = frame rules in
     let check_emp x = assert (x = emp); emp in
     let execute = execute abduct check_emp (spec_of post body.P.stop) in
-    update execute abstract
+    update execute (abstract rules)
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
   let bin_option f x y = match x, y with
@@ -581,33 +631,37 @@ end = struct
       && (Sepprover.get_equals_pvar_free v pre = []) in
     let process_var v acc =
       if not (is_interesting v) then acc else begin
-        printf "@[seen %a@\n@]" Vars.pp_var v;
+        (* printf "@[seen %a@\n@]" Vars.pp_var v; *)
         let w = Vars.freshen_exists v in
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in
     let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
+(*
           printf "@[<2>before@ (pre:%a,@ conjuncts:%a)@]@\n" (* XXX *)
             Sepprover.string_inner_form pre
             Sepprover.string_inner_form conjuncts;
+*)
     let r = Sepprover.conjoin_inner pre conjuncts in
+(*
           printf "@[<2>after@ %a@]@\n" (* XXX *)
             Sepprover.string_inner_form r;
+*)
     r
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
-          fprintf logf "@[Interpreting empty procedure body: %s@\n@]" procedure.C.proc_name;
+          fprintf logf "@[Interpreting empty procedure body: %s@\n@]@?" procedure.C.proc_name;
         OK
     | Some body ->
         if log log_phase then
-          fprintf logf "@[Interpreting procedure body: %s@\n@]" procedure.C.proc_name;
+          fprintf logf "@[Interpreting procedure body: %s@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let pvars = collect_pvars body.P.cfg in
         let process_triple update triple =
           if log log_phase then
-            fprintf logf "@[Processing triple: %a@\n@]" CoreOps.pp_inner_triple triple;
+            fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_inner_triple triple;
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
@@ -629,7 +683,7 @@ end = struct
         let process_triple_check = process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
           if log log_exec then (
-            fprintf logf "@[confgraph after symbolic execution: TODO@\n@]");
+            fprintf logf "@[confgraph after symbolic execution: TODO@\n@]@?");
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin

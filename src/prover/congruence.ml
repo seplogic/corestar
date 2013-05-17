@@ -475,7 +475,10 @@ module CC : PCC =
         let a2, b2, c2 = sub a1, sub b1, sub c1 in
         try
           let _, _, c2' = CCMap.find (a2, b2) lookup in
+	  union c2 c2'; (* XXX *)
+(*
           assert (rep cc2 c2 = rep cc2 c2'); (* TODO: OK to *make* them equal? *)
+*)
           lookup
         with Not_found -> CCMap.add (a2, b2) (a2, b2, c2) lookup in
       cc2 := { !cc2 with lookup = CCMap.fold app !cc1.lookup !cc2.lookup };
@@ -498,7 +501,10 @@ module CC : PCC =
             assert (rep cc2 (sub a) = rep cc2 aa);
             assert (rep cc2 (sub b) = rep cc2 bb);
             r
-        | _ -> failwith "INTERNAL: Should this raise Contradiction?" in
+(*	| Not, x | x, Not -> Not (* TODO: Do something sensible here *)
+        | _ -> failwith "INTERNAL: Should this raise Contradiction?"
+*) 
+	| _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
       (* update classes *)
@@ -516,7 +522,7 @@ module CC : PCC =
       let check_contradiction (a, b) () =
         if rep cc2 a <> rep cc2 b then raise Contradiction in
       CCMap.iter check_contradiction !cc2.not_equal;
-      (* update uselist; TODO: make sure it doesn't have duplicates  *)
+      (* update uselist; *)
       let lookup_use (a, b) eq =
         let a, b = (rep cc2 a, rep cc2 b) in
         let f a =
@@ -530,6 +536,13 @@ module CC : PCC =
         let f a b = set_uselist cc2 a (Not_equal b :: get_uselist !cc2 a) in
         f a b; f b a in
       CCMap.iter neq_use !cc2.not_equal;
+      let trim_list l =
+	let f l x = match l with
+	  | [] -> [x]
+	  | (x'::l') when x = x' -> l'
+	  | l' -> x::l' in
+	List.fold_left f [] (List.sort compare l) in
+      for i = 0 to n2 - 1 do set_uselist cc2 i (trim_list (get_uselist !cc2 i)) done;
       if safe then assert (invariant !cc2);
       !cc2
 
@@ -1198,6 +1211,25 @@ module CC : PCC =
 	     printf "Test 10 Failed!\n"
 	 end
        in
+
+       (* test conjoin *)
+       let cc1 = create () in
+       let nil,cc1 = fresh cc1 in
+       let x1,cc1 = fresh cc1 in
+       let x2,cc1 = fresh cc1 in
+       let y1,cc1 = fresh cc1 in
+       let y2,cc1 = fresh cc1 in
+       
+       let cc2 = create () in
+       let nil,cc2 = fresh cc2 in
+       let x2,cc2 = fresh cc2 in
+       let x2,cc2 = fresh cc2 in
+       let y2,cc2 = fresh cc2 in
+       let y2,cc2 = fresh cc2 in
+       
+       let subst x = (true, x) in
+
+       let cc3 = merge_cc subst cc1 cc2 in
        ()
 
 (* Can probably remove pattern match by using unifiable variables in terms.*)
@@ -1344,4 +1376,4 @@ module CC : PCC =
 
   end
 
-(*let _ = CC.test ()*)
+let _ = CC.test ()
