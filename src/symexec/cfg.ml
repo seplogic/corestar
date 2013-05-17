@@ -62,10 +62,10 @@ end
 
 module Procedure = MakeProcedure (Cfg)
 
-module Dot = DG.Dot (struct
+module DotCfg = DG.Dot (struct
   include DG.DotDefault (Cfg)
   let vertex_attributes v =
-    let l x = [ `Label x ] in
+    let l x = [ `Label (Dot.escape_for_label x) ] in
     match V.label v with
     | Abs_cfg -> l "ABS"
     | Call_cfg c -> l c.C.call_name
@@ -76,7 +76,7 @@ end)
 module DotConf = DG.Dot (struct
   include DG.DotDefault (ConfigurationGraph)
   let vertex_attributes v =
-    let l x = [ `Label x ] in
+    let l x = [ `Label (Dot.escape_for_label x) ] in
     fprintf str_formatter "%a" pp_configuration (V.label v);
     let s = flush_str_formatter () in
     l s
@@ -87,7 +87,7 @@ let fileout file_name f =
   f o; close_out o
 
 let fileout_cfg file_name g =
-  fileout file_name (fun o -> Dot.output_graph o g)
+  fileout file_name (fun o -> DotCfg.output_graph o g)
 
 let fileout_confgraph file_name g =
   fileout file_name (fun o -> DotConf.output_graph o g)
