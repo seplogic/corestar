@@ -1256,28 +1256,52 @@ module CC : PCC =
        let t0 = nth cons nil 0 in
        let t1 = nth cons nil 1 in
        let t2 = nth cons nil 2 in
-       let l1,cc = add_term cc t1 in
        let l0,cc = add_term cc t0 in
+       let l1,cc = add_term cc t1 in
        let l2,cc = add_term cc t2 in
+
+       if rep_eq cc l0 nil then printf "Correct Test 11a. \n"
+	 else
+	   begin
+	     printf "Test 11a fails!";
+	     print_constant cc nil;
+	     print_constant cc cons;
+	     print_constant cc l1;
+	     print_constant cc l2;
+	     print cc
+	   end;
 
        let cc = make_equal cc l0 l2 in
 
+       if rep_eq cc l0 l2 && rep_eq cc l0 nil &&
+	   (not (rep_eq cc l1 l2)) && (not (rep_eq cc l0 l1))
+	 then printf "Correct Test 11b. \n"
+	 else
+	   begin
+	     printf "Test 11b fails!";
+	     print_constant cc nil;
+	     print_constant cc cons;
+	     print_constant cc l1;
+	     print_constant cc l2;
+	     print cc
+	   end;
+
        let subst = function
-	 | x when x = cons -> false, r1
-	 | x when x = nil -> false, r2
-	 | x when x = l0 -> false, c0
-	 | x when x = l1 -> false, c1
-	 | x when x = l2 -> false, c2
-	 | x -> printf "Warning: Substituting unknown constant\n"; true, x in
+	 | x when x = cons -> printf "Substituting cons: %d -> %d\n" x r1; false, r1
+	 | x when x = nil -> printf "Substituting nil: %d -> %d\n" x r2; false, r2
+	 | x when x = l0 -> printf "Substituting l0: %d -> %d\n" x c0; false, c0
+	 | x when x = l1 -> printf "Substituting l1: %d -> %d\n" x c1; false, c1
+	 | x when x = l2 -> printf "Substituting l2: %d -> %d\n" x c2; false, c2
+	 | x -> printf "Warning: Substituting unknown constant %d\n" x; true, x in
 
        let ccts = merge_cc subst ts cc in
 
        if rep_eq ccts c0 c2 && rep_eq ccts c1 c3 && rep_eq ccts c2 c4 &&
 	   (not (rep_eq ccts c1 c2)) && (not (rep_eq ccts c2 c3)) && (not (rep_eq ccts c3 c4))
-	 then printf "Correct Test 11. \n"
+	 then printf "Correct Test 11c. \n"
 	 else
 	   begin
-	     printf "Test 11 fails!";
+	     printf "Test 11c fails!";
 	     print_constant ccts c1;
 	     print_constant ccts c2;
 	     print_constant ccts c3;
