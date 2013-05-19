@@ -1107,7 +1107,7 @@ module CC : PCC =
 	   printf "Correct Test 2.\n" in
        let _ =
 	 let ts = make_equal ts c0 c1 in
-	 if rep_eq ts c1 c2 && rep_eq ts c0 c1 && rep_eq ts c1 c2 && rep_eq ts c2 c3 && rep_eq ts c3 c4
+	 if rep_eq ts c1 c2 && rep_eq ts c0 c1 && rep_eq ts c1 c2 && rep_eq ts c2 c3 && rep_eq ts c3 c4 (* RLP: why rep_eq c1 c2 twice? *)
 	 then printf "Correct Test 3.\n"
 	 else
 	   begin
@@ -1122,7 +1122,7 @@ module CC : PCC =
        let _ =
 	 let ts = make_equal ts c0 c2 in
 	 if rep_eq ts c1 c3 && rep_eq ts c2 c4 &&
-	   (not (rep_eq ts c1 c2)) && (not (rep_eq ts c2 c3)) && (not (rep_eq ts c3 c4))
+	   (not (rep_eq ts c1 c2)) && (not (rep_eq ts c2 c3)) && (not (rep_eq ts c3 c4)) (* RLP: why not also test c0=c2? *)
 	 then printf "Correct Test 4. \n"
 	 else
 	   begin
@@ -1250,23 +1250,40 @@ module CC : PCC =
        in
 
        (* test conjoin *)
-       let cc1 = create () in
-       let nil,cc1 = fresh cc1 in
-       let x1,cc1 = fresh cc1 in
-       let x2,cc1 = fresh cc1 in
-       let y1,cc1 = fresh cc1 in
-       let y2,cc1 = fresh cc1 in
+       let cc = create () in
+       let nil,cc = fresh cc in
+       let cons,cc = fresh cc in
+       let t0 = nth cons nil 0 in
+       let t1 = nth cons nil 1 in
+       let t2 = nth cons nil 2 in
+       let l1,cc = add_term cc t1 in
+       let l0,cc = add_term cc t0 in
+       let l2,cc = add_term cc t2 in
 
-       let cc2 = create () in
-       let nil,cc2 = fresh cc2 in
-       let x2,cc2 = fresh cc2 in
-       let x2,cc2 = fresh cc2 in
-       let y2,cc2 = fresh cc2 in
-       let y2,cc2 = fresh cc2 in
+       let cc = make_equal cc l0 l2 in
 
-       let subst x = (true, x) in
+       let subst = function
+	 | x when x = cons -> false, r1
+	 | x when x = nil -> false, r2
+	 | x when x = l0 -> false, c0
+	 | x when x = l1 -> false, c1
+	 | x when x = l2 -> false, c2
+	 | x -> printf "Warning: Substituting unknown constant\n"; true, x in
 
-       let _ = merge_cc subst cc1 cc2 in
+       let ccts = merge_cc subst ts cc in
+
+       if rep_eq ccts c0 c2 && rep_eq ccts c1 c3 && rep_eq ccts c2 c4 &&
+	   (not (rep_eq ccts c1 c2)) && (not (rep_eq ccts c2 c3)) && (not (rep_eq ccts c3 c4))
+	 then printf "Correct Test 11. \n"
+	 else
+	   begin
+	     printf "Test 11 fails!";
+	     print_constant ccts c1;
+	     print_constant ccts c2;
+	     print_constant ccts c3;
+	     print_constant ccts c4;
+	     print ccts
+	   end;
        ()
 
 (* Can probably remove pattern match by using unifiable variables in terms.*)
@@ -1414,4 +1431,4 @@ module CC : PCC =
 
   end
 
-(* let _ = CC.test () *)
+let _ = CC.test ()
