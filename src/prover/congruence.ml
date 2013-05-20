@@ -624,7 +624,7 @@ module CC : PCC =
     let print (ts:t) : unit =
       let rs = ts.representative in
       let n = Arepresentative.size rs - 1 in
-      printf "Rep\n   ";
+      printf "Rep (%d)\n   " n;
       for i = 0 to n do
 	if i <> (Arepresentative.get rs i) then
 	  printf "%n|->%n  " i (Arepresentative.get rs i)
@@ -1286,15 +1286,11 @@ module CC : PCC =
 	     print cc
 	   end;
 
-       let subst = function
-	 | x when x = cons -> printf "Substituting cons: %d -> %d\n" x r1; false, r1
-	 | x when x = nil -> printf "Substituting nil: %d -> %d\n" x r2; false, r2
-	 | x when x = l0 -> printf "Substituting l0: %d -> %d\n" x c0; false, c0
-	 | x when x = l1 -> printf "Substituting l1: %d -> %d\n" x c1; false, c1
-	 | x when x = l2 -> printf "Substituting l2: %d -> %d\n" x c2; false, c2
-	 | x -> printf "Warning: Substituting unknown constant %d\n" x; true, x in
+       let subst_list = [cons, r1; nil, r2; l0, c0; l1, c1; l2, c2] in
 
-       let ccts = merge_cc subst ts cc in
+       let subst x = let y = List.assoc x subst_list in (true, y) in
+
+       let ccts = merge_cc subst cc ts in
 
        if rep_eq ccts c0 c2 && rep_eq ccts c1 c3 && rep_eq ccts c2 c4 &&
 	   (not (rep_eq ccts c1 c2)) && (not (rep_eq ccts c2 c3)) && (not (rep_eq ccts c3 c4))
@@ -1302,11 +1298,15 @@ module CC : PCC =
 	 else
 	   begin
 	     printf "Test 11c fails!";
-	     print_constant ccts c1;
-	     print_constant ccts c2;
-	     print_constant ccts c3;
-	     print_constant ccts c4;
-	     print ccts
+	     printf "@[<2>Attempted to merge cc:@\n";
+	     print cc;
+	     printf "@]@[<2>into ts:@\n";
+	     print ts;
+	     printf "@]@[<2>using substitution:@\n[%a]@\n"
+	       (pp_list_sep ", " (fun f (a,b) -> fprintf f "%d->%d" a b)) subst_list;
+	     printf "@]@[<2>obtaining ccts:@\n";
+	     print ccts;
+	     printf "@]@?";
 	   end;
        ()
 
