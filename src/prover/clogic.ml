@@ -11,6 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
+open Debug
 open Format
 
 (* TODO(rgrig): Don't open these. *)
@@ -187,19 +188,25 @@ let add_eqs_t_list fresh eqs ts : term_structure =
   List.fold_left (fun ts (x,y) ->
     try
       make_equal_t fresh ts x y
-    with Contradiction ->
-      fprintf !(Debug.proof_dump) "Trying to make %a and %a equal failed" string_args x string_args y;
+    with Contradiction -> begin
+      if log log_logic then begin
+        fprintf logf "@[<2>Trying to make %a and %a equal failed.@]@\n"
+          string_args x string_args y
+      end;
       raise Contradiction
-      ) ts eqs
+    end) ts eqs
 
 let add_neqs_t_list fresh neqs ts : term_structure =
   List.fold_left (fun ts (x,y) ->
     try
       make_not_equal_t fresh ts x y
-    with Contradiction ->
-      fprintf !(Debug.proof_dump) "Trying to make %a and %a not equal failed" string_args x string_args y;
+    with Contradiction -> begin
+      if log log_logic then begin
+        fprintf logf "@[<2>Trying to make %a and %a not equal failed.@]@\n"
+          string_args x string_args y
+      end;
       raise Contradiction
-      ) ts neqs
+    end) ts neqs
 
 let add_eqs_list eqs ts : term_structure =
   List.fold_left (fun ts (x,y) -> make_equal ts x y) ts eqs
@@ -269,9 +276,11 @@ let rec normalise ts form : formula * term_structure =
 	  None,None -> raise Contradiction
 	| Some (form,ts'), None
 	| None, Some (form,ts') ->
-	    fprintf !(Debug.proof_dump)
-              "Disjunct eliminated! Remaining disjunct:@ %a@\n"
-              (pp_formula (pp_c ts)) form;
+            if log log_logic then begin
+              fprintf logf
+                "@[<2>Disjunct eliminated! Remaining disjunct:@ %a@]@\n"
+                (pp_formula (pp_c ts)) form
+            end;
 	    let nform = (conjunction form nform) in
 	    f nform
 	      ts'

@@ -762,14 +762,16 @@ let rewrite (ts : term_structure) (rm : rewrite_rule list) (query : term_structu
 (*		  Format.printf "Already matched. @\n";*)
 		  raise Backtrack.No_match
 		end
-	      else
-		Format.fprintf !(Debug.proof_dump) "Making %a = %a using %s@\n"
-		  (pp_c ts) c (pp_c ts) x r.rewrite_name;
+	      else begin
+                if log log_logic then begin
+                  fprintf logf "@[<2>Making@ @[%a = %a@]@ using %s.@]@\n"
+                    (pp_c ts) c (pp_c ts) x r.rewrite_name
+                end;
 (*	        CC.print ts.cc;*)
 		let ts = make_equal ts x c in
 (*		Format.printf "After make equal";*)
 		ts
-	      )
+              end)
 	with Backtrack.No_match ->
 	  rwgo rm ts
   in

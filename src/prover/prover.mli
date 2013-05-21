@@ -17,8 +17,6 @@
 val pprint_counter_example : Format.formatter -> unit -> unit
 val print_counter_example : unit -> unit
 val get_counter_example : unit -> string
-val pprint_proof : Format.formatter -> unit
-val string_of_proof : unit -> string
 
 (*
 val check_implication_frame_pform :

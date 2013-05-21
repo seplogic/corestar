@@ -50,10 +50,8 @@ val abduct_inner
     -> (inner_form * inner_form) list option
 val abs : inner_logic -> inner_form -> inner_form list
 val abs_opt : inner_logic -> inner_form option -> inner_form list
-val pprint_proof : Format.formatter -> unit
 val pprint_counter_example : Format.formatter -> unit -> unit
 val print_counter_example : unit -> unit
-val string_of_proof : unit -> string
 val get_counter_example : unit -> string
 val implies_list : inner_form list -> Psyntax.form -> bool
 

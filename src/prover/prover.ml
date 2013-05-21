@@ -298,13 +298,6 @@ let get_counter_example () =
   Buffer.clear out_buff;
   r
 
-let pprint_proof (f : formatter) : unit =
-  pp_print_flush !proof_dump ();
-  fprintf f "%s" (Buffer.contents buffer_dump)
-
-let string_of_proof () =
-  Buffer.contents buffer_dump
-
 (*
 exception Failed_eg of Clogic.sequent list
 *)

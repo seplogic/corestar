@@ -23,7 +23,4 @@ val log_mm : int
 val log_prove_detail : int
 val log : int -> bool
 val logf : Format.formatter
-val debug : bool
-val buffer_dump : Buffer.t
-val proof_dump : Format.formatter ref
 val prof_phase : string -> unit
