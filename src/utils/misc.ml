@@ -49,14 +49,9 @@ let map_sum f l
       | Inr r -> (restl,r::restr)) l ([],[])
 
 
-let remove_duplicates c l =
-  let l = List.sort c l in
-  snd (
-  List.fold_left
-    (fun (complast,list) next  ->
-      if complast next = 0 then (complast,list) else (c next, next::list)
-	) ((fun _ -> -1),[]) l
-    )
+let remove_duplicates cmp xs =
+  let uniq x ys = if ys = [] || cmp x (List.hd ys) = 0 then ys else x :: ys in
+  List.fold_right uniq (List.sort cmp xs) []
 
 
 (* TODO(rgrig): Isn't intcmp x y = compare y x? *)

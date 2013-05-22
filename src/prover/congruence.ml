@@ -346,6 +346,7 @@ module CC : PCC =
 	Some (CCMap.find ((rep ts a),(rep ts b)) ts.lookup )
       with Not_found -> None
 
+    (* XXX: Update, so it checks everything [sanitize] does. *)
     let invariant (ts : t) : bool = not safe || begin
       let n = size ts - 1 in
       (* Check reps have class list *)
@@ -410,6 +411,94 @@ module CC : PCC =
       true
     end
 
+    (* Asserts the following:
+      - All constants appearing within fields of [cc] with the exception of
+        [classlist] are class representants. A constant [c] is a class
+        representant when [representatives[c]=c]. In particular, this implies
+        that [representatives] is idempotent.
+      - All lists are actually representing sets, so they must have no repeats.
+        In addition, they are strictly increasing. (TODO: Change the data type
+        to [Set]?)
+      - Pairs in [not_equal] are sorted.
+      - The [uselist] contains exactly the aparitions in [lookup] and
+        [not_equal].
+      - The [rev_lookup] is the reverse of [lookup].
+      - The [rev_lookup] contains no repeats of the first component, if it is a
+        constructor.
+      - The [classlist] is the reverse of [representatives]. (Although I believe
+        we'll get rid of this field.) *)
+    let strict_invariant cc =
+      let n = size cc in
+      let reps = HashSet.create 0 in
+      for c = 0 to n - 1 do
+        if get_representative cc c = c then HashSet.add reps c
+      done;
+      let chk_rep c = assert (HashSet.mem reps c) in
+      let chk_use = function
+        | Complex_eq (a, b, c) -> List.iter chk_rep [a; b; c]
+        | Not_equal c -> chk_rep c in
+      let chk_lkp (a, b) (c, d, e) =
+        List.iter chk_rep [a; b; c; d; e];
+        assert (a = c);
+        assert (b = d) in
+      let chk_neq (a, b) () = List.iter chk_rep [a; b] in
+      for c = 0 to n - 1 do begin
+        List.iter chk_use (get_uselist cc c);
+        chk_rep (get_representative cc c);
+        List.iter (fun (a, b) -> chk_rep a; chk_rep b) (get_rev_lookup cc c);
+      end done;
+      CCMap.iter chk_lkp cc.lookup;
+      CCMap.iter chk_neq cc.not_equal;
+
+      let chk_set xs = assert (xs = remove_duplicates compare xs) in
+      for c = 0 to n - 1 do begin
+        chk_set (get_uselist cc c);
+        chk_set (get_classlist cc c);
+        chk_set (get_rev_lookup cc c);
+      end done;
+
+      CCMap.iter (fun (a, b) () -> assert (a < b)) cc.not_equal;
+
+      let use_cnt = Array.make n 0 in
+      let bump_cnt c = use_cnt.(c) <- succ use_cnt.(c) in
+      let chk_use_eq a (c, d, e) =
+        assert (List.mem (Complex_eq (c, d, e)) (get_uselist cc a)) in
+      let chk_use_neq a u = assert (List.mem u (get_uselist cc a)) in
+      let record_eq (a, b) cde =
+        bump_cnt a; chk_use_eq a cde;
+        if b <> a then (bump_cnt b; chk_use_eq b cde) in
+      let record_neq (a, b) () =
+        bump_cnt a; chk_use_neq a (Not_equal b);
+        bump_cnt b; chk_use_neq b (Not_equal a) in
+      CCMap.iter record_eq cc.lookup;
+      CCMap.iter record_neq cc.not_equal;
+      for c = 0 to n - 1 do
+        assert (List.length (get_uselist cc c) = use_cnt.(c))
+      done;
+
+      let eq_cnt = ref 0 in
+      let chk_rev_lkp a b c =
+        try assert (CCMap.find (a, b) cc.lookup = (a, b, c))
+        with Not_found -> assert false in
+      let record_rev_lkp c (a, b) = incr eq_cnt; chk_rev_lkp a b c in
+      for c = 0 to n - 1 do
+        List.iter (record_rev_lkp c) (get_rev_lookup cc c)
+      done;
+      assert (!eq_cnt = CCMap.cardinal cc.lookup);
+
+      let chk_rev_lkp_cons (a, _) (b, _) =
+        assert (a <> b || get_constructor cc a = Not) in
+      for c = 0 to n - 1 do
+        Misc.iter_pairs chk_rev_lkp_cons (get_rev_lookup cc c)
+      done;
+
+      let rep_cnt = ref 0 in
+      let chk_clsrep c b = incr rep_cnt; assert (get_representative cc b = c) in
+      for c = 0 to n - 1 do List.iter (chk_clsrep c) (get_classlist cc c) done;
+      assert (!rep_cnt = n)
+      (* END of [strict_invariant] check *)
+
+
     let fresh ts : int * t =
       assert (invariant ts);
       let c = size ts in
@@ -454,6 +543,52 @@ module CC : PCC =
       | _, Unifiable
       | _, UnifiableExists -> Deleted
       | _, a -> a
+
+    (* POST: does path compresion *)
+    let rec get_rep_root cc i =
+      let j = get_representative cc i in
+      if i = j then (i, cc)
+      else begin
+        let j, cc = get_rep_root cc j in
+        (j, set_representative cc i j)
+      end
+
+    (* Establish the invariant by:
+      - making [representative] idempotent, so parent(x)==root(x)
+      - recomputing [uselist], [classlist] and [rev_lookup], out of the others
+      - infering extra equalities
+        - a == b --> f(a) == f(b), for all functions f
+        - a != b --> f(a) != f(b), when f is a constructor
+        - and converses of the above
+      - makes sure that [uselist], [classlist], [lookup], [rev_lookup],
+        [not_equal] are normalized as follows
+        - they mention only representatives
+        - they have no duplicates
+        - pairs in [not_equal] are sorted (because the represent sets)
+    May raise [Contradiction]. *)
+    (* XXX: Completely wrong and unusable at the moment. *)
+    let sanitize cc =
+      let n = size cc in
+      let mapi f cc =
+        let rec g cc i = if i = n then cc else f i cc in
+        g cc 0 in
+
+      (* reset fields to be recomputed *)
+      let cc = { cc with uselist = Auselist.grow (Auselist.create ()) n } in
+      let cc = { cc with classlist = Aclasslist.grow (Aclasslist.create ()) n } in
+      let cc = { cc with rev_lookup = Arev_lookup.grow (Arev_lookup.create ()) n } in
+
+      (* recompute [rev_lookup] *)
+
+      (* propagate equalities, then disequalities *)
+
+      (* recompute [classlist], and make [representative] idempotent *)
+      let update_class c cc =
+        let d, cc = get_rep_root cc c in
+        let cs = get_classlist cc d in
+        set_classlist cc d (c :: cs) in
+      let cc = mapi update_class cc in
+      cc
 
 
     let merge_cc subst cc1 cc2 =
@@ -538,6 +673,8 @@ module CC : PCC =
 	| _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
+      sanitize !cc2
+      (*
       (* update classes *)
       for i = 0 to n2 - 1 do set_classlist cc2 i [] done;
       for i = 0 to n2 - 1 do
@@ -576,6 +713,7 @@ module CC : PCC =
       for i = 0 to n2 - 1 do set_uselist cc2 i (trim_list (get_uselist !cc2 i)) done;
       if safe then assert (invariant !cc2);
       !cc2
+      *)
 
     let pp_c ts pp ppf i =
        (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)
@@ -753,7 +891,7 @@ module CC : PCC =
 	Not, Not -> ts, pending
       |	Not, i -> make_uses_constructor a (ts,pending)
       |	i, Not ->
-	  let (ts,pending) =  make_uses_constructor b (ts,pending) in
+	  let (ts,pending) = make_uses_constructor b (ts,pending) in
 	  {ts with constructor = Aconstructor.set ts.constructor b i}, pending
       |	IApp(a,b), IApp(c,d) ->
 	  ts, (a,c)::(b,d)::pending
