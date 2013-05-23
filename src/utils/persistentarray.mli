@@ -17,6 +17,7 @@ module type S =
     type elt
     type t
     val set : t -> int -> elt -> t
+    val reset : t -> int -> t
     val get : t -> int -> elt
     val create : unit -> t
     val size : t -> int

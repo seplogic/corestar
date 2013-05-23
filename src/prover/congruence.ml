@@ -411,22 +411,39 @@ module CC : PCC =
       true
     end
 
-    (* Asserts the following:
+    (* Asserts the following, in this order:
       - All constants appearing within fields of [cc] with the exception of
         [classlist] are class representants. A constant [c] is a class
         representant when [representatives[c]=c]. In particular, this implies
         that [representatives] is idempotent.
+      - The entries of [unifiable], [constructor] and [classlist] that
+        correspond to constants that are not representatives have default
+        values.
       - All lists are actually representing sets, so they must have no repeats.
         In addition, they are strictly increasing. (TODO: Change the data type
         to [Set]?)
-      - Pairs in [not_equal] are sorted.
+      - Pairs in [not_equal] are strictly increasing.
       - The [uselist] contains exactly the aparitions in [lookup] and
         [not_equal].
       - The [rev_lookup] is the reverse of [lookup].
       - The [rev_lookup] contains no repeats of the first component, if it is a
         constructor.
       - The [classlist] is the reverse of [representatives]. (Although I believe
-        we'll get rid of this field.) *)
+        we'll get rid of this field.)
+      - Closure under propagation of disequalities:
+        - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
+          then (c, d)∊not_equal.
+        - If {f(a)=c, f(b)=d}∊lookup and (c,d)∊not_equal,
+          then (a,b)∊not_equal
+      - If f and g are constructors and rep(f)!=rep(g), then (f,g)∊not_equal.
+        (NOTE&TODO: This is currently *not* true, but simulated by [rep_uneq].
+        It may be less risky and not much slower to explicitly use [not_equal].)
+
+    NOTE: The checks above imply closure under propagation of equalities:
+      - (a=b --> f(a)=f(b)) because there are only reps in [lookup]
+      - (f cons --> f(a)=f(b) --> a=b)
+        because [rev_lookup] doesn't repeat constructors
+    *)
     let strict_invariant cc =
       let n = size cc in
       let reps = HashSet.create 0 in
@@ -434,23 +451,35 @@ module CC : PCC =
         if get_representative cc c = c then HashSet.add reps c
       done;
       let chk_rep c = assert (HashSet.mem reps c) in
-      let chk_use = function
-        | Complex_eq (a, b, c) -> List.iter chk_rep [a; b; c]
+      let chk_rep2 (a, b) = chk_rep a; chk_rep b in
+      let chk_rep3 (a, b, c) = chk_rep a; chk_rep b; chk_rep c in
+      let chk_use_rep = function
+        | Complex_eq (a, b, c) -> chk_rep3 (a, b, c)
         | Not_equal c -> chk_rep c in
-      let chk_lkp (a, b) (c, d, e) =
-        List.iter chk_rep [a; b; c; d; e];
+      let chk_lkp_rep ((a, b) as p) ((c, d, _) as t) =
+        chk_rep2 p; chk_rep3 t;
         assert (a = c);
         assert (b = d) in
-      let chk_neq (a, b) () = List.iter chk_rep [a; b] in
+      let chk_cons_rep = function IApp (a, b) -> chk_rep2 (a, b) | _ -> () in
+      let chk_neq_rep neq () = chk_rep2 neq in
       for c = 0 to n - 1 do begin
-        List.iter chk_use (get_uselist cc c);
+        List.iter chk_use_rep (get_uselist cc c);
         chk_rep (get_representative cc c);
-        List.iter (fun (a, b) -> chk_rep a; chk_rep b) (get_rev_lookup cc c);
+        List.iter chk_rep2 (get_rev_lookup cc c);
+        chk_cons_rep (get_constructor cc c);
       end done;
-      CCMap.iter chk_lkp cc.lookup;
-      CCMap.iter chk_neq cc.not_equal;
+      CCMap.iter chk_lkp_rep cc.lookup;
+      CCMap.iter chk_neq_rep cc.not_equal;
 
-      let chk_set xs = assert (xs = remove_duplicates compare xs) in
+      for c = 0 to n - 1 do
+        if not (HashSet.mem reps c) then begin
+          assert (get_classlist cc c = []);
+          assert (get_constructor cc c = Not);
+          assert (get_unifiable cc c = Standard)
+        end
+      done;
+
+      let chk_set xs = assert (xs = Misc.remove_duplicates compare xs) in
       for c = 0 to n - 1 do begin
         chk_set (get_uselist cc c);
         chk_set (get_classlist cc c);
@@ -459,22 +488,22 @@ module CC : PCC =
 
       CCMap.iter (fun (a, b) () -> assert (a < b)) cc.not_equal;
 
-      let use_cnt = Array.make n 0 in
-      let bump_cnt c = use_cnt.(c) <- succ use_cnt.(c) in
+      let use_cnt = ref 0 in
       let chk_use_eq a (c, d, e) =
         assert (List.mem (Complex_eq (c, d, e)) (get_uselist cc a)) in
       let chk_use_neq a u = assert (List.mem u (get_uselist cc a)) in
       let record_eq (a, b) cde =
-        bump_cnt a; chk_use_eq a cde;
-        if b <> a then (bump_cnt b; chk_use_eq b cde) in
+        incr use_cnt; chk_use_eq a cde;
+        if b <> a then (incr use_cnt; chk_use_eq b cde) in
       let record_neq (a, b) () =
-        bump_cnt a; chk_use_neq a (Not_equal b);
-        bump_cnt b; chk_use_neq b (Not_equal a) in
+        incr use_cnt; chk_use_neq a (Not_equal b);
+        incr use_cnt; chk_use_neq b (Not_equal a) in
       CCMap.iter record_eq cc.lookup;
       CCMap.iter record_neq cc.not_equal;
       for c = 0 to n - 1 do
-        assert (List.length (get_uselist cc c) = use_cnt.(c))
+        use_cnt := !use_cnt - List.length (get_uselist cc c)
       done;
+      assert (!use_cnt = 0);
 
       let eq_cnt = ref 0 in
       let chk_rev_lkp a b c =
@@ -495,7 +524,26 @@ module CC : PCC =
       let rep_cnt = ref 0 in
       let chk_clsrep c b = incr rep_cnt; assert (get_representative cc b = c) in
       for c = 0 to n - 1 do List.iter (chk_clsrep c) (get_classlist cc c) done;
-      assert (!rep_cnt = n)
+      assert (!rep_cnt = n);
+
+      let chk_neq_fixed_fun f =
+        let f_is_cons = get_constructor cc f <> Not in
+        let get_f_app =
+          function Complex_eq (g, a, b) when g = f -> Some (a, b) | _ -> None in
+        let xs = map_option get_f_app (get_uselist cc f) in
+        let chk_pair (a, c) (b, d) =
+          let a_neq_b = CCMap.mem (a, b) cc.not_equal in
+          let c_neq_d = CCMap.mem (c, d) cc.not_equal in
+          assert (not c_neq_d || a_neq_b);
+          assert (not f_is_cons || not a_neq_b || c_neq_d) in
+        Misc.iter_all_pairs chk_pair xs in
+      HashSet.iter chk_neq_fixed_fun reps;
+
+      for c = 0 to n - 1 do if get_constructor cc c <> Not then
+        for d = c + 1 to n - 1 do if get_constructor cc d <> Not then
+          assert (CCMap.mem (c, d) cc.not_equal)
+        done
+      done
       (* END of [strict_invariant] check *)
 
 
@@ -563,7 +611,7 @@ module CC : PCC =
       - makes sure that [uselist], [classlist], [lookup], [rev_lookup],
         [not_equal] are normalized as follows
         - they mention only representatives
-        - they have no duplicates
+        - they have no duplicates, and are sorted
         - pairs in [not_equal] are sorted (because the represent sets)
     May raise [Contradiction]. *)
     (* XXX: Completely wrong and unusable at the moment. *)
@@ -610,9 +658,9 @@ module CC : PCC =
       let sub = snd @@ subst in
       for i = 0 to n1 - 1 do ignore (sub i) done;
       let ws set cc i v = cc := set !cc i v in
-      let set_uselist = ws set_uselist in
+(*       let set_uselist = ws set_uselist in *)
       let set_representative = ws set_representative in
-      let set_classlist = ws set_classlist in
+(*       let set_classlist = ws set_classlist in *)
       let set_rev_lookup = ws set_rev_lookup in
       let set_constructor = ws set_constructor in
       let set_unifiable = ws set_unifiable in
@@ -670,7 +718,7 @@ module CC : PCC =
             r
         (* TODO: Do something sensible here. *)
 (*         | _ -> failwith "INTERNAL: Should this raise Contradiction?" in *)
-	| _ -> raise Contradiction in
+        | _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
       sanitize !cc2

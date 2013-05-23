@@ -25,6 +25,7 @@ module type S = sig
   type elt
   type t
   val set : t -> int -> elt -> t
+  val reset : t -> int -> t
   val get : t -> int -> elt
   val create : unit -> t
   val size : t -> int
@@ -92,7 +93,7 @@ module Make (Creator : CREATOR) : S with type elt = Creator.elt
             (a,ir)
       | _ -> ref (Diff (i,x,(a,ir))), ir
 
-
+    let reset a i = set a i (Creator.create i)
 
     (* Helper functions for accessing the underlying array to allow it
     to be resized. *)

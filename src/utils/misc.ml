@@ -11,11 +11,18 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
+
+(* TODO(rgrig): Don't open these. *)
 open Backtrack
 
 let rec iter_pairs f = function
   | [] | [_] -> ()
   | x :: ((y :: _) as xs) -> f x y; iter_pairs f xs
+
+let iter_all_pairs f xs =
+  let g = function [] -> () | x :: xs -> List.iter (f x) xs in
+  List.iter g (tails xs)
 
 let map_lift_exists f l
     =
@@ -50,7 +57,7 @@ let map_sum f l
 
 
 let remove_duplicates cmp xs =
-  let uniq x ys = if ys = [] || cmp x (List.hd ys) = 0 then ys else x :: ys in
+  let uniq x ys = if ys = [] || cmp x (List.hd ys) <> 0 then x :: ys else ys in
   List.fold_right uniq (List.sort cmp xs) []
 
 

@@ -19,6 +19,10 @@ val intcmp : 'a -> 'a -> int
 val intcmp2 : 'a * 'b -> 'a * 'b -> int
 
 val iter_pairs : ('a -> 'a -> unit) -> 'a list -> unit
+  (* Iterates over consecutive pairs. *)
+
+val iter_all_pairs : ('a -> 'a -> unit) -> 'a list -> unit
+  (* Iterates over all subsets of size 2. *)
 
 val map_and_find : ('a -> 'b) -> 'a list -> 'b
   (** 
