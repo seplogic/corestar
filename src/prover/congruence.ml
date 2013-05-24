@@ -428,8 +428,7 @@ module CC : PCC =
       - The [rev_lookup] is the reverse of [lookup].
       - The [rev_lookup] contains no repeats of the first component, if it is a
         constructor.
-      - The [classlist] is the reverse of [representatives]. (Although I believe
-        we'll get rid of this field.)
+      - The [classlist] is the reverse of [representatives].
       - Closure under propagation of disequalities:
         - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
           then (c, d)∊not_equal.
@@ -546,6 +545,63 @@ module CC : PCC =
       done
       (* END of [strict_invariant] check *)
 
+    (* TODO: Maintain these counts, so that [get_weight] takes O(1) time. *)
+    let get_weight cc c =
+      List.length (get_uselist cc c) + List.length (get_classlist cc c)
+
+    let rec work_list f cc = function
+      | [] -> cc
+      | j :: js -> let is, cc = f j cc in work_list f cc (is @ js)
+
+    (* Maintains [strict_invariant]. *)
+    let add_eq (a, b) cc =
+      if safe then strict_invariant cc;
+      let a, b = get_representative cc a, get_representative cc b in
+      let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
+      let cs = get_classlist cc b in
+      let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
+      let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in
+      let cc = set_classlist cc b [] in
+      let update_use (eqs, cc) = function
+        | Complex_eq (x, y, z) as use ->
+            let lookup = CCMap.remove (x, y) cc.lookup in
+            let cc = set_rev_lookup cc z (* TODO: make it a Set *)
+                (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in
+            let d = if x = b then y else x in
+            let cc =
+              set_uselist cc d (List.filter ((<>) use) (get_uselist cc d)) in
+            let x, y = let f c = if c = b then a else c in (f x, f y) in
+            (try
+              let _, _, zz = CCMap.find (x, y) lookup in
+              ((z, zz) :: eqs, { cc with lookup })
+            with Not_found ->
+              let cc = set_uselist cc d
+                (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc d)) in
+              let cc = set_rev_lookup cc z
+                (Misc.insert_sorted (x, y) (get_rev_lookup cc z)) in
+              (eqs, { cc with lookup = CCMap.add (x, y) (x, y, z) lookup }))
+        | Not_equal x ->
+            if x = a then raise Contradiction;
+            let not_equal =
+              CCMap.remove (if b < x then b, x else x, b) cc.not_equal in
+            let cc = set_uselist cc x
+              (List.filter ((<>) (Not_equal b)) (get_uselist cc x)) in
+            let not_equal =
+              CCMap.add (if a < x then a, x else x, a) () not_equal in
+            let cc = { cc with not_equal } in
+            let cc = set_uselist cc a
+              (Misc.insert_sorted (Not_equal x) (get_uselist cc a)) in
+            let cc = set_uselist cc x
+              (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
+            (eqs, cc) in
+      let eqs, cc = List.fold_left update_use ([], cc) (get_uselist cc b) in
+      let cc = set_uselist cc b [] in
+      (* XXX: unifiable/constructor *)
+      if safe then strict_invariant cc;
+      (eqs, cc)
+
+    (* Maintains [strict_invariant]. *)
+    let add_neq _ = failwith "XXX"
 
     let fresh ts : int * t =
       assert (invariant ts);
@@ -604,7 +660,7 @@ module CC : PCC =
     (* Establish the invariant by:
       - making [representative] idempotent, so parent(x)==root(x)
       - recomputing [uselist], [classlist] and [rev_lookup], out of the others
-      - infering extra equalities
+      - infering extra equalities & disequalities
         - a == b --> f(a) == f(b), for all functions f
         - a != b --> f(a) != f(b), when f is a constructor
         - and converses of the above

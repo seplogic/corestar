@@ -55,12 +55,32 @@ let map_sum f l
       | Inl l -> (l::restl,restr)
       | Inr r -> (restl,r::restr)) l ([],[])
 
-
+(* operations with sorted lists, strictly increasing ones *) (* {{{ *)
 let remove_duplicates cmp xs =
   let uniq x ys = if ys = [] || cmp x (List.hd ys) <> 0 then x :: ys else ys in
   List.fold_right uniq (List.sort cmp xs) []
 
+let merge_lists xs ys =
+  let rec f zs = function
+    | [], ys | ys, [] -> List.rev_append ys zs
+    | ((x :: xs) as xxs), ((y :: ys) as yys) ->
+        let c = compare x y in
+        if c < 0 then f (x :: zs) (xs, yys)
+        else if c > 0 then f (y :: zs) (xxs, ys)
+        else f (x :: zs) (xs, ys) in
+  List.rev (f [] (xs, ys))
 
+let insert_sorted x xs =
+  let rec f ys = function
+    | [] -> List.rev (x :: ys)
+    | z :: zs as zzs ->
+        let c = compare x z in
+        if c < 0 then List.rev_append ys (x :: zzs)
+        else if c > 0 then f (z :: ys) zs
+        else xs in
+  f [] xs
+
+(* }}} *)
 (* TODO(rgrig): Isn't intcmp x y = compare y x? *)
 let intcmp a b =
   if a<b then -1 else if a=b then 0 else 1

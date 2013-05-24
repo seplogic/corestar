@@ -14,7 +14,13 @@
 (** Utilities that do not clearly fit in any other module. *)
 
 type ('a, 'b) sum = Inr of 'a | Inl of 'b
+
+(** {2} operations with strictly increasing lists *) (* {{{ *)
 val remove_duplicates : ('a -> 'a -> int) -> 'a list -> 'a list
+val merge_lists : 'a list -> 'a list -> 'a list
+val insert_sorted : 'a -> 'a list -> 'a list
+
+(* }}} *)
 val intcmp : 'a -> 'a -> int
 val intcmp2 : 'a * 'b -> 'a * 'b -> int
 
