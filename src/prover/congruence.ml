@@ -129,7 +129,7 @@ module type PCC =
 
       (* Pattern match, takes pattern and representative,
 	 and continuation and backtracks in continuation raises No_match  *)
-      val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a
+(*       val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a *)
 
       val unifies : t -> curry_term -> constant -> (t -> 'a) -> 'a
       val unifies_any : t -> curry_term -> (t * constant -> 'a) -> 'a
@@ -304,14 +304,17 @@ module CC : PCC =
 
     let get_uselist cc = Auselist.get cc.uselist
     let set_uselist cc i v = { cc with uselist = Auselist.set cc.uselist i v }
+    let reset_uselist cc i = { cc with uselist = Auselist.reset cc.uselist i }
     let get_representative cc = Arepresentative.get cc.representative
     let set_representative cc i v = { cc with representative = Arepresentative.set cc.representative i v }
     let get_classlist cc = Aclasslist.get cc.classlist
     let set_classlist cc i v = { cc with classlist = Aclasslist.set cc.classlist i v }
+    let reset_classlist cc i = { cc with classlist = Aclasslist.reset cc.classlist i }
     let get_rev_lookup cc = Arev_lookup.get cc.rev_lookup
     let set_rev_lookup cc i v = { cc with rev_lookup = Arev_lookup.set cc.rev_lookup i v }
     let get_constructor cc = Aconstructor.get cc.constructor
     let set_constructor cc i v = { cc with constructor = Aconstructor.set cc.constructor i v }
+    let reset_constructor cc i = { cc with constructor = Aconstructor.reset cc.constructor i }
     let get_unifiable cc = Aunifiable.get cc.unifiable
     let set_unifiable cc i v = { cc with unifiable = Aunifiable.set cc.unifiable i v }
 
@@ -426,8 +429,11 @@ module CC : PCC =
       - The [uselist] contains exactly the aparitions in [lookup] and
         [not_equal].
       - The [rev_lookup] is the reverse of [lookup].
-      - The [rev_lookup] contains no repeats of the first component, if it is a
-        constructor.
+      - Constructors are distinct, injective, and have disjoint images.
+        - If constructor[c]<>IApp(_,_) and (a,b)∊rev_lookup[c],
+          then constructor[a]=Not.
+        - If constructor[c]=IApp(d,e) and (a,b)∊rev_lookup[c],
+          then constructor[d]<>Not, and (a,b)=(d,e) or constructor[a]=Not.
       - The [classlist] is the reverse of [representatives].
       - Closure under propagation of disequalities:
         - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
@@ -514,10 +520,14 @@ module CC : PCC =
       done;
       assert (!eq_cnt = CCMap.cardinal cc.lookup);
 
-      let chk_rev_lkp_cons (a, _) (b, _) =
-        assert (a <> b || get_constructor cc a = Not) in
+      let chk_rev_lkp_cons cons (a, b) = match cons with
+        | IApp (d, e) ->
+            assert (get_constructor cc d <> Not);
+            assert ((a, b) = (d, e) || get_constructor cc a = Not)
+        | _ -> assert (get_constructor cc a = Not) in
       for c = 0 to n - 1 do
-        Misc.iter_pairs chk_rev_lkp_cons (get_rev_lookup cc c)
+        let cons = get_constructor cc c in
+        List.iter (chk_rev_lkp_cons cons) (get_rev_lookup cc c)
       done;
 
       let rep_cnt = ref 0 in
@@ -545,6 +555,16 @@ module CC : PCC =
       done
       (* END of [strict_invariant] check *)
 
+    (* TODO(rgrig): Why is this not commutative? *)
+    let merge_unify u1 u2 = match u1, u2 with
+      | Unifiable, Unifiable -> Unifiable
+      | Unifiable, UnifiableExists
+      | UnifiableExists, Unifiable
+      | UnifiableExists, UnifiableExists -> UnifiableExists
+      | _, Unifiable
+      | _, UnifiableExists -> Deleted
+      | _, a -> a
+
     (* TODO: Maintain these counts, so that [get_weight] takes O(1) time. *)
     let get_weight cc c =
       List.length (get_uselist cc c) + List.length (get_classlist cc c)
@@ -558,10 +578,11 @@ module CC : PCC =
       if safe then strict_invariant cc;
       let a, b = get_representative cc a, get_representative cc b in
       let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
+      (* merge [b] (small) into [a] (big) *)
       let cs = get_classlist cc b in
       let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
       let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in
-      let cc = set_classlist cc b [] in
+      let cc = reset_classlist cc b in
       let update_use (eqs, cc) = function
         | Complex_eq (x, y, z) as use ->
             let lookup = CCMap.remove (x, y) cc.lookup in
@@ -595,8 +616,9 @@ module CC : PCC =
               (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
             (eqs, cc) in
       let eqs, cc = List.fold_left update_use ([], cc) (get_uselist cc b) in
-      let cc = set_uselist cc b [] in
-      (* XXX: unifiable/constructor *)
+      let cc = reset_uselist cc b in
+      let cc = set_unifiable cc a
+        (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
       if safe then strict_invariant cc;
       (eqs, cc)
 
@@ -637,16 +659,6 @@ module CC : PCC =
       let ts = {ts with unifiable = Aunifiable.set ts.unifiable c Exists} in
       assert (invariant ts);
       (c, ts)
-
-    (* TODO(rgrig): Why is this not commutative? *)
-    let merge_unify u1 u2 = match u1, u2 with
-      | Unifiable, Unifiable -> Unifiable
-      | Unifiable, UnifiableExists
-      | UnifiableExists, Unifiable
-      | UnifiableExists, UnifiableExists -> UnifiableExists
-      | _, Unifiable
-      | _, UnifiableExists -> Deleted
-      | _, a -> a
 
     (* POST: does path compresion *)
     let rec get_rep_root cc i =
@@ -967,23 +979,20 @@ module CC : PCC =
       match use with
          (* Only deal where it is a use on the left of an application *)
       | Complex_eq (a,b,c) when (rep_eq ts a d) ->
-	  begin
-	    let r =  rep ts c in
-	    match Aconstructor.get ts.constructor r with
+          begin
+            let r = rep ts c in
+            match Aconstructor.get ts.constructor r with
           (* Can't make it an IApp, is already an constructor *)
-	      Self -> raise Contradiction
-	  (* Can make it an constructor *)
-	    | Not -> make_uses_constructor r ({ts with constructor = Aconstructor.set ts.constructor r (IApp(a,b))},pending)
-	  (* Already constructor, okay assuming we can make subterms equal *)
-	    | IApp(r1,r2) -> ts, (a,r1)::(b,r2)::pending
-	  end
+              Self -> raise Contradiction
+          (* Can make it an constructor *)
+            | Not -> make_uses_constructor r ({ts with constructor = Aconstructor.set ts.constructor r (IApp(a,b))},pending)
+          (* Already constructor, okay assuming we can make subterms equal *)
+            | IApp(r1,r2) -> ts, (a,r1)::(b,r2)::pending
+          end
       | _ ->
-	  (ts,pending)
-    and make_uses_constructor d (ts,pending) =
-      let ul = get_uselist ts d in
-      match ul with
-	[] -> ts,pending
-      | _ -> List.fold_left (make_use_constructor d) (ts,pending) ul
+          (ts,pending)
+    and make_uses_constructor d (cc, pending) =
+      List.fold_left (make_use_constructor d) (cc, pending) (get_uselist cc d)
 
     (* merges the constructor details,
        and potentially returns a list of equalities to make,
@@ -1010,12 +1019,10 @@ module CC : PCC =
 	  (Aclasslist.get ts.classlist (rep ts nr))
 
 
-    let unifiable_merge ts a b : t =
-      let vt =
-        merge_unify
-          (Aunifiable.get ts.unifiable a)
-          (Aunifiable.get ts.unifiable b) in
-      {ts with unifiable = Aunifiable.set ts.unifiable b vt}
+    (* deprecated *)
+    let unifiable_merge cc a b =
+      let vt = merge_unify (get_unifiable cc a) (get_unifiable cc b) in
+      set_unifiable cc b vt
 
     let rec propagate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
