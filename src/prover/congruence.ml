@@ -423,8 +423,7 @@ module CC : PCC =
         correspond to constants that are not representatives have default
         values.
       - All lists are actually representing sets, so they must have no repeats.
-        In addition, they are strictly increasing. (TODO: Change the data type
-        to [Set]?)
+        In addition, they are strictly increasing.
       - Pairs in [not_equal] are strictly increasing.
       - The [uselist] contains exactly the aparitions in [lookup] and
         [not_equal].
@@ -585,6 +584,8 @@ module CC : PCC =
       let cc = reset_classlist cc b in
       let update_use (eqs, cc) = function
         | Complex_eq (x, y, z) as use ->
+            (* assumes that [get_constructor cc a] has the merged value *)
+            (* XXX: update IApp uses *)
             let lookup = CCMap.remove (x, y) cc.lookup in
             let cc = set_rev_lookup cc z (* TODO: make it a Set *)
                 (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in
@@ -615,6 +616,18 @@ module CC : PCC =
             let cc = set_uselist cc x
               (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
             (eqs, cc) in
+      let eqs, cons_a = match get_constructor cc a, get_constructor cc b with
+        (* NOTE: monotonic: once a constructor, always a constructor *)
+        | Not, cons | cons, Not -> ([], cons)
+        | IApp (c, d) as cons, IApp (e, f) ->
+            (* XXX: I think this always leads to a contradiction *)
+            let forbidden = [c; d; e; f] in
+            if List.mem a forbidden || List.mem b forbidden then
+              raise Contradiction;
+            ([(c, e); (d, f)], cons)
+        | _ -> raise Contradiction in
+      let cc = set_constructor cc a cons_a in
+      let cc = reset_constructor cc b in
       let eqs, cc = List.fold_left update_use ([], cc) (get_uselist cc b) in
       let cc = reset_uselist cc b in
       let cc = set_unifiable cc a
