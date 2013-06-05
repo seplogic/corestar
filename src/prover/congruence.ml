@@ -281,7 +281,7 @@ module CC : PCC =
 	{ uselist : Auselist.t;
 	  representative : Arepresentative.t;
 	  classlist : Aclasslist.t;
-	  lookup : complex_eq CCMap.t;
+          lookup : complex_eq CCMap.t; (* TODO: change to [constant CCMap.t]. *)
 	  rev_lookup : Arev_lookup.t;
 	  not_equal : unit CCMap.t;
 	  constructor : Aconstructor.t;
@@ -312,6 +312,7 @@ module CC : PCC =
     let reset_classlist cc i = { cc with classlist = Aclasslist.reset cc.classlist i }
     let get_rev_lookup cc = Arev_lookup.get cc.rev_lookup
     let set_rev_lookup cc i v = { cc with rev_lookup = Arev_lookup.set cc.rev_lookup i v }
+    let reset_rev_lookup cc i = { cc with rev_lookup = Arev_lookup.reset cc.rev_lookup i }
     let get_constructor cc = Aconstructor.get cc.constructor
     let set_constructor cc i v = { cc with constructor = Aconstructor.set cc.constructor i v }
     let reset_constructor cc i = { cc with constructor = Aconstructor.reset cc.constructor i }
@@ -573,8 +574,32 @@ module CC : PCC =
       | j :: js -> let is, cc = f j cc in work_list f cc (is @ js)
 
     (* Maintains [strict_invariant]. *)
+    (* TODO: Turn lists into sets. See SLOW below. *)
     let add_eq (a, b) cc =
       if safe then strict_invariant cc;
+      let remove_complex_eq (x, y, z) cc =
+        let lookup = CCMap.remove (x, y) cc.lookup in
+        let cc = set_rev_lookup cc z
+          (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in (* SLOW *)
+        let cc = set_uselist cc x
+          (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc x)) in (* SLOW *)
+        let cc = set_uselist cc y
+          (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc y)) in (* SLOW *)
+        { cc with lookup } in
+      let add_complex_eq (x, y, z) cc =
+        try
+          let xx, yy, zz = CCMap.find (x, y) cc.lookup in
+          assert (xx = x && yy = y);
+          ([z, zz], cc)
+        with Not_found ->
+          let lookup = CCMap.add (x, y) (x, y, z) cc.lookup in
+          let cc = set_rev_lookup cc z
+            (Misc.insert_sorted (x, y) (get_rev_lookup cc z)) in (* SLOW *)
+          let cc = set_uselist cc x
+            (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc x)) in (* SLOW *)
+          let cc = set_uselist cc y
+            (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc y)) in (* SLOW *)
+          ([], { cc with lookup }) in
       let a, b = get_representative cc a, get_representative cc b in
       let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
       (* merge [b] (small) into [a] (big) *)
@@ -616,20 +641,17 @@ module CC : PCC =
             let cc = set_uselist cc x
               (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
             (eqs, cc) in
-      let eqs, cons_a = match get_constructor cc a, get_constructor cc b with
+      let cons_a = match get_constructor cc a, get_constructor cc b with
         (* NOTE: monotonic: once a constructor, always a constructor *)
-        | Not, cons | cons, Not -> ([], cons)
-        | IApp (c, d) as cons, IApp (e, f) ->
-            (* XXX: I think this always leads to a contradiction *)
-            let forbidden = [c; d; e; f] in
-            if List.mem a forbidden || List.mem b forbidden then
-              raise Contradiction;
-            ([(c, e); (d, f)], cons)
+        | Not, cons | cons, Not -> cons
         | _ -> raise Contradiction in
       let cc = set_constructor cc a cons_a in
       let cc = reset_constructor cc b in
       let eqs, cc = List.fold_left update_use ([], cc) (get_uselist cc b) in
       let cc = reset_uselist cc b in
+      let cc = set_rev_lookup cc a
+        (Misc.merge_lists (get_rev_lookup cc a) (get_rev_lookup cc b)) in
+      let cc = reset_rev_lookup cc b in
       let cc = set_unifiable cc a
         (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
       if safe then strict_invariant cc;
@@ -739,9 +761,9 @@ module CC : PCC =
       let sub = snd @@ subst in
       for i = 0 to n1 - 1 do ignore (sub i) done;
       let ws set cc i v = cc := set !cc i v in
-(*       let set_uselist = ws set_uselist in *)
+      let set_uselist = ws set_uselist in
       let set_representative = ws set_representative in
-(*       let set_classlist = ws set_classlist in *)
+      let set_classlist = ws set_classlist in
       let set_rev_lookup = ws set_rev_lookup in
       let set_constructor = ws set_constructor in
       let set_unifiable = ws set_unifiable in
@@ -802,8 +824,8 @@ module CC : PCC =
         | _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
-      sanitize !cc2
-      (*
+(*   XXX    sanitize !cc2 *)
+      (* XXX everything below should be replaced by sanitize *)
       (* update classes *)
       for i = 0 to n2 - 1 do set_classlist cc2 i [] done;
       for i = 0 to n2 - 1 do
@@ -842,7 +864,6 @@ module CC : PCC =
       for i = 0 to n2 - 1 do set_uselist cc2 i (trim_list (get_uselist !cc2 i)) done;
       if safe then assert (invariant !cc2);
       !cc2
-      *)
 
     let pp_c ts pp ppf i =
        (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)
@@ -1550,7 +1571,7 @@ module CC : PCC =
 
        let subst_list = [cons, r1; nil, r2; l0, c0; l1, c1; l2, c2] in
 
-       let subst x = let y = List.assoc x subst_list in (true, y) in
+       let subst x = let y = List.assoc x subst_list in (false, y) in
 
        let ccts = merge_cc subst cc ts in
 
@@ -1717,4 +1738,4 @@ module CC : PCC =
 
   end
 
-let _ = CC.test ()
+(* DBG let _ = CC.test () *)
