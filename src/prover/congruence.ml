@@ -434,6 +434,7 @@ module CC : PCC =
           then constructor[a]=Not.
         - If constructor[c]=IApp(d,e) and (a,b)∊rev_lookup[c],
           then constructor[d]<>Not, and (a,b)=(d,e) or constructor[a]=Not.
+        - If constructor[c]=IApp(d,e) then (d,e)∊rev_lookup[c].
       - The [classlist] is the reverse of [representatives].
       - Closure under propagation of disequalities:
         - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
@@ -527,7 +528,10 @@ module CC : PCC =
         | _ -> assert (get_constructor cc a = Not) in
       for c = 0 to n - 1 do
         let cons = get_constructor cc c in
-        List.iter (chk_rev_lkp_cons cons) (get_rev_lookup cc c)
+        List.iter (chk_rev_lkp_cons cons) (get_rev_lookup cc c);
+        match cons with
+          | IApp (d, e) -> assert (List.mem (d, e) (get_rev_lookup cc c))
+          | _ -> ()
       done;
 
       let rep_cnt = ref 0 in
@@ -607,26 +611,45 @@ module CC : PCC =
       let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
       let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in
       let cc = reset_classlist cc b in
-      let update_use (eqs, cc) = function
-        | Complex_eq (x, y, z) as use ->
-            (* assumes that [get_constructor cc a] has the merged value *)
-            (* XXX: update IApp uses *)
-            let lookup = CCMap.remove (x, y) cc.lookup in
-            let cc = set_rev_lookup cc z (* TODO: make it a Set *)
-                (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in
-            let d = if x = b then y else x in
-            let cc =
-              set_uselist cc d (List.filter ((<>) use) (get_uselist cc d)) in
-            let x, y = let f c = if c = b then a else c in (f x, f y) in
-            (try
-              let _, _, zz = CCMap.find (x, y) lookup in
-              ((z, zz) :: eqs, { cc with lookup })
-            with Not_found ->
-              let cc = set_uselist cc d
-                (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc d)) in
-              let cc = set_rev_lookup cc z
-                (Misc.insert_sorted (x, y) (get_rev_lookup cc z)) in
-              (eqs, { cc with lookup = CCMap.add (x, y) (x, y, z) lookup }))
+
+      (* merge constructor[a] with constructor[b] *)
+      let cons_a = match get_constructor cc a, get_constructor cc b with
+        (* NOTE: for reps, once a constructor, always a constructor *)
+        | Not, cons | cons, Not -> cons
+        | _ -> raise Contradiction in
+      let cc = set_constructor cc a cons_a in
+      let cc = reset_constructor cc b in
+
+      let sub x = if x = b then a else x in
+      let sub3 (x, y, z) = (sub x, sub y, sub z) in
+
+      (* (x y = z)[a/b], and also IApp(x, y)[a/b] *)
+      (* assumes constructor[a] is already merged *)
+      let iapps_to_update =
+        let f acc = function
+          | Complex_eq (x, y, z) -> IntSet.add (sub z) acc
+          | _ -> acc in
+        List.fold_left f IntSet.empty (get_uselist cc b) in
+      let bs_eqs =
+        let get_eq = function
+          | Complex_eq (x, y, z) -> Some (x, y, z)
+          | _ -> None in
+        let lhs = map_option get_eq (get_uselist cc b) in
+        let rhs = List.map (fun (x, y) -> (x, y, b)) (get_rev_lookup cc b) in
+        remove_duplicates compare (lhs @ rhs) in
+      let cc = List.fold_right remove_complex_eq bs_eqs cc in
+      let as_eqs = List.map sub3 bs_eqs in
+      let eqs, cc =
+        let f c_eq (eqs2, cc) =
+          let eqs1, cc = add_complex_eq c_eq cc in (eqs1 @ eqs2, cc) in
+        List.fold_right f as_eqs ([], cc) in
+      let update_cons c cc = match get_constructor cc c with
+        | IApp (x, y) -> set_constructor cc c (IApp (sub x, sub y))
+        | _ -> cc in
+      let cc = IntSet.fold update_cons iapps_to_update cc in
+
+      let update_neq cc = function
+        | Complex_eq (x, y, z)  -> cc
         | Not_equal x ->
             if x = a then raise Contradiction;
             let not_equal =
@@ -640,18 +663,8 @@ module CC : PCC =
               (Misc.insert_sorted (Not_equal x) (get_uselist cc a)) in
             let cc = set_uselist cc x
               (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
-            (eqs, cc) in
-      let cons_a = match get_constructor cc a, get_constructor cc b with
-        (* NOTE: monotonic: once a constructor, always a constructor *)
-        | Not, cons | cons, Not -> cons
-        | _ -> raise Contradiction in
-      let cc = set_constructor cc a cons_a in
-      let cc = reset_constructor cc b in
-      let eqs, cc = List.fold_left update_use ([], cc) (get_uselist cc b) in
-      let cc = reset_uselist cc b in
-      let cc = set_rev_lookup cc a
-        (Misc.merge_lists (get_rev_lookup cc a) (get_rev_lookup cc b)) in
-      let cc = reset_rev_lookup cc b in
+            cc in
+      let cc = List.fold_left update_neq cc (get_uselist cc b) in
       let cc = set_unifiable cc a
         (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
       if safe then strict_invariant cc;
