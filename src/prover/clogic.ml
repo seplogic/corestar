@@ -423,7 +423,7 @@ let conjoin_inner ts1 ts2 =
   { ts = Cterm.conjoin ts1.ts ts2.ts
   ; form = conjunction ts1.form ts2.form }
 
-
+(* TODO(rgrig): It should be unnecessary to call this function. *)
 let make_syntactic' get_eqs get_neqs ts_form =
   let ts,form = break_ts_form ts_form in
   let eqs = get_eqs ts in
