@@ -415,7 +415,8 @@ module CC : PCC =
       true
     end
 
-    (* Asserts the following, in this order:
+    (*
+    Asserts the following, in this order:
       - All constants appearing within fields of [cc] with the exception of
         [classlist] are class representants. A constant [c] is a class
         representant when [representatives[c]=c]. In particular, this implies
@@ -449,6 +450,9 @@ module CC : PCC =
       - (a=b --> f(a)=f(b)) because there are only reps in [lookup]
       - (f cons --> f(a)=f(b) --> a=b)
         because [rev_lookup] doesn't repeat constructors
+    NOTE: The checks above also imply that no two constants are known to be
+      both equal and not equal, because pairs of [not_equal] are strictly
+      increasing, and contain only representatives.
     *)
     let strict_invariant cc =
       let n = size cc in
@@ -577,6 +581,9 @@ module CC : PCC =
       | [] -> cc
       | j :: js -> let is, cc = f j cc in work_list f cc (is @ js)
 
+    let sort_pair ((a, b) as p) =
+      if a <= b then p else (b, a)
+
     (* Maintains [strict_invariant]. *)
     (* TODO: Turn lists into sets. See SLOW below. *)
     let add_eq (a, b) cc =
@@ -654,11 +661,11 @@ module CC : PCC =
         | Not_equal x ->
             if x = a then raise Contradiction;
             let not_equal =
-              CCMap.remove (if b < x then b, x else x, b) cc.not_equal in
+              CCMap.remove (sort_pair (b, x)) cc.not_equal in
             let cc = set_uselist cc x
               (List.filter ((<>) (Not_equal b)) (get_uselist cc x)) in
             let not_equal =
-              CCMap.add (if a < x then a, x else x, a) () not_equal in
+              CCMap.add (sort_pair (a, x)) () not_equal in
             let cc = { cc with not_equal } in
             let cc = set_uselist cc a
               (Misc.insert_sorted (Not_equal x) (get_uselist cc a)) in
@@ -672,7 +679,7 @@ module CC : PCC =
       (eqs, cc)
 
     (* Maintains [strict_invariant]. *)
-    let add_neq _ = failwith "XXX"
+    let add_neq (a, b) cc = failwith "XXX"
 
     let fresh ts : int * t =
       assert (invariant ts);
@@ -1770,4 +1777,6 @@ module CC : PCC =
 
   end
 
-(* DBG let _ = CC.test () *)
+(* DBG
+let _ = CC.test ()
+*)

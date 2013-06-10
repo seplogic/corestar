@@ -849,7 +849,7 @@ let add_constructor
   with Not_found ->
     begin
       let c,cc = CC.fresh ts.cc in
-      let cc =  CC.make_constructor cc c in
+      let cc = CC.make_constructor cc c in
       {ts with cc = cc; function_symbols = SMap.add fn c ts.function_symbols}
     end
 
@@ -857,7 +857,7 @@ let add_constructor
 let is_pvar_free ts c =
   let is_pvar v = VarMap.mem v ts.pvars in
   let get_arg h = CMap.find h ts.originals in
-  let forall_handles p hs = List.for_all p (List.map get_arg hs) in 
+  let forall_handles p hs = List.for_all p (List.map get_arg hs) in
   let rec ok_arg = function
   | FArg_var v -> not (is_pvar v)
   | FArg_string _ -> true
