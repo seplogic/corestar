@@ -122,15 +122,15 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
       with Contradiction ->
         try
           convert_sf_without_eqs true ts false_sform
-        with Contradiction -> assert false
-          in
-          Some {
-           assumption = ass;
-           obligation = obs;
-           matched = sam;
-           ts = ts;
-           antiframe = ant; 
-         }
+        with Contradiction -> assert false in
+
+    Some {
+      assumption = ass;
+      obligation = obs;
+      matched = sam;
+      ts = ts;
+      antiframe = ant; 
+    }
   with Contradiction ->
     fprintf !(Debug.proof_dump) "Contradiction detected!!@\n";
     None
@@ -184,15 +184,15 @@ let apply_rule
   (* Match obligation *)
   match_form true ts seq.obligation sr.conclusion.obligation_diff
     (@)
-    (fun (ts,ob) ->
+    (fun (ts_ob,ob) ->
   (* Match antiframe_diff *)
   match_form true ts seq.antiframe sr.conclusion.antiframe_diff
     (@)
-    (fun (ts,ant) -> 
+    (fun (ts_ant,ant) -> 
   (* Match assumption_diff *)
   match_form true ts seq.assumption sr.conclusion.assumption_diff
     (@)
-    (fun (ts,ass) ->
+    (fun (ts_ass,ass) ->
 	  (* match assumption_not removed *)
 	  let ass_f = {ass with spat=RMSet.union ass.spat seq.matched} in
 	  match_form true ts ass_f sr.conclusion.assumption_same
