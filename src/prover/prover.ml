@@ -184,15 +184,15 @@ let apply_rule
   (* Match obligation *)
   match_form true ts seq.obligation sr.conclusion.obligation_diff
     (@)
-    (fun (ts_ob,ob) ->
+    (fun (ts,ob) ->
   (* Match antiframe_diff *)
   match_form true ts seq.antiframe sr.conclusion.antiframe_diff
     (@)
-    (fun (ts_ant,ant) -> 
+    (fun (ts,ant) -> 
   (* Match assumption_diff *)
   match_form true ts seq.assumption sr.conclusion.assumption_diff
     (@)
-    (fun (ts_ass,ass) ->
+    (fun (ts,ass) ->
 	  (* match assumption_not removed *)
 	  let ass_f = {ass with spat=RMSet.union ass.spat seq.matched} in
 	  match_form true ts ass_f sr.conclusion.assumption_same
