@@ -53,6 +53,8 @@ module type PCC =
 	| CPConstant of constant
 	| CPApp of pattern_curry * pattern_curry 
 
+      type eq = constant * constant
+
       (* New blank ts *)
       val create : unit -> t
 
@@ -117,10 +119,10 @@ module type PCC =
 
       (* Pattern match, takes pattern and representative, 
 	 and continuation and backtracks in continuation raises No_match  *)
-      val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a
+      val patternmatch : t -> curry_term -> constant -> (t * eq list -> 'a) -> 'a
 
-      val unifies : t -> curry_term -> constant -> (t -> 'a) -> 'a
-      val unifies_any : t -> curry_term -> (t * constant -> 'a) -> 'a
+      val unifies : t -> curry_term -> constant -> (t * eq list -> 'a) -> 'a
+      val unifies_any : t -> curry_term -> (t * eq list * constant -> 'a) -> 'a
 
       (* Unifies two constants, if there is only one possible way to unify them *)
       val determined_exists : t -> (constant list) -> constant -> constant -> t * ((constant * constant) list)
@@ -200,11 +202,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
       |	CPConstant of constant
       |	CPApp of pattern_curry * pattern_curry 
 
-
-
-
-
-
+    type eq = constant * constant
 
     let rec curry (t : term) 
 	= 
@@ -1099,39 +1097,21 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
        in
        ()
 
-(* Can probably remove pattern match by using unifiable variables in terms.*)
-    let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a = 
-      match pattern with 
-	CHole c -> cont (try make_equal ts c con with Contradiction -> raise No_match)
-      |	CPConstant c -> if rep_eq ts c con then cont ts else raise No_match
-      |	CPApp (p1,p2) ->  
-	  let cl = A.get ts.rev_lookup (rep ts con) in 
-	  using 
-	    ts cont 
-	    (tryall 
-	       (fun (c1,c2) 
-		 -> 
-		   andthen 
-		     (patternmatch_inner p1 c1) 
-		     (patternmatch_inner p2 c2)
-		     )
-	       cl)
-
-    let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a = 
+    let rec patternmatch_inner pattern con ts cont = 
       match pattern with 
       |	Constant c -> 
 	  if rep_eq ts c con then 
-	    cont ts 
+            cont (ts, [])
 	  else 
 	    begin
 	      match A.get ts.unifiable (rep ts c), A.get ts.unifiable (rep ts con) with
 	      Unifiable, _ 
 	    | UnifiableExists, Exists ->
-		cont (try make_equal ts c con with Contradiction -> raise No_match)
+                cont (try make_equal ts c con, [c, con] with Contradiction -> raise No_match)
 	    | UnifiableExists, _ ->
 	        if no_live ts (rep ts con) then 
 		    (* If not live accesses treat as an exists *)
-		    cont (try make_equal ts c con with Contradiction -> raise No_match)
+                  cont (try make_equal ts c con, [c, con] with Contradiction -> raise No_match)
 		else
                   (* Needs to be an exists, so fail*)
 		  raise No_match  
@@ -1144,18 +1124,13 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	  using 
 	    ts cont 
 	    (tryall 
-	       (fun (c1,c2) 
-		 -> 
-		   andthen 
-		     (patternmatch_inner p1 c1) 
-		     (patternmatch_inner p2 c2)
-		     )
+	       (fun (c1,c2) ->
+		   andthen (patternmatch_inner p1 c1) (patternmatch_inner p2 c2))
 	       cl)
-    let patternmatch ts pattern constant (cont : t -> 'a) : 'a = 
+    let patternmatch ts pattern constant cont =
       patternmatch_inner pattern constant ts cont
 
     let unifies = patternmatch 
-
 
     let unifies_any ts c1 cont = 
       (* Very naive code, should do something clever like e-matching, but will do for now. *)
@@ -1166,7 +1141,7 @@ module PersistentCC (A : GrowablePersistentArray) : PCC =
 	    if n <> rep ts n then f (n+1)
 	    else
 	      try 
-		unifies ts c1 n (fun ts -> cont (ts,n)) 
+		unifies ts c1 n (function ts, eqs -> cont (ts, eqs, n)) 
 	      with No_match 
 		  -> f (n+1)
       in f 0

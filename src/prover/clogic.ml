@@ -506,7 +506,7 @@ let match_and_remove
 	(cn (*current name*),cp (*current tuple pattern*))
 	pattern(*remaining pattern*)
 	count (*number of successive failures to match *)
-	(cont : term_structure * RMSet.multiset -> 'a) : 'a =
+	(cont : term_structure * eq list * RMSet.multiset -> 'a) : 'a =
       if RMSet.has_more term then
 	(* actually do something *)
 	let s,nterm = RMSet.remove term in
@@ -515,7 +515,7 @@ let match_and_remove
 	  try
             let result =
               unifies ts cp (snd(s))
-                (fun ts ->
+                (function ts, eqs1 ->
                  (* If we are removing matched elements use nterm, otherwise revert to term *)
                   let nterm = if remove then nterm else term in
                   if SMSet.has_more pattern then
@@ -525,6 +525,7 @@ let match_and_remove
                        then must back the iterator up across the failed matches.  *)
                     let nterm = if nn=cn then (RMSet.back nterm count) else nterm in
                     let np,ts = make_tuple_pattern np ts in
+                    let cont (ts, eqs2, ps) = cont (ts, eqs2 @ eqs1, ps) in
                     mar_inner
                       ts
                       nterm
@@ -534,7 +535,7 @@ let match_and_remove
                       cont
                   else
                     (* No pattern left, done *)
-                    cont (ts,RMSet.restart nterm)
+                    cont (ts, eqs1, RMSet.restart nterm)
                 ) in
             (try
               combine
@@ -561,7 +562,7 @@ let match_and_remove
       mar_inner ts term (cn,cp) pattern 0 cont
     else
       (* Empty pattern just call continuation *)
-      cont (ts,term)
+      cont (ts,[],term)
 
 
 
@@ -656,29 +657,30 @@ let convert_rule (sr : sequent_rule) : inner_sequent_rule =
        where = where;
      }
 
-
 (* Match in syntactic ones too *)
 let rec match_foo op ts form seqs cont =
   match seqs with
-    [] -> cont (ts,form)
+    [] -> cont (ts,[],form)
   | (x,y)::seqs ->
       let x,ts = add_pattern x ts in
       let y,ts = add_pattern y ts in
+      let mk_match_cont form (ts, eqs1) =
+        let cont (ts, eqs2, ps) = cont (ts, eqs2 @ eqs1, ps) in
+        match_foo op ts form seqs cont in
+      let mk_unifies_cont c form (ts, eqs1) =
+        let cont (ts, eqs2) = mk_match_cont form (ts, eqs2 @ eqs1) in
+        unifies ts y c cont in
       try
-	op ts x y (fun ts -> match_foo op ts form seqs cont)
+	op ts x y (mk_match_cont form)
       with No_match ->
 	let rec f ts frms frms2=
 	  match frms with
 	    (a,b)::frms ->
 	      begin
 		try
-		  unifies ts x a
-		    (fun ts -> unifies ts y b
-			(fun ts -> match_foo op ts (frms@frms2) seqs cont) )
+		  unifies ts x a (mk_unifies_cont b (frms@frms2))
 		with No_match -> try
-		  unifies ts x b
-		    (fun ts -> unifies ts y a
-			(fun ts -> match_foo op ts (frms@frms2) seqs cont) )
+		  unifies ts x b (mk_unifies_cont a (frms@frms2))
 		with No_match ->
 		  f ts frms ((a,b)::frms2)
 	      end
@@ -698,14 +700,14 @@ let match_neqs ts neqs sneqs cont =
 let rec match_form remove ts form pat combine (cont : term_structure * formula -> 'a) : 'a =
   match_and_remove remove ts form.spat pat.sspat
     combine
-    (fun (ts,nspat) ->
+    (fun (ts,_,nspat) ->
       match_and_remove remove ts form.plain pat.splain
         combine
-	(fun (ts,nplain) ->
+	(fun (ts,_,nplain) ->
 	  match_eqs ts form.eqs pat.seqs
-	    (fun (ts,eqs) ->
+	    (fun (ts,_,eqs) ->
 	      match_neqs ts form.neqs pat.sneqs
-		(fun (ts,neqs) ->
+		(fun (ts,_,neqs) ->
 		  match_disjunct remove ts {form with
 			      spat = nspat;
 			      plain = nplain;

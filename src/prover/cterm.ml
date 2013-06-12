@@ -20,6 +20,8 @@ type term_handle = CC.constant
 
 type pattern = CC.curry_term
 
+type eq = term_handle * term_handle
+
 type flattened_args = 
   | FArg_var of Vars.var
   | FArg_string of string
@@ -436,9 +438,8 @@ let make_tuple_pattern ptl ts =
   c,ts
 
 
-let unifies (ts : term_structure) (pt : pattern) (con : CC.constant) (cont : term_structure -> 'a) : 'a 
-    =
-  CC.unifies ts.cc pt con (fun cc -> cont {ts with cc = cc})
+let unifies ts pt c cont =
+  CC.unifies ts.cc pt c (function cc, eqs -> cont ({ts with cc}, eqs))
 
 let determined_exists ts cl c1 c2 : term_structure * (term_handle * term_handle) list
     = 
@@ -601,7 +602,7 @@ let rewrite (ts : term_structure) (rm : rewrite_rule list) (query : term_structu
 	  let c,ts = add_pattern t ts in
 (*	  Format.printf "Pattern %a@\n" (pp_c ts) c; *)
 	  CC.unifies_any ts.cc c
-	    (fun (cc,c) -> 
+	    (fun (cc,_,c) -> 
 (*	      Format.printf "Applying: %s to %a@\n" r.rewrite_name (pp_c ts) c; *)
 	      let x,ts = add_term true r.result {ts with cc=cc} in
 (*	      Format.printf "Adding term %a = %a@\n to %a@\n" (pp_c ts) x (pp_c ts) c  pp_ts ts;*)
@@ -638,17 +639,17 @@ let rewrite (ts : term_structure) (rm : rewrite_rule list) (query : term_structu
 let unify_patterns ts x y cont = 
   try 
     if CC.eq_term ts.cc x y then 
-      cont ts
+      cont (ts, [])
     else
       raise Backtrack.No_match
   with Backtrack.No_match ->    
     CC.unifies_any ts.cc x 
-      (fun (cc,c) -> CC.unifies cc y c
-	  (fun cc -> cont {ts with cc=cc}))
+      (fun (cc,eqs1,c) -> CC.unifies cc y c
+	  (function cc, eqs2 -> cont ({ts with cc}, eqs2 @ eqs1)))
 
 let unify_not_equal_pattern ts x y cont = 
   if CC.neq_term ts.cc x y then 
-    cont ts
+    cont (ts, [])
   else raise Backtrack.No_match
 
 let ts_eq ts1 ts2 = 
