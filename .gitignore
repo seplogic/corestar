@@ -2,7 +2,6 @@
 *.swp
 .depend
 .install.mk
-TODO
 _build
 rg.log
 tags

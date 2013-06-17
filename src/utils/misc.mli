@@ -21,8 +21,6 @@ val merge_lists : 'a list -> 'a list -> 'a list
 val insert_sorted : 'a -> 'a list -> 'a list
 
 (* }}} *)
-val intcmp : 'a -> 'a -> int
-val intcmp2 : 'a * 'b -> 'a * 'b -> int
 
 val iter_pairs : ('a -> 'a -> unit) -> 'a list -> unit
   (* Iterates over consecutive pairs. *)

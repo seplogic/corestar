@@ -125,6 +125,7 @@ module ListH : sig
 end
 
 val cons : 'a -> 'a list -> 'a list
+val group_by : ('a -> 'a -> bool) -> 'a list -> 'a list list
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
 type 'a pretty_printer = Format.formatter -> 'a -> unit

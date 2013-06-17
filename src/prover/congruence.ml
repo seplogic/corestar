@@ -244,7 +244,7 @@ module CC : PCC =
     module CCMap = Map.Make(
       struct
 	type t = constant * constant
-	let compare = intcmp2
+	let compare = compare
       end
 	)
 
@@ -430,21 +430,21 @@ module CC : PCC =
       - The [uselist] contains exactly the aparitions in [lookup] and
         [not_equal].
       - The [rev_lookup] is the reverse of [lookup].
-      - Constructors are distinct, injective, and have disjoint images.
+      - The [classlist] is the reverse of [representatives].
+      - Constructors are distinct, injective and disjoint even when curried.
         - If constructor[c]<>IApp(_,_) and (a,b)∊rev_lookup[c],
           then constructor[a]=Not.
         - If constructor[c]=IApp(d,e) and (a,b)∊rev_lookup[c],
           then constructor[d]<>Not, and (a,b)=(d,e) or constructor[a]=Not.
         - If constructor[c]=IApp(d,e) then (d,e)∊rev_lookup[c].
-      - The [classlist] is the reverse of [representatives].
+        - If constructor[f]<>Not, constructor[g]<>Not, and f<>g,
+          then (f,g)∊not_equal.
+          (NOTE: representative[f]=f and representative[g]=g)
+          (NOTE: It is inefficient to maintain this part of the invariant with
+          the current data structure. Fixing it is TODO.)
       - Closure under propagation of disequalities:
-        - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
-          then (c, d)∊not_equal.
         - If {f(a)=c, f(b)=d}∊lookup and (c,d)∊not_equal,
           then (a,b)∊not_equal
-      - If f and g are constructors and rep(f)!=rep(g), then (f,g)∊not_equal.
-        (NOTE&TODO: This is currently *not* true, but simulated by [rep_uneq].
-        It may be less risky and not much slower to explicitly use [not_equal].)
 
     NOTE: The checks above imply closure under propagation of equalities:
       - (a=b --> f(a)=f(b)) because there are only reps in [lookup]
@@ -453,6 +453,10 @@ module CC : PCC =
     NOTE: The checks above also imply that no two constants are known to be
       both equal and not equal, because pairs of [not_equal] are strictly
       increasing, and contain only representatives.
+    NOTE: The checks above imply that if (a, b)∊not_equal, constructor[f]<>Not,
+      constructor[g]<>Not, and {f(a)=c, g(b)=d}⊆lookup, then (c, d)∊not_equal.
+      This is because fx is a constructor whenever x is, and all constructors
+      are distinct.
     *)
     let strict_invariant cc =
       let n = size cc in
@@ -525,6 +529,11 @@ module CC : PCC =
       done;
       assert (!eq_cnt = CCMap.cardinal cc.lookup);
 
+      let rep_cnt = ref 0 in
+      let chk_clsrep c b = incr rep_cnt; assert (get_representative cc b = c) in
+      for c = 0 to n - 1 do List.iter (chk_clsrep c) (get_classlist cc c) done;
+      assert (!rep_cnt = n);
+
       let chk_rev_lkp_cons cons (a, b) = match cons with
         | IApp (d, e) ->
             assert (get_constructor cc d <> Not);
@@ -538,29 +547,23 @@ module CC : PCC =
           | _ -> ()
       done;
 
-      let rep_cnt = ref 0 in
-      let chk_clsrep c b = incr rep_cnt; assert (get_representative cc b = c) in
-      for c = 0 to n - 1 do List.iter (chk_clsrep c) (get_classlist cc c) done;
-      assert (!rep_cnt = n);
-
-      let chk_neq_fixed_fun f =
-        let f_is_cons = get_constructor cc f <> Not in
-        let get_f_app =
-          function Complex_eq (g, a, b) when g = f -> Some (a, b) | _ -> None in
-        let xs = map_option get_f_app (get_uselist cc f) in
-        let chk_pair (a, c) (b, d) =
-          let a_neq_b = CCMap.mem (a, b) cc.not_equal in
-          let c_neq_d = CCMap.mem (c, d) cc.not_equal in
-          assert (not c_neq_d || a_neq_b);
-          assert (not f_is_cons || not a_neq_b || c_neq_d) in
-        Misc.iter_all_pairs chk_pair xs in
-      HashSet.iter chk_neq_fixed_fun reps;
-
       for c = 0 to n - 1 do if get_constructor cc c <> Not then
         for d = c + 1 to n - 1 do if get_constructor cc d <> Not then
           assert (CCMap.mem (c, d) cc.not_equal)
         done
-      done
+      done;
+
+      let chk_neq_fixed_fun f =
+        let get_f_app =
+          (function Complex_eq (g, a, b) when g = f -> Some (a, b) | _ -> None) in
+        let xs = map_option get_f_app (get_uselist cc f) in
+        let chk_pair (a, c) (b, d) =
+          let a_neq_b = CCMap.mem (a, b) cc.not_equal in
+          let c_neq_d = CCMap.mem (c, d) cc.not_equal in
+          assert (not c_neq_d || a_neq_b) in
+        Misc.iter_all_pairs chk_pair xs in
+      HashSet.iter chk_neq_fixed_fun reps
+
       (* END of [strict_invariant] check *)
 
     (* TODO(rgrig): Why is this not commutative? *)
@@ -678,8 +681,30 @@ module CC : PCC =
       if safe then strict_invariant cc;
       (eqs, cc)
 
+    let pairs xs = List.map (fun y -> List.map (fun x -> (x, y)) xs)
+
     (* Maintains [strict_invariant]. *)
-    let add_neq (a, b) cc = failwith "XXX"
+    let add_neq (a, b) cc =
+      (* the check below is necessary for termination *)
+      if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
+        if safe then strict_invariant cc;
+        let not_equal = CCMap.add (a, b) () cc.not_equal in
+        let rec span h = function
+          | (f, x) :: xs when f = h -> let xs1, xs2 = span h xs in (x :: xs1, xs2)
+          | [] -> ([], [])
+          | _ :: xs -> ([], xs) in
+        let rec neq_fun neqs xs ys = match xs, ys with
+          | [], _ | _, [] -> neqs
+          | ((f, x) :: xs as xxs), ((g, y) :: ys as yys) ->
+              let h = min f g in
+              let xs1, xs2 = span h xxs in
+              let ys1, ys2 = span h yys in
+              neq_fun (pairs xs1 ys1 @ neqs) xs2 ys2 in
+        let neqs = neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
+        let cc = { cc with not_equal } in
+        if safe then strict_invariant cc;
+        (neqs, cc)
+      end
 
     let fresh ts : int * t =
       assert (invariant ts);
@@ -1306,7 +1331,7 @@ module CC : PCC =
 (* Build new reverse lookup map *)
       let revl = Array.init !i
 	  (fun i ->
-	    remove_duplicates intcmp2
+	    remove_duplicates compare
 	      (map_option
 		 (fun (a,b) ->
 		   if live  a && live b then
@@ -1339,8 +1364,7 @@ module CC : PCC =
 		      else None
 			  )
 		(get_uselist ts oi) in
-	    remove_duplicates (intcmp) ul
-	      ) in
+	    remove_duplicates compare ul) in
       let ts= {
 	uselist = Auselist.unsafe_create usel;
 	representative = Arepresentative.unsafe_create reps;
@@ -1561,7 +1585,7 @@ module CC : PCC =
 	 let f,ts = fresh ts in
 	 let c,ts = add_term ts (Func(f,[TConstant a])) in
 	 let d,ts = add_term ts (Func(f,[TConstant b])) in
-	 
+
 	 let ts = make_constructor ts c in
 	 let ts = make_constructor ts d in
 	 begin

@@ -81,16 +81,6 @@ let insert_sorted x xs =
   f [] xs
 
 (* }}} *)
-(* TODO(rgrig): Isn't intcmp x y = compare y x? *)
-let intcmp a b =
-  if a<b then -1 else if a=b then 0 else 1
-
-(* TODO(rgrig): Isn't intcmp2 x y = compare y x? *)
-let intcmp2 (x1,x2) (y1,y2) =
-  let v = intcmp x1 y1 in
-  if v = 0 then intcmp x2 y2
-  else v
-
 let rec map_and_find f = function
   | [] -> raise Not_found
   | x :: xs -> try f x with _ -> map_and_find f xs
