@@ -1,0 +1,8 @@
+- conjunction on inner_form
+  - conjunction on term structures
+    - conjunction on congruence closures
+      - add_neq
+      - sanitize
+      - merge_cc
+
+:load_local_vimrc
