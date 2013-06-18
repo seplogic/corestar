@@ -53,11 +53,6 @@ module type PCC =
       |	PConstant of constant
       |	PFunc of constant * pattern list
 
-      type pattern_curry =
-	  CHole of constant
-	| CPConstant of constant
-	| CPApp of pattern_curry * pattern_curry
-
       (* New blank ts *)
       val create : unit -> t
 
@@ -119,17 +114,10 @@ module type PCC =
       *)
       val make_constructor : t -> constant -> t
 
-      (* Qeury if two terms are equal. *)
-(*      val eq : t -> term -> term -> bool*)
-
       val normalise : t -> constant -> constant
       val others : t -> constant -> constant list
       val eq_term : t -> curry_term -> curry_term -> bool
       val neq_term : t -> curry_term -> curry_term -> bool
-
-      (* Pattern match, takes pattern and representative,
-	 and continuation and backtracks in continuation raises No_match  *)
-(*       val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a *)
 
       val unifies : t -> curry_term -> constant -> (t -> 'a) -> 'a
       val unifies_any : t -> curry_term -> (t * constant -> 'a) -> 'a
@@ -209,27 +197,11 @@ module CC : PCC =
       |	PConstant of constant
       |	PFunc of constant * pattern list
 
-    type pattern_curry =
-	CHole of constant
-      |	CPConstant of constant
-      |	CPApp of pattern_curry * pattern_curry
-
     let rec curry (t : term)
 	=
       match t with
 	TConstant c -> Constant c
       | Func (c,tl) -> List.fold_left (fun ct t -> App (ct,(curry t))) (Constant c) tl
-
-
-    let rec currypattern (t : pattern)  : pattern_curry
-	=
-      match t with
-	Hole c -> CHole c
-      |	PConstant c -> CPConstant c
-      | PFunc (c,tl) -> List.fold_left (fun ct t -> CPApp (ct,(currypattern t))) (CPConstant c) tl
-
-
-
 
     type complex_eq = (* a *)constant * (* b *)constant * (* c *)constant  (* app(a,b) = c *)
 
@@ -578,7 +550,9 @@ module CC : PCC =
 
     (* TODO: Maintain these counts, so that [get_weight] takes O(1) time. *)
     let get_weight cc c =
-      List.length (get_uselist cc c) + List.length (get_classlist cc c)
+      List.length (get_uselist cc c)
+      + List.length (get_classlist cc c)
+      + List.length (get_rev_lookup cc c)
 
     let rec work_list f cc = function
       | [] -> cc
@@ -586,6 +560,61 @@ module CC : PCC =
 
     let sort_pair ((a, b) as p) =
       if a <= b then p else (b, a)
+
+    let pairs xs ys =
+      List.flatten (List.map (fun y -> List.map (fun x -> (x, y)) xs) ys)
+
+    (* TODO: This must be done faster. Maintain set of constructors? *)
+    let get_all_constructors cc =
+      let r = ref [] in
+      for c = 0 to size cc - 1 do
+        if get_constructor cc c <> Not then r := c :: !r
+      done;
+      !r
+
+    (* Maintains [strict_invariant]. *)
+    let add_neq (a, b) cc =
+      (* the check below is necessary for termination *)
+      if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
+        if safe then strict_invariant cc;
+        let not_equal = CCMap.add (a, b) () cc.not_equal in
+
+        (* f(x)!=f(y) --> x!=y *)
+        let rec span h = function
+          | (f, x) :: xs when f = h -> let xs1, xs2 = span h xs in (x :: xs1, xs2)
+          | [] -> ([], [])
+          | _ :: xs -> ([], xs) in
+        let rec neq_fun neqs xs ys = match xs, ys with
+          | [], _ | _, [] -> neqs
+          | ((f, x) :: xs as xxs), ((g, y) :: ys as yys) ->
+              let h = min f g in
+              let xs1, xs2 = span h xxs in
+              let ys1, ys2 = span h yys in
+              neq_fun (pairs xs1 ys1 @ neqs) xs2 ys2 in
+        let neqs = neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
+        let cc = { cc with not_equal } in
+        if safe then strict_invariant cc;
+        (neqs, cc)
+      end
+
+    let get_image cc c =
+      let f acc = function
+        | Complex_eq (x, y, z) when x = c -> (x, y, z) :: acc
+        | _ -> acc in
+      List.fold_left f [] (get_uselist cc c)
+
+    let mk_cons (a, b, c) cc =
+      if safe then begin
+        try
+          let _, _, d = CCMap.find (a, b) cc.lookup in
+          assert (c = d)
+        with Not_found -> assert false
+      end;
+      if get_constructor cc c <> Not then raise Contradiction;
+      let neqs = List.map (fun d -> (c, d)) (get_all_constructors cc) in
+      let cc = work_list add_neq cc neqs in
+      let cc = set_constructor cc c (IApp (a, b)) in
+      (get_image cc c, cc)
 
     (* Maintains [strict_invariant]. *)
     (* TODO: Turn lists into sets. See SLOW below. *)
@@ -616,11 +645,13 @@ module CC : PCC =
           ([], { cc with lookup }) in
       let a, b = get_representative cc a, get_representative cc b in
       let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
+      (* NOTE: This function should use O(get_weight cc b) time, not counting
+      the work done for marking constants as constructors. *)
 
       (* merge [b] (small) into [a] (big) *)
       let cs = get_classlist cc b in
       let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
-      let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in
+      let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in (* SLOW *)
       let cc = reset_classlist cc b in
 
       (* merge constructor[a] with constructor[b] *)
@@ -638,7 +669,7 @@ module CC : PCC =
       (* assumes constructor[a] is already merged *)
       let iapps_to_update =
         let f acc = function
-          | Complex_eq (x, y, z) -> IntSet.add (sub z) acc
+          | Complex_eq (_, _, z) -> IntSet.add (sub z) acc
           | _ -> acc in
         List.fold_left f IntSet.empty (get_uselist cc b) in
       let bs_eqs =
@@ -659,6 +690,7 @@ module CC : PCC =
         | _ -> cc in
       let cc = IntSet.fold update_cons iapps_to_update cc in
 
+      (* Ensure not_equal mentions only reps. *)
       let update_neq cc = function
         | Complex_eq (x, y, z)  -> cc
         | Not_equal x ->
@@ -676,35 +708,11 @@ module CC : PCC =
               (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
             cc in
       let cc = List.fold_left update_neq cc (get_uselist cc b) in
+
       let cc = set_unifiable cc a
         (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
       if safe then strict_invariant cc;
       (eqs, cc)
-
-    let pairs xs = List.map (fun y -> List.map (fun x -> (x, y)) xs)
-
-    (* Maintains [strict_invariant]. *)
-    let add_neq (a, b) cc =
-      (* the check below is necessary for termination *)
-      if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
-        if safe then strict_invariant cc;
-        let not_equal = CCMap.add (a, b) () cc.not_equal in
-        let rec span h = function
-          | (f, x) :: xs when f = h -> let xs1, xs2 = span h xs in (x :: xs1, xs2)
-          | [] -> ([], [])
-          | _ :: xs -> ([], xs) in
-        let rec neq_fun neqs xs ys = match xs, ys with
-          | [], _ | _, [] -> neqs
-          | ((f, x) :: xs as xxs), ((g, y) :: ys as yys) ->
-              let h = min f g in
-              let xs1, xs2 = span h xxs in
-              let ys1, ys2 = span h yys in
-              neq_fun (pairs xs1 ys1 @ neqs) xs2 ys2 in
-        let neqs = neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
-        let cc = { cc with not_equal } in
-        if safe then strict_invariant cc;
-        (neqs, cc)
-      end
 
     let fresh ts : int * t =
       assert (invariant ts);
@@ -1656,6 +1664,7 @@ module CC : PCC =
 	   end;
        ()
 
+(*
 (* Can probably remove pattern match by using unifiable variables in terms.*)
     let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a =
       match pattern with
@@ -1669,6 +1678,7 @@ module CC : PCC =
                 [ patternmatch_inner p1 c1; patternmatch_inner p2 c2 ]
                 ts cont)
             cl
+*)
 
     let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a =
       match pattern with

@@ -22,10 +22,12 @@ module type PCC =
         Hole of constant
       | PConstant of constant
       | PFunc of constant * pattern list
+(*
     type pattern_curry =
         CHole of constant
       | CPConstant of constant
       | CPApp of pattern_curry * pattern_curry
+*)
     val create : unit -> t
     val size : t -> int
     val add_term : t -> term -> constant * t
