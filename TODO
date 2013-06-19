@@ -1,8 +1,9 @@
 - conjunction on inner_form
   - conjunction on term structures
     - conjunction on congruence closures
-      - make sure invariant is fine
+      * make sure invariant is fine
       - review add_neq and add_eq
+        - make sure you detect contradictions in both add_eq and add_neq
       - sanitize
       - merge_cc
 

@@ -554,9 +554,15 @@ module CC : PCC =
       + List.length (get_classlist cc c)
       + List.length (get_rev_lookup cc c)
 
-    let rec work_list f cc = function
-      | [] -> cc
-      | j :: js -> let is, cc = f j cc in work_list f cc (is @ js)
+    (* See [work_list] below. *)
+    type work_unit =
+      | WU_add_eq of constant * constant
+      | WU_add_neq of constant * constant
+      | WU_mk_cons of constant * constant * constant
+
+    let mk_wu_add_eq (a, b) = WU_add_eq (a, b)
+    let mk_wu_add_neq (a, b) = WU_add_neq (a, b)
+    let mk_wu_mk_cons (a, b, c) = WU_mk_cons (a, b, c)
 
     let sort_pair ((a, b) as p) =
       if a <= b then p else (b, a)
@@ -564,7 +570,7 @@ module CC : PCC =
     let pairs xs ys =
       List.flatten (List.map (fun y -> List.map (fun x -> (x, y)) xs) ys)
 
-    (* TODO: This must be done faster. Maintain set of constructors? *)
+    (* TODO: This must be done faster. Maintain set of self constructors? *)
     let get_self_constructors cc =
       let r = ref [] in
       for c = 0 to size cc - 1 do
@@ -572,11 +578,10 @@ module CC : PCC =
       done;
       !r
 
-    (* Maintains [strict_invariant]. *)
     let add_neq (a, b) cc =
       (* the check below is necessary for termination *)
       if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
-        if safe then strict_invariant cc;
+        let a, b = sort_pair (a, b) in
         let not_equal = CCMap.add (a, b) () cc.not_equal in
 
         let rec acc_neq get_f get_x neqs xs ys = match xs, ys with
@@ -590,7 +595,7 @@ module CC : PCC =
               let ys1 = List.map get_x ys1 in
               acc_neq get_f get_x (pairs xs1 ys1 @ neqs) xs2 ys2 in
 
-        (* f(x)!=f(y) --> x!=y *)
+        (* f(x)!=f(y)  →  x!=y *)
         let acc_neq_fun = acc_neq fst snd in
         let neqs = acc_neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
 
@@ -606,8 +611,8 @@ module CC : PCC =
         let neqs = acc_neq_cons neqs (get_cons_app a) (get_cons_app b) in
 
         let cc = { cc with not_equal } in
-        if safe then strict_invariant cc;
-        (neqs, cc)
+        let ws = List.map mk_wu_add_neq neqs in
+        (ws, cc)
       end
 
     let get_image cc c =
@@ -623,16 +628,18 @@ module CC : PCC =
           assert (c = d)
         with Not_found -> assert false
       end;
-      if get_constructor cc c <> Not then raise Contradiction;
-      let neqs = List.map (fun d -> (c, d)) (get_self_constructors cc) in
-      let cc = work_list add_neq cc neqs in
-      let cc = set_constructor cc c (IApp (a, b)) in
-      (get_image cc c, cc)
+      (match get_constructor cc c with
+        | Self -> raise Contradiction
+        | IApp (aa, bb) -> ([mk_wu_add_eq (aa, a); mk_wu_add_eq (bb, b)], cc)
+        | Not ->
+            let f d = mk_wu_add_neq (c, d) in
+            let ws = List.map f (get_self_constructors cc) in
+            let cc = set_constructor cc c (IApp (a, b)) in
+            let ws = List.map mk_wu_mk_cons (get_image cc c) @ ws in
+            (ws, cc))
 
-    (* Maintains [strict_invariant]. *)
     (* TODO: Turn lists into sets. See SLOW below. *)
     let add_eq (a, b) cc =
-      if safe then strict_invariant cc;
       let remove_complex_eq (x, y, z) cc =
         let lookup = CCMap.remove (x, y) cc.lookup in
         let cc = set_rev_lookup cc z
@@ -724,8 +731,25 @@ module CC : PCC =
 
       let cc = set_unifiable cc a
         (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
+      let ws = List.map mk_wu_add_eq eqs in
+      (ws, cc)
+
+    let work j cc = match j with
+      | WU_add_eq (a, b) -> add_eq (a, b) cc
+      | WU_add_neq (a, b) -> add_neq (a, b) cc
+      | WU_mk_cons (a, b, c) -> mk_cons (a, b, c) cc
+
+    let rec unsafe_work_list js cc = match js with
+      | [] -> cc
+      | j :: js -> let is, cc = work j cc in unsafe_work_list (is @ js) cc
+
+    (* Maintains [strict_invariant].  Unfortunately, it seems a bit expensive
+    to maintain [strict_invariant] for each work unit. *)
+    let work_list js cc =
       if safe then strict_invariant cc;
-      (eqs, cc)
+      let cc = unsafe_work_list js cc in
+      if safe then strict_invariant cc;
+      cc
 
     let fresh ts : int * t =
       assert (invariant ts);
