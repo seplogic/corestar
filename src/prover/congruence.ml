@@ -409,7 +409,7 @@ module CC : PCC =
         - If constructor[c]=IApp(d,e) and (a,b)∊rev_lookup[c],
           then constructor[d]<>Not, and (a,b)=(d,e) or constructor[a]=Not.
         - If constructor[c]=IApp(d,e) then (d,e)∊rev_lookup[c].
-        - If constructor[f]<>Not, constructor[g]<>Not, and f<>g,
+        - If constructor[f]=Self, constructor[g]<>Not, and f<>g,
           then (f,g)∊not_equal.
           (NOTE: representative[f]=f and representative[g]=g)
           (NOTE: It is inefficient to maintain this part of the invariant with
@@ -417,6 +417,8 @@ module CC : PCC =
       - Closure under propagation of disequalities:
         - If {f(a)=c, f(b)=d}∊lookup and (c,d)∊not_equal,
           then (a,b)∊not_equal
+        - If (a, b)∊not_equal, f constructor, and {f(a)=c, f(b)=d}⊆lookup,
+          then (c, d)∊not_equal.
 
     NOTE: The checks above imply closure under propagation of equalities:
       - (a=b --> f(a)=f(b)) because there are only reps in [lookup]
@@ -425,10 +427,6 @@ module CC : PCC =
     NOTE: The checks above also imply that no two constants are known to be
       both equal and not equal, because pairs of [not_equal] are strictly
       increasing, and contain only representatives.
-    NOTE: The checks above imply that if (a, b)∊not_equal, constructor[f]<>Not,
-      constructor[g]<>Not, and {f(a)=c, g(b)=d}⊆lookup, then (c, d)∊not_equal.
-      This is because fx is a constructor whenever x is, and all constructors
-      are distinct.
     *)
     let strict_invariant cc =
       let n = size cc in
@@ -519,20 +517,22 @@ module CC : PCC =
           | _ -> ()
       done;
 
-      for c = 0 to n - 1 do if get_constructor cc c <> Not then
-        for d = c + 1 to n - 1 do if get_constructor cc d <> Not then
-          assert (CCMap.mem (c, d) cc.not_equal)
+      for c = 0 to n - 1 do if get_constructor cc c = Self then
+        for d = 0 to n - 1 do if get_constructor cc d <> Not then
+          assert (c = d || CCMap.mem (c, d) cc.not_equal)
         done
       done;
 
       let chk_neq_fixed_fun f =
+        let f_is_cons = get_constructor cc f <> Not in
         let get_f_app =
-          (function Complex_eq (g, a, b) when g = f -> Some (a, b) | _ -> None) in
+          function Complex_eq (g, a, b) when g = f -> Some (a, b) | _ -> None in
         let xs = map_option get_f_app (get_uselist cc f) in
         let chk_pair (a, c) (b, d) =
           let a_neq_b = CCMap.mem (a, b) cc.not_equal in
           let c_neq_d = CCMap.mem (c, d) cc.not_equal in
-          assert (not c_neq_d || a_neq_b) in
+          assert (not c_neq_d || a_neq_b);
+          assert (not f_is_cons || not a_neq_b || c_neq_d) in
         Misc.iter_all_pairs chk_pair xs in
       HashSet.iter chk_neq_fixed_fun reps
 
@@ -565,10 +565,10 @@ module CC : PCC =
       List.flatten (List.map (fun y -> List.map (fun x -> (x, y)) xs) ys)
 
     (* TODO: This must be done faster. Maintain set of constructors? *)
-    let get_all_constructors cc =
+    let get_self_constructors cc =
       let r = ref [] in
       for c = 0 to size cc - 1 do
-        if get_constructor cc c <> Not then r := c :: !r
+        if get_constructor cc c = Self then r := c :: !r
       done;
       !r
 
@@ -579,19 +579,32 @@ module CC : PCC =
         if safe then strict_invariant cc;
         let not_equal = CCMap.add (a, b) () cc.not_equal in
 
-        (* f(x)!=f(y) --> x!=y *)
-        let rec span h = function
-          | (f, x) :: xs when f = h -> let xs1, xs2 = span h xs in (x :: xs1, xs2)
-          | [] -> ([], [])
-          | _ :: xs -> ([], xs) in
-        let rec neq_fun neqs xs ys = match xs, ys with
+        let rec acc_neq get_f get_x neqs xs ys = match xs, ys with
           | [], _ | _, [] -> neqs
-          | ((f, x) :: xs as xxs), ((g, y) :: ys as yys) ->
-              let h = min f g in
-              let xs1, xs2 = span h xxs in
-              let ys1, ys2 = span h yys in
-              neq_fun (pairs xs1 ys1 @ neqs) xs2 ys2 in
-        let neqs = neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
+          | (x :: xs as xxs), (y :: ys as yys) ->
+              let h = min (get_f x) (get_f y) in
+              let p z = h = get_f z in
+              let xs1, xs2 = span p xxs in
+              let ys1, ys2 = span p yys in
+              let xs1 = List.map get_x xs1 in
+              let ys1 = List.map get_x ys1 in
+              acc_neq get_f get_x (pairs xs1 ys1 @ neqs) xs2 ys2 in
+
+        (* f(x)!=f(y) --> x!=y *)
+        let acc_neq_fun = acc_neq fst snd in
+        let neqs = acc_neq_fun [] (get_rev_lookup cc a) (get_rev_lookup cc b) in
+
+        (* x!=y ∧ f cons  →  f(x)!=f(y) *)
+        let acc_neq_cons =
+          acc_neq (function (a,_,_)->a) (function (_,_,c)->c) in
+        let get_cons_app x =
+          let p = function
+            | Complex_eq (u, v, w) when v = x && get_constructor cc u <> Not ->
+                Some (u, v, w)
+            | _ -> None in
+          map_option p (get_uselist cc x) in
+        let neqs = acc_neq_cons neqs (get_cons_app a) (get_cons_app b) in
+
         let cc = { cc with not_equal } in
         if safe then strict_invariant cc;
         (neqs, cc)
@@ -611,7 +624,7 @@ module CC : PCC =
         with Not_found -> assert false
       end;
       if get_constructor cc c <> Not then raise Contradiction;
-      let neqs = List.map (fun d -> (c, d)) (get_all_constructors cc) in
+      let neqs = List.map (fun d -> (c, d)) (get_self_constructors cc) in
       let cc = work_list add_neq cc neqs in
       let cc = set_constructor cc c (IApp (a, b)) in
       (get_image cc c, cc)

@@ -70,9 +70,6 @@ val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
 (** Almost like in Haskell, modulo laziness. *)
 val undefined : 'a -> 'b
 
-(** Like in Haskell. *)
-val tails : 'a list -> 'a list list
-
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 
@@ -124,8 +121,17 @@ module ListH : sig
     (** Like [Array.init]. *)
 end
 
+(** Like in Haskell. *)
+val tails : 'a list -> 'a list list
+
 val cons : 'a -> 'a list -> 'a list
+
+(** Like in Haskell. *)
 val group_by : ('a -> 'a -> bool) -> 'a list -> 'a list list
+
+(** Like in Haskell. *)
+val span : ('a -> bool) -> 'a list -> 'a list * 'a list
+
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
 type 'a pretty_printer = Format.formatter -> 'a -> unit

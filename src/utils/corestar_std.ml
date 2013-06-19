@@ -107,13 +107,19 @@ end
 
 let cons x xs = x :: xs
 
-let group_by cmp xs =
+let group_by cmp =
   let rec f yss xs = match yss, xs with
     | yss, [] -> List.rev_map List.rev yss
     | [], x :: xs -> f [[x]] xs
     | (y :: _) as ys :: yss, x :: xs when cmp y x -> f ((x :: ys) :: yss) xs
     | yss, x :: xs -> f ([x] :: yss) xs in
-  f [] xs
+  f []
+
+let span p =
+  let rec f ys = function
+    | x :: xs when p x -> f (x :: ys) xs
+    | xs -> (List.rev ys, xs) in
+  f []
 
 type 'a pretty_printer = formatter -> 'a -> unit
 
