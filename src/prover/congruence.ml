@@ -290,6 +290,7 @@ module CC : PCC =
     let reset_constructor cc i = { cc with constructor = Aconstructor.reset cc.constructor i }
     let get_unifiable cc = Aunifiable.get cc.unifiable
     let set_unifiable cc i v = { cc with unifiable = Aunifiable.set cc.unifiable i v }
+    let reset_unifiable cc i = { cc with unifiable = Aunifiable.reset cc.unifiable i }
 
     (* deprecate *)
     let rep = get_representative
@@ -429,6 +430,7 @@ module CC : PCC =
       increasing, and contain only representatives.
     *)
     let strict_invariant cc =
+      assert (invariant cc);
       let n = size cc in
       let reps = HashSet.create 0 in
       for c = 0 to n - 1 do
@@ -578,10 +580,36 @@ module CC : PCC =
       done;
       !r
 
+    let remove_complex_eq (x, y, z) cc =
+      let lookup = CCMap.remove (x, y) cc.lookup in
+      let cc = set_rev_lookup cc z
+        (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in (* SLOW *)
+      let cc = set_uselist cc x
+        (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc x)) in (* SLOW *)
+      let cc = set_uselist cc y
+        (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc y)) in (* SLOW *)
+      { cc with lookup }
+
+    let add_complex_eq (x, y, z) cc =
+      try
+        let xx, yy, zz = CCMap.find (x, y) cc.lookup in
+        assert (xx = x && yy = y);
+        ([z, zz], cc)
+      with Not_found ->
+        let lookup = CCMap.add (x, y) (x, y, z) cc.lookup in
+        let cc = set_rev_lookup cc z
+          (Misc.insert_sorted (x, y) (get_rev_lookup cc z)) in (* SLOW *)
+        let cc = set_uselist cc x
+          (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc x)) in (* SLOW *)
+        let cc = set_uselist cc y
+          (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc y)) in (* SLOW *)
+        ([], { cc with lookup })
+
     let add_neq (a, b) cc =
       (* the check below is necessary for termination *)
+      let a, b = sort_pair (get_representative cc a, get_representative cc b) in
+      if a = b then raise Contradiction;
       if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
-        let a, b = sort_pair (a, b) in
         let not_equal = CCMap.add (a, b) () cc.not_equal in
 
         let rec acc_neq get_f get_x neqs xs ys = match xs, ys with
@@ -640,99 +668,84 @@ module CC : PCC =
 
     (* TODO: Turn lists into sets. See SLOW below. *)
     let add_eq (a, b) cc =
-      let remove_complex_eq (x, y, z) cc =
-        let lookup = CCMap.remove (x, y) cc.lookup in
-        let cc = set_rev_lookup cc z
-          (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in (* SLOW *)
-        let cc = set_uselist cc x
-          (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc x)) in (* SLOW *)
-        let cc = set_uselist cc y
-          (List.filter ((<>) (Complex_eq (x, y, z))) (get_uselist cc y)) in (* SLOW *)
-        { cc with lookup } in
-      let add_complex_eq (x, y, z) cc =
-        try
-          let xx, yy, zz = CCMap.find (x, y) cc.lookup in
-          assert (xx = x && yy = y);
-          ([z, zz], cc)
-        with Not_found ->
-          let lookup = CCMap.add (x, y) (x, y, z) cc.lookup in
-          let cc = set_rev_lookup cc z
-            (Misc.insert_sorted (x, y) (get_rev_lookup cc z)) in (* SLOW *)
-          let cc = set_uselist cc x
-            (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc x)) in (* SLOW *)
-          let cc = set_uselist cc y
-            (Misc.insert_sorted (Complex_eq (x, y, z)) (get_uselist cc y)) in (* SLOW *)
-          ([], { cc with lookup }) in
       let a, b = get_representative cc a, get_representative cc b in
-      let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
-      (* NOTE: This function should use O(get_weight cc b) time, not counting
-      the work done for marking constants as constructors. *)
+      if a = b then ([], cc) else begin
+        let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
+        (* NOTE: This function should use O(get_weight cc b) time, not counting
+        the work done for marking constants as constructors. *)
 
-      (* merge [b] (small) into [a] (big) *)
-      let cs = get_classlist cc b in
-      let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
-      let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in (* SLOW *)
-      let cc = reset_classlist cc b in
+        (* merge [b] (small) into [a] (big) *)
+        let cs = get_classlist cc b in
+        let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
+        let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in (* SLOW *)
+        let cc = reset_classlist cc b in
 
-      (* merge constructor[a] with constructor[b] *)
-      let cons_a = match get_constructor cc a, get_constructor cc b with
-        (* NOTE: for reps, once a constructor, always a constructor *)
-        | Not, cons | cons, Not -> cons
-        | _ -> raise Contradiction in
-      let cc = set_constructor cc a cons_a in
-      let cc = reset_constructor cc b in
+        (* merge constructor[a] with constructor[b] *)
+        let ws, cons_a = match get_constructor cc a, get_constructor cc b with
+          (* NOTE: for reps, once a constructor, always a constructor *)
+          | Not, cons | cons, Not -> ([], cons)
+          | IApp (x1, y1) as cons, IApp (x2, y2) ->
+              ([mk_wu_add_eq (x1, x2); mk_wu_add_eq (y1, y2)], cons)
+          | _ -> raise Contradiction in
+        let cc = set_constructor cc a cons_a in
+        let cc = reset_constructor cc b in
 
-      let sub x = if x = b then a else x in
-      let sub3 (x, y, z) = (sub x, sub y, sub z) in
+        let sub x = if x = b then a else x in
+        let sub3 (x, y, z) = (sub x, sub y, sub z) in
 
-      (* (x y = z)[a/b], and also IApp(x, y)[a/b] *)
-      (* assumes constructor[a] is already merged *)
-      let iapps_to_update =
-        let f acc = function
-          | Complex_eq (_, _, z) -> IntSet.add (sub z) acc
-          | _ -> acc in
-        List.fold_left f IntSet.empty (get_uselist cc b) in
-      let bs_eqs =
-        let get_eq = function
-          | Complex_eq (x, y, z) -> Some (x, y, z)
-          | _ -> None in
-        let lhs = map_option get_eq (get_uselist cc b) in
-        let rhs = List.map (fun (x, y) -> (x, y, b)) (get_rev_lookup cc b) in
-        remove_duplicates compare (lhs @ rhs) in
-      let cc = List.fold_right remove_complex_eq bs_eqs cc in
-      let as_eqs = List.map sub3 bs_eqs in
-      let eqs, cc =
-        let f c_eq (eqs2, cc) =
-          let eqs1, cc = add_complex_eq c_eq cc in (eqs1 @ eqs2, cc) in
-        List.fold_right f as_eqs ([], cc) in
-      let update_cons c cc = match get_constructor cc c with
-        | IApp (x, y) -> set_constructor cc c (IApp (sub x, sub y))
-        | _ -> cc in
-      let cc = IntSet.fold update_cons iapps_to_update cc in
+        (* (x y = z)[a/b], and also IApp(x, y)[a/b] *)
+        (* assumes constructor[a] is already merged *)
+        let iapps_to_update =
+          let f acc = function
+            | Complex_eq (_, _, z) -> IntSet.add (sub z) acc
+            | _ -> acc in
+          List.fold_left f IntSet.empty (get_uselist cc b) in
+        let bs_eqs =
+          let get_eq = function
+            | Complex_eq (x, y, z) -> Some (x, y, z)
+            | _ -> None in
+          let lhs = map_option get_eq (get_uselist cc b) in
+          let rhs = List.map (fun (x, y) -> (x, y, b)) (get_rev_lookup cc b) in
+          remove_duplicates compare (lhs @ rhs) in
+        let cc = List.fold_right remove_complex_eq bs_eqs cc in
+        let as_eqs = List.map sub3 bs_eqs in
+        let eqs, cc =
+          let f c_eq (eqs2, cc) =
+            let eqs1, cc = add_complex_eq c_eq cc in (eqs1 @ eqs2, cc) in
+          List.fold_right f as_eqs ([], cc) in
+        let update_cons c cc = match get_constructor cc c with
+          | IApp (x, y) -> set_constructor cc c (IApp (sub x, sub y))
+          | _ -> cc in
+        let cc = IntSet.fold update_cons iapps_to_update cc in
 
-      (* Ensure not_equal mentions only reps. *)
-      let update_neq cc = function
-        | Complex_eq (x, y, z)  -> cc
-        | Not_equal x ->
-            if x = a then raise Contradiction;
-            let not_equal =
-              CCMap.remove (sort_pair (b, x)) cc.not_equal in
-            let cc = set_uselist cc x
-              (List.filter ((<>) (Not_equal b)) (get_uselist cc x)) in
-            let not_equal =
-              CCMap.add (sort_pair (a, x)) () not_equal in
-            let cc = { cc with not_equal } in
-            let cc = set_uselist cc a
-              (Misc.insert_sorted (Not_equal x) (get_uselist cc a)) in
-            let cc = set_uselist cc x
-              (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
-            cc in
-      let cc = List.fold_left update_neq cc (get_uselist cc b) in
+        (* Ensure not_equal mentions only reps. *)
+        let update_neq cc = function
+          | Complex_eq (x, y, z)  -> cc
+          | Not_equal x ->
+              if x = a then raise Contradiction; (* we knew before that a!=b *)
+              let not_equal =
+                CCMap.remove (sort_pair (b, x)) cc.not_equal in
+              let cc = set_uselist cc x
+                (List.filter ((<>) (Not_equal b)) (get_uselist cc x)) in
+              let not_equal =
+                CCMap.add (sort_pair (a, x)) () not_equal in
+              let cc = { cc with not_equal } in
+              let cc = set_uselist cc a
+                (Misc.insert_sorted (Not_equal x) (get_uselist cc a)) in
+              let cc = set_uselist cc x
+                (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
+              cc in
+        let cc = List.fold_left update_neq cc (get_uselist cc b) in
 
-      let cc = set_unifiable cc a
-        (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
-      let ws = List.map mk_wu_add_eq eqs in
-      (ws, cc)
+        let cc = set_unifiable cc a
+          (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
+        let cc = reset_unifiable cc b in
+        let ws = List.map mk_wu_add_eq eqs @ ws in
+        let ws = if get_constructor cc a = Not
+          then ws
+          else List.map mk_wu_mk_cons (get_image cc a) @ ws in
+        (ws, cc)
+      end (* of add_eq *)
 
     let work j cc = match j with
       | WU_add_eq (a, b) -> add_eq (a, b) cc
@@ -751,18 +764,19 @@ module CC : PCC =
       if safe then strict_invariant cc;
       cc
 
+    let grow n ts =
+      { ts with
+        uselist = Auselist.grow ts.uselist n
+      ; representative = Arepresentative.grow ts.representative n
+      ; classlist = Aclasslist.grow ts.classlist n
+      ; rev_lookup = Arev_lookup.grow ts.rev_lookup n
+      ; constructor = Aconstructor.grow ts.constructor n
+      ; unifiable = Aunifiable.grow ts.unifiable n }
+
     let fresh ts : int * t =
       assert (invariant ts);
       let c = size ts in
-      let ts =
-        {ts with
-          uselist = Auselist.grow ts.uselist 1;
-          representative = Arepresentative.grow ts.representative 1;
-          classlist = Aclasslist.grow ts.classlist 1;
-          rev_lookup = Arev_lookup.grow ts.rev_lookup 1;
-          constructor = Aconstructor.grow ts.constructor 1;
-          unifiable = Aunifiable.grow ts.unifiable 1;
-        } in
+      let ts = grow 1 ts in
       assert (invariant ts);
       (c, ts)
 
@@ -795,7 +809,18 @@ module CC : PCC =
         (j, set_representative cc i j)
       end
 
-    (* Establish the invariant by:
+    (* Establish [strict_invariant].
+      - make fresh cc of same size
+      - copy *unifiable* information
+      - copy over complex equalities:
+        iterate thru *lookup* and call add_complex_eq (should not schedule eqs)
+      - copy over self constructors:
+        iterate *self* cons and (1) set self, (2) mk_cons for all complex_eq
+      - copy over equalities:
+        iterate thru *represenatives* and call add_eq
+      - copy over disequalities:
+        iterate thru *not_equal* and call add_neq
+---->
       - making [representative] idempotent, so parent(x)==root(x)
       - recomputing [uselist], [classlist] and [rev_lookup], out of the others
       - infering extra equalities & disequalities
@@ -811,27 +836,30 @@ module CC : PCC =
     (* XXX: Completely wrong and unusable at the moment. *)
     let sanitize cc =
       let n = size cc in
-      let mapi f cc =
-        let rec g cc i = if i = n then cc else f i cc in
-        g cc 0 in
-
-      (* reset fields to be recomputed *)
-      let cc = { cc with uselist = Auselist.grow (Auselist.create ()) n } in
-      let cc = { cc with classlist = Aclasslist.grow (Aclasslist.create ()) n } in
-      let cc = { cc with rev_lookup = Arev_lookup.grow (Arev_lookup.create ()) n } in
-
-      (* recompute [rev_lookup] *)
-
-      (* propagate equalities, then disequalities *)
-
-      (* recompute [classlist], and make [representative] idempotent *)
-      let update_class c cc =
-        let d, cc = get_rep_root cc c in
-        let cs = get_classlist cc d in
-        set_classlist cc d (c :: cs) in
-      let cc = mapi update_class cc in
-      cc
-
+      let sane_cc = grow n (create ()) in
+      if safe then strict_invariant sane_cc;
+      let sane_cc = { sane_cc with unifiable = cc.unifiable } in
+      if safe then strict_invariant sane_cc;
+      let ace _ c_eq acc =
+        let eqs, acc = add_complex_eq c_eq acc in
+        assert (eqs = []);
+        acc in
+      let sane_cc = CCMap.fold ace cc.lookup sane_cc in
+      if safe then strict_invariant sane_cc;
+      let copy_self c cons acc = match cons with
+        | Self ->
+            let acc = set_constructor acc c Self in
+            work_list (List.map mk_wu_mk_cons (get_image acc c)) acc
+        | _ -> acc in
+      let sane_cc = Aconstructor.foldi copy_self cc.constructor sane_cc in
+      if safe then strict_invariant sane_cc;
+      let copy_eq a b = work_list [mk_wu_add_eq (a, b)] in
+      let sane_cc = Arepresentative.foldi copy_eq cc.representative sane_cc in
+      if safe then strict_invariant sane_cc;
+      let copy_neq neq () = work_list [mk_wu_add_neq neq] in
+      let sane_cc = CCMap.fold copy_neq cc.not_equal sane_cc in
+      if safe then strict_invariant sane_cc;
+      sane_cc
 
     let merge_cc subst cc1 cc2 =
       if safe then assert (invariant cc1 && invariant cc2);
@@ -852,10 +880,10 @@ module CC : PCC =
       let sub = snd @@ subst in
       for i = 0 to n1 - 1 do ignore (sub i) done;
       let ws set cc i v = cc := set !cc i v in
-      let set_uselist = ws set_uselist in
+(*       let set_uselist = ws set_uselist in *)
       let set_representative = ws set_representative in
-      let set_classlist = ws set_classlist in
-      let set_rev_lookup = ws set_rev_lookup in
+(*       let set_classlist = ws set_classlist in *)
+(*       let set_rev_lookup = ws set_rev_lookup in *)
       let set_constructor = ws set_constructor in
       let set_unifiable = ws set_unifiable in
       (* helper for merging arrays *)
@@ -879,7 +907,7 @@ module CC : PCC =
         set_representative cc2 (rep cc2 c1) (rep cc2 c2) in
       (* add equalities *)
       for i = 0 to n1 - 1 do union (sub i) (sub (rep cc1 i)) done;
-      (* update lookup and rev_lookup *)
+      (* update lookup *)
       let app (a1, b1) (_, _, c1) lookup =
         let a2, b2, c2 = sub a1, sub b1, sub c1 in
         try
@@ -891,16 +919,6 @@ module CC : PCC =
           lookup
         with Not_found -> CCMap.add (a2, b2) (a2, b2, c2) lookup in
       cc2 := { !cc2 with lookup = CCMap.fold app !cc1.lookup !cc2.lookup };
-      let rev_app (a2, b2) (_, _, c2) =
-        let c2rep = rep cc2 c2 in
-        let ab2reps = (rep cc2 a2, rep cc2 b2) in
-        let olds = get_rev_lookup !cc2 c2rep in
-        set_rev_lookup cc2 c2rep (ab2reps :: olds) in
-      for i = 0 to n2 - 1 do set_rev_lookup cc2 i [] done;
-      CCMap.iter rev_app !cc2.lookup;
-      for i = 0 to n2 - 1 do
-        set_rev_lookup cc2 i (get_rev_lookup !cc2 (rep cc2 i))
-      done;
       (* NOTE: reps should not be changed below; e.g., don't call [union] *)
       (* update constructor, unifiable *)
       let merge_cons cons1 cons2 = match cons1, cons2 with
@@ -915,46 +933,7 @@ module CC : PCC =
         | _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
-(*   XXX    sanitize !cc2 *)
-      (* XXX everything below should be replaced by sanitize *)
-      (* update classes *)
-      for i = 0 to n2 - 1 do set_classlist cc2 i [] done;
-      for i = 0 to n2 - 1 do
-        let r = rep cc2 i in set_classlist cc2 r (i :: get_classlist !cc2 r)
-      done;
-      (* add disequalities *)
-      let add_neq (a, b) () =
-        cc2 :=
-          { !cc2 with
-          not_equal = CCMap.add (sub a, sub b) () !cc2.not_equal } in
-      CCMap.iter add_neq !cc1.not_equal;
-      (* check for contradictions; NOTE: must be at the end! *)
-      let check_contradiction (a, b) () =
-        if rep cc2 a <> rep cc2 b then raise Contradiction in
-      CCMap.iter check_contradiction !cc2.not_equal;
-      (* update uselist; *)
-      let lookup_use (a, b) eq =
-        let a, b = (rep cc2 a, rep cc2 b) in
-        let f a =
-          let olds = get_uselist !cc2 a in
-          set_uselist cc2 a (Complex_eq eq :: olds) in
-        f a; f b in
-      for i = 0 to n2 - 1 do set_uselist cc2 i [] done;
-      CCMap.iter lookup_use !cc2.lookup;
-      let neq_use (a, b) () =
-        let a, b = rep cc2 a, rep cc2 b in
-        let f a b = set_uselist cc2 a (Not_equal b :: get_uselist !cc2 a) in
-        f a b; f b a in
-      CCMap.iter neq_use !cc2.not_equal;
-      let trim_list l =
-	let f l x = match l with
-	  | [] -> [x]
-	  | (x'::l') when x = x' -> l'
-	  | l' -> x::l' in
-	List.fold_left f [] (List.sort compare l) in
-      for i = 0 to n2 - 1 do set_uselist cc2 i (trim_list (get_uselist !cc2 i)) done;
-      if safe then assert (invariant !cc2);
-      !cc2
+      sanitize !cc2
 
     let pp_c ts pp ppf i =
        (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)

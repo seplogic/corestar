@@ -30,6 +30,7 @@ module type S = sig
   val create : unit -> t
   val size : t -> int
   val grow : t -> int -> t
+  val foldi : (int -> elt -> 'a -> 'a) -> t -> 'a -> 'a
   (* After calling [unsafe_create a], don't dare to touch [a] again. *)
   val unsafe_create : elt array -> t
 end
@@ -76,7 +77,7 @@ module Make (Creator : CREATOR) : S with type elt = Creator.elt
       reroot (a,ir);
       match !a with
         RealArray a -> Array.get a i
-      | Diff (j, x, a) -> if i=j then x else get a i
+      | Diff _ -> assert false
 
     let rec set (a,ir) i x =
       assert (0 <= i && i < ir);
@@ -121,12 +122,17 @@ module Make (Creator : CREATOR) : S with type elt = Creator.elt
       | Diff(_,_,_) -> assert false
 
     (* Extend array, possibly growing underlying array if necessary. *)
-    let grow t n =
-      if size t + n >= real_size t then
-        double t;
-      let (a,ir) = t in
-      let size = ir in
-      (a,size+n)
+    let grow ((a, ir) as t) n =
+      while ir + n > real_size t do double t done;
+      (a, ir + n)
+
+    let foldi f xs z =
+      let n = size xs in
+      let rec go acc i =
+        if i = n
+        then acc
+        else go (f i (get xs i) acc) (succ i) in
+      go z 0
 
   end
 

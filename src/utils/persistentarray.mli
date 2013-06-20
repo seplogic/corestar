@@ -22,6 +22,7 @@ module type S =
     val create : unit -> t
     val size : t -> int
     val grow : t -> int -> t
+    val foldi : (int -> elt -> 'a -> 'a) -> t -> 'a -> 'a
     (* After calling [unsafe_create a], don't dare to touch [a] again. *)
     val unsafe_create : elt array -> t
   end
