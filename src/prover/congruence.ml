@@ -611,6 +611,10 @@ module CC : PCC =
       if a = b then raise Contradiction;
       if CCMap.mem (a, b) cc.not_equal then ([], cc) else begin
         let not_equal = CCMap.add (a, b) () cc.not_equal in
+        let cc = set_uselist cc a
+          (Misc.insert_sorted (Not_equal b) (get_uselist cc a)) in
+        let cc = set_uselist cc b
+          (Misc.insert_sorted (Not_equal a) (get_uselist cc b)) in
 
         let rec acc_neq get_f get_x neqs xs ys = match xs, ys with
           | [], _ | _, [] -> neqs
@@ -846,10 +850,12 @@ module CC : PCC =
         acc in
       let sane_cc = CCMap.fold ace cc.lookup sane_cc in
       if safe then strict_invariant sane_cc;
+      (* XXX: Self constructors must also be made explicitely distinct from
+      others. We probably want a function [mark_self], or similar. *)
       let copy_self c cons acc = match cons with
         | Self ->
             let acc = set_constructor acc c Self in
-            work_list (List.map mk_wu_mk_cons (get_image acc c)) acc
+            unsafe_work_list (List.map mk_wu_mk_cons (get_image acc c)) acc
         | _ -> acc in
       let sane_cc = Aconstructor.foldi copy_self cc.constructor sane_cc in
       if safe then strict_invariant sane_cc;
