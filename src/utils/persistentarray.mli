@@ -23,6 +23,7 @@ module type S =
     val size : t -> int
     val grow : t -> int -> t
     val foldi : (int -> elt -> 'a -> 'a) -> t -> 'a -> 'a
+    val find_indices : (elt -> bool) -> t -> int list
     (* After calling [unsafe_create a], don't dare to touch [a] again. *)
     val unsafe_create : elt array -> t
   end

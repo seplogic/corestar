@@ -323,7 +323,6 @@ module CC : PCC =
 	Some (CCMap.find ((rep ts a),(rep ts b)) ts.lookup )
       with Not_found -> None
 
-    (* XXX: Update, so it checks everything [sanitize] does. *)
     let invariant (ts : t) : bool = not safe || begin
       let n = size ts - 1 in
       (* Check reps have class list *)
@@ -388,15 +387,19 @@ module CC : PCC =
       true
     end
 
+    let sort_pair ((a, b) as p) =
+      if a <= b then p else (b, a)
+
     (*
     Asserts the following, in this order:
       - All constants appearing within fields of [cc] with the exception of
         [classlist] are class representants. A constant [c] is a class
         representant when [representatives[c]=c]. In particular, this implies
         that [representatives] is idempotent.
-      - The entries of [unifiable], [constructor] and [classlist] that
-        correspond to constants that are not representatives have default
-        values.
+      - The entries of [classlist] that correspond to constants that are not
+        representatives have value empty list.
+      - The entries of [unifiable], [constructor] that correspond to constants
+        that are not representatives have default values.
       - All lists are actually representing sets, so they must have no repeats.
         In addition, they are strictly increasing.
       - Pairs in [not_equal] are strictly increasing.
@@ -430,7 +433,6 @@ module CC : PCC =
       increasing, and contain only representatives.
     *)
     let strict_invariant cc =
-      assert (invariant cc);
       let n = size cc in
       let reps = HashSet.create 0 in
       for c = 0 to n - 1 do
@@ -521,7 +523,7 @@ module CC : PCC =
 
       for c = 0 to n - 1 do if get_constructor cc c = Self then
         for d = 0 to n - 1 do if get_constructor cc d <> Not then
-          assert (c = d || CCMap.mem (c, d) cc.not_equal)
+          assert (c = d || CCMap.mem (sort_pair (c, d)) cc.not_equal)
         done
       done;
 
@@ -536,8 +538,9 @@ module CC : PCC =
           assert (not c_neq_d || a_neq_b);
           assert (not f_is_cons || not a_neq_b || c_neq_d) in
         Misc.iter_all_pairs chk_pair xs in
-      HashSet.iter chk_neq_fixed_fun reps
+      HashSet.iter chk_neq_fixed_fun reps;
 
+      assert (invariant cc)
       (* END of [strict_invariant] check *)
 
     (* TODO(rgrig): Why is this not commutative? *)
@@ -566,19 +569,14 @@ module CC : PCC =
     let mk_wu_add_neq (a, b) = WU_add_neq (a, b)
     let mk_wu_mk_cons (a, b, c) = WU_mk_cons (a, b, c)
 
-    let sort_pair ((a, b) as p) =
-      if a <= b then p else (b, a)
-
     let pairs xs ys =
       List.flatten (List.map (fun y -> List.map (fun x -> (x, y)) xs) ys)
 
     (* TODO: This must be done faster. Maintain set of self constructors? *)
+    let get_all_constructors cc =
+      Aconstructor.find_indices ((<>) Not) cc.constructor
     let get_self_constructors cc =
-      let r = ref [] in
-      for c = 0 to size cc - 1 do
-        if get_constructor cc c = Self then r := c :: !r
-      done;
-      !r
+      Aconstructor.find_indices ((=) Self) cc.constructor
 
     let remove_complex_eq (x, y, z) cc =
       let lookup = CCMap.remove (x, y) cc.lookup in
@@ -682,7 +680,7 @@ module CC : PCC =
         let cs = get_classlist cc b in
         let cc = List.fold_left (fun cc c -> set_representative cc c a) cc cs in
         let cc = set_classlist cc a (Misc.merge_lists (get_classlist cc a) cs) in (* SLOW *)
-        let cc = reset_classlist cc b in
+        let cc = set_classlist cc b [] in
 
         (* merge constructor[a] with constructor[b] *)
         let ws, cons_a = match get_constructor cc a, get_constructor cc b with
@@ -768,6 +766,21 @@ module CC : PCC =
       if safe then strict_invariant cc;
       cc
 
+    let mk_self cc c =
+      if safe then strict_invariant cc;
+      let c = get_representative cc c in
+      if get_constructor cc c = Self then cc else begin
+        assert (get_constructor cc c = Not);
+        let cc = set_constructor cc c Self in
+        let ds = List.filter ((<>) c) (get_all_constructors cc) in
+        let mk_neq d = mk_wu_add_neq (c, d) in
+        let ws = List.map mk_neq ds in
+        let ws = List.map mk_wu_mk_cons (get_image cc c) @ ws in
+        let cc = unsafe_work_list ws cc in
+        if safe then strict_invariant cc;
+        cc
+      end
+
     let grow n ts =
       { ts with
         uselist = Auselist.grow ts.uselist n
@@ -824,20 +837,7 @@ module CC : PCC =
         iterate thru *represenatives* and call add_eq
       - copy over disequalities:
         iterate thru *not_equal* and call add_neq
----->
-      - making [representative] idempotent, so parent(x)==root(x)
-      - recomputing [uselist], [classlist] and [rev_lookup], out of the others
-      - infering extra equalities & disequalities
-        - a == b --> f(a) == f(b), for all functions f
-        - a != b --> f(a) != f(b), when f is a constructor
-        - and converses of the above
-      - makes sure that [uselist], [classlist], [lookup], [rev_lookup],
-        [not_equal] are normalized as follows
-        - they mention only representatives
-        - they have no duplicates, and are sorted
-        - pairs in [not_equal] are sorted (because the represent sets)
     May raise [Contradiction]. *)
-    (* XXX: Completely wrong and unusable at the moment. *)
     let sanitize cc =
       let n = size cc in
       let sane_cc = grow n (create ()) in
@@ -850,12 +850,8 @@ module CC : PCC =
         acc in
       let sane_cc = CCMap.fold ace cc.lookup sane_cc in
       if safe then strict_invariant sane_cc;
-      (* XXX: Self constructors must also be made explicitely distinct from
-      others. We probably want a function [mark_self], or similar. *)
       let copy_self c cons acc = match cons with
-        | Self ->
-            let acc = set_constructor acc c Self in
-            unsafe_work_list (List.map mk_wu_mk_cons (get_image acc c)) acc
+        | Self -> mk_self acc c
         | _ -> acc in
       let sane_cc = Aconstructor.foldi copy_self cc.constructor sane_cc in
       if safe then strict_invariant sane_cc;

@@ -31,6 +31,7 @@ module type S = sig
   val size : t -> int
   val grow : t -> int -> t
   val foldi : (int -> elt -> 'a -> 'a) -> t -> 'a -> 'a
+  val find_indices : (elt -> bool) -> t -> int list
   (* After calling [unsafe_create a], don't dare to touch [a] again. *)
   val unsafe_create : elt array -> t
 end
@@ -134,5 +135,8 @@ module Make (Creator : CREATOR) : S with type elt = Creator.elt
         else go (f i (get xs i) acc) (succ i) in
       go z 0
 
+    let find_indices p xs =
+      let f i x is = if p x then i :: is else is in
+      List.rev (foldi f xs [])
   end
 
