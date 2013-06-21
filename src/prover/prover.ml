@@ -369,7 +369,8 @@ let check_frm ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) 
        Some (Clogic.get_frames leaves))
   with Backtrack.No_match -> if log log_prove then fprintf logf "@[Frame failed@]@,@?"; None
 
-let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent = is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
+let check_imp ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth) logic sequent =
+  is_some (check_frm ~min_depth:min_depth ~max_depth:max_depth logic sequent)
 
 (* Two on each side then we should look for more *)
 let abduction_penalty g = 

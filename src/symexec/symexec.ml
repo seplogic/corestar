@@ -425,6 +425,7 @@ end = struct
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_inner_triple triple
         Cfg.pp_ok_configuration pre_conf;
+    let vs = List.fold_right PS.vs_add (Sepprover.get_pvars post) PS.vs_empty in
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
@@ -432,7 +433,7 @@ end = struct
         let ( * ) = Sepprover.conjoin_inner in
         let conf =
           { G.missing_heap = pre_conf.G.missing_heap * make_framable a
-          ; current_heap = post * f } in
+          ; current_heap = post * replace_pvars vs f } in
         if log log_exec then
           fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
         CT_ok conf in
