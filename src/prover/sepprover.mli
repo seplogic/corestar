@@ -31,6 +31,7 @@ val join : inner_form -> inner_form -> inner_form
 val meet : inner_form -> inner_form -> inner_form
 val widening : inner_form -> inner_form -> inner_form
 val join_over_numeric : inner_form -> inner_form -> inner_form * inner_form
+val freshen_exists : Psyntax.var * inner_form -> Psyntax.var * inner_form
 val update_var_to : Psyntax.var -> Psyntax.term -> inner_form -> inner_form
 val string_inner_form : inner_form pretty_printer
 
@@ -58,5 +59,5 @@ val implies_list : inner_form list -> Psyntax.form -> bool
 val get_equals_pvar_free : Psyntax.var -> inner_form -> Psyntax.args list
   (** NOTE: [get_equals_pvar_free v f] is the empty list when [v] doesn't occur
   in [f]. *)
-
 val get_pvars : inner_form -> Psyntax.var list
+val make_equal : Psyntax.args * Psyntax.args -> inner_form -> inner_form

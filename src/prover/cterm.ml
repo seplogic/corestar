@@ -717,6 +717,22 @@ let get_args_all
 let get_term ts r : Psyntax.args =
   get_pargs false ts [] r
 
+exception Var_not_found
+
+let freshen_exists (v, ts) =
+  try
+    let cv = VarMap.find v ts.pvars in
+    let ts =
+      { ts with
+        cc = CC.delete ts.cc cv
+      ; pvars = VarMap.remove v ts.pvars
+      ; originals = CMap.remove cv ts.originals } in
+    let w = Vars.freshen_exists v in
+    let cw, ts = add_term false (Psyntax.Arg_var w) ts in
+    let ts = make_equal ts cv cw in
+    (w, ts)
+  with Not_found -> raise Var_not_found
+
 let kill_var ts v =
   try
     let r = VarMap.find v ts.pvars in
@@ -728,6 +744,7 @@ let kill_var ts v =
       match pp_term with
       | FArg_var v' when Vars.is_pvar v' && v' = v
 	   -> CMap.add r (FArg_var (Vars.freshen_exists v)) originals
+           (* TODO: Why not add reverse mapping to [ts.evars]? *)
       |  _ -> originals (* RLP: Should this raise an exception? *)
       in
     {ts with pvars = pvars; cc=cc; originals=originals}

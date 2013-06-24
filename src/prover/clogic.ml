@@ -73,6 +73,10 @@ let break_ts_form ts_form =
 let kill_var ts_form v =
   {ts_form with ts = Cterm.kill_var ts_form.ts v}
 
+let freshen_exists (v, ts_form) =
+  let v, ts = Cterm.freshen_exists (v, ts_form.ts) in
+  (v, {ts_form with ts})
+
 let update_var_to ts_form v e =
   {ts_form with ts = Cterm.update_var_to ts_form.ts v e}
 

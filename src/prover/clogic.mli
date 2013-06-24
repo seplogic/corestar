@@ -37,6 +37,7 @@ type ts_formula = {
 val mk_ts_form : Cterm.term_structure -> formula -> ts_formula
 val break_ts_form : ts_formula -> Cterm.term_structure * formula
 val kill_var : ts_formula -> Vars.var -> ts_formula
+val freshen_exists : Vars.var * ts_formula -> Vars.var * ts_formula
 val update_var_to : ts_formula -> Vars.var -> Psyntax.args -> ts_formula
 val pp_ts_formula : Format.formatter -> ts_formula -> unit
 val pp_syntactic_form : Format.formatter -> syntactic_form -> unit

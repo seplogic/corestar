@@ -100,8 +100,9 @@ open Psyntax
         in
         (conjoin rest_pf1 join_ts_form, conjoin rest_pf2 join_ts_form)
 
-    let update_var_to : var -> term -> inner_form -> inner_form
-      = fun v e f -> Clogic.update_var_to f v e
+    let freshen_exists = Clogic.freshen_exists
+
+    let update_var_to v e f = Clogic.update_var_to f v e
 
     let string_inner_form : Format.formatter -> inner_form -> unit =
       Clogic.pp_ts_formula
@@ -146,12 +147,21 @@ open Psyntax
     let implies_list : inner_form list -> form -> bool
       = Prover.check_implies_list
 
+    (* operations related to equalities *)
+
     let get_equals_pvar_free v form =
       Cterm.get_equals_pvar_free form.Clogic.ts v
 
     let get_pvars : inner_form -> Psyntax.var list
       = fun form ->
         Cterm.get_pvars form.Clogic.ts
+
+    let make_equal (t1, t2) form =
+      let ts = form.Clogic.ts in
+      let t1, ts = Cterm.add_term false t1 ts in
+      let t2, ts = Cterm.add_term false t2 ts in
+      let ts = Cterm.make_equal ts t1 t2 in
+      { form with Clogic.ts }
 
 
    let pprint_counter_example = Prover.pprint_counter_example

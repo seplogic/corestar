@@ -406,12 +406,18 @@ end = struct
     G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
 
   (* Used as the [make_framable] argument of the generic [execute]. *)
-  let replace_pvars =
+  let replace_pvars vs eqs_f =
     let replace_one v f =
-      match Sepprover.get_equals_pvar_free v f with
+      match Sepprover.get_equals_pvar_free v eqs_f with
       | [] -> Sepprover.kill_var v f
-      | t :: _ -> Sepprover.update_var_to v t f in
-    PS.VarSet.fold replace_one
+      | t :: _ ->
+          (try
+            let w, f = Sepprover.freshen_exists (v, f) in
+            Sepprover.make_equal (PS.Arg_var w, t) f
+          with Cterm.Var_not_found -> f) in
+    PS.VarSet.fold replace_one vs
+
+  let kill_pvars = PS.VarSet.fold Sepprover.kill_var
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -432,8 +438,9 @@ end = struct
       let mk_post_conf (a, f) =
         let ( * ) = Sepprover.conjoin_inner in
         let conf =
-          { G.missing_heap = pre_conf.G.missing_heap * make_framable a
-          ; current_heap = post * replace_pvars vs f } in
+          { G.missing_heap
+            = pre_conf.G.missing_heap * make_framable pre_conf.G.current_heap a
+          ; current_heap = post * kill_pvars vs f } in
         if log log_exec then
           fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
         CT_ok conf in
@@ -441,6 +448,14 @@ end = struct
     let r = option CT_error branch afs in
     if log log_exec then fprintf logf "@]@,@?";
     r
+
+  (*
+    x = e * x = f     with e free of pvars, but f contains pvars
+    x'= e * x'= f
+
+    x = x'
+    x'' = x' * x'' = x'
+  *)
 
   let execute abduct make_framable =
     let execute_one_triple = execute_one_triple abduct make_framable in
@@ -608,7 +623,7 @@ end = struct
 
   let update_check rules body post =
     let abduct = frame rules in
-    let check_emp x = assert (x = emp); emp in
+    let check_emp _ x = assert (x = emp); emp in
     let execute = execute abduct check_emp (spec_of post body.P.stop) in
     update execute (abstract_conf rules)
 

@@ -109,6 +109,9 @@ val get_neqs_all : term_structure -> (Psyntax.args * Psyntax.args) list
 val get_eqs_norecs : term_structure -> (Psyntax.args * Psyntax.args) list
 val get_neqs_norecs : term_structure -> (Psyntax.args * Psyntax.args) list
 
+exception Var_not_found
+val freshen_exists : Vars.var * term_structure -> Vars.var * term_structure
+  (* [freshen_exists (v, ts)] throws [Var_not_found] if [v] is not in [ts] *)
 val get_term : term_structure -> term_handle-> Psyntax.args
 val kill_var : term_structure -> Vars.var -> term_structure
 val update_var_to : term_structure -> Vars.var -> Psyntax.args -> term_structure
