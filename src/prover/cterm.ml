@@ -390,8 +390,7 @@ let pp_c ts ppf c : unit =
   try
     Psyntax.string_args ppf (reconstruct ts c)
   with Not_found ->
-    (* Should call has_pp_c to check it can be pretty printed *)
-    Format.fprintf ppf "No PP" (*assert false*)
+    fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
 
 let pp_ts' pp ppf first ts =
   CC.pretty_print' (fun _ -> true) (pp_c ts) pp ppf first ts.cc
@@ -722,14 +721,14 @@ exception Var_not_found
 let freshen_exists (v, ts) =
   try
     let cv = VarMap.find v ts.pvars in
-    let ts =
+    let w = Vars.freshen_exists v in
+    let cw, ts = add_term false (Psyntax.Arg_var w) ts in
+    let ts = make_equal ts cv cw in
+    let ts = (* NOTE: this must be after make_equal. *)
       { ts with
         cc = CC.delete ts.cc cv
       ; pvars = VarMap.remove v ts.pvars
       ; originals = CMap.remove cv ts.originals } in
-    let w = Vars.freshen_exists v in
-    let cw, ts = add_term false (Psyntax.Arg_var w) ts in
-    let ts = make_equal ts cv cw in
     (w, ts)
   with Not_found -> raise Var_not_found
 
