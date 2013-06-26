@@ -15,19 +15,18 @@ let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
-let substitute_list var =
-  let gen = let x = ref 0 in fun () -> incr x; var !x in
-  let sub = Sepprover.update_var_to (gen ()) in
-  List.fold_right sub
+let substitute_list var = foldri (Sepprover.update_var_to @@ var)
 
 let substitute_args = substitute_list CoreOps.parameter_var
 let substitute_rets = substitute_list CoreOps.return_var
 
 let specialize_spec rets args =
-  let rets = List.map (fun v -> PS.Arg_var v) rets in
-  let f { Core.pre; post } =
+  let sub_vars u v = List.map (fun w -> if w = u then v else w) in
+  let ret_terms = List.map (fun v -> PS.Arg_var v) rets in
+  let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
-    ; post = substitute_args args (substitute_rets rets post) } in
+    ; post = substitute_args args (substitute_rets ret_terms post)
+    ; modifies = foldri (sub_vars @@ CoreOps.return_var) rets modifies } in
   HashSet.map f
 
 (* }}} *)
@@ -399,7 +398,7 @@ end = struct
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
             let cp_formula f =
-              List.fold_right PS.vs_add (Sepprover.get_pvars f) in
+              List.fold_right PS.VarSet.add (Sepprover.get_pvars f) in
             acc |> cp_formula pre |> cp_formula post in
           HashSet.fold cp_triple spec acc
     in
@@ -600,10 +599,10 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
-  let empty_inner_triple = { Core.pre = emp; post = emp }
+  let empty_inner_triple = { Core.pre = emp; post = emp; modifies = [] }
 
   let spec_of post =
-    let post = HashSet.singleton { Core.pre = post; post } in
+    let post = HashSet.singleton { Core.pre = post; post; modifies = [] } in
     let nop = HashSet.singleton empty_inner_triple in
     fun stop statement ->
     if statement = stop
@@ -688,7 +687,7 @@ end = struct
         if log log_phase then
           fprintf logf "@[Interpreting procedure body: %s@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
-        let pvars = collect_pvars body.P.cfg in
+        let pvars = collect_pvars body.P.cfg in (* XXX: Use modifies clauses! *)
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_inner_triple triple;
@@ -697,7 +696,8 @@ end = struct
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = pre * missing_heap
-            ; C.post = current_heap } in
+            ; post = current_heap
+            ; modifies = PS.VarSet.elements pvars } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in

@@ -132,6 +132,12 @@ val group_by : ('a -> 'a -> bool) -> 'a list -> 'a list list
 (** Like in Haskell. *)
 val span : ('a -> bool) -> 'a list -> 'a list * 'a list
 
+val foldli : ('b -> int -> 'a -> 'b) -> 'b -> 'a list -> 'b
+val foldri : (int -> 'a -> 'b -> 'b) -> 'a list -> 'b -> 'b
+val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+val rev_mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+val iteri : (int -> 'a -> unit) -> 'a list -> unit
+
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)
 type 'a pretty_printer = Format.formatter -> 'a -> unit

@@ -35,7 +35,7 @@ let pp_ok_configuration f { current_heap; missing_heap } =
   fprintf f "(now:%a,@ missing:%a)"
     Sepprover.string_inner_form current_heap
     Sepprover.string_inner_form missing_heap
-    
+
 type split_type = Angelic | Demonic
 
 let pp_split_type f = function

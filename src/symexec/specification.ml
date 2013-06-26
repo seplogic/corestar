@@ -27,14 +27,16 @@ let empty_inner_form =
   | Some emp -> emp
 
 let join_triples
-  { Core.pre = p1; post = q1 } { Core.pre = p2; post = q2 }
+  { Core.pre = p1; post = q1; modifies = m1 }
+  { Core.pre = p2; post = q2; modifies = m2 }
 =
   let v = PS.Arg_var (Vars.freshe ()) in
   let one = PS.mkEQ (v, PS.Arg_string "case*one") in
   let two = PS.mkEQ (v, PS.Arg_string "case*two") in
   let ( && ) = PS.mkStar and ( || ) = curry PS.mkOr in
   { Core.pre = (one && p1) || (two && p2)
-  ; post = (one && q1) || (two && q2) }
+  ; post = (one && q1) || (two && q2)
+  ; modifies = Misc.remove_duplicates compare (m1 @ m2) }
 
 
 (***************************************
@@ -42,8 +44,13 @@ let join_triples
  ***************************************)
 
 
-let sub_triple sub { Core.pre; post} =
-  { Core.pre = PS.subst_pform sub pre; post = PS.subst_pform sub post }
+let sub_triple sub { Core.pre; post; modifies } =
+  let var2var v = match PS.find v sub with
+    | PS.Arg_var w -> w
+    | _ -> failwith "INTERNAL: pre of Specification.sub_triple doesn't hold" in
+  { Core.pre = PS.subst_pform sub pre
+  ; post = PS.subst_pform sub post
+  ; modifies = List.map var2var modifies }
 
 let ev_triple { Core.pre; post } = PS.ev_form_acc post (PS.ev_form pre)
 

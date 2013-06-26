@@ -15,8 +15,8 @@ open Core
 open Corestar_std
 open Format
 
-let ast_to_inner_triple { pre; post } =
-  let f = Sepprover.convert in { pre = f pre; post = f post }
+let ast_to_inner_triple { pre; post; modifies } =
+  let f = Sepprover.convert in { pre = f pre; post = f post; modifies }
 
 let ast_to_inner_spec = HashSet.map ast_to_inner_triple
 
