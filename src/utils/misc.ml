@@ -22,7 +22,7 @@ let rec iter_pairs f = function
 
 let iter_all_pairs f xs =
   let g = function [] -> () | x :: xs -> List.iter (f x) xs in
-  List.iter g (tails xs)
+  List.iter g (ListH.tails xs)
 
 let map_lift_exists f l
     =

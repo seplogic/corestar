@@ -49,6 +49,9 @@ val option : 'b -> ('a -> 'b) -> 'a option -> 'b
 (** Map for options. *)
 val option_map : ('a -> 'b) -> 'a option -> 'b option
 
+(* Similar to liftM2 in Haskell. *)
+val lift_option2 : ('a -> 'b -> 'c) -> 'a option -> 'b option -> 'c option
+
 (** Like in Haskell. *)
 val map_option : ('a -> 'b option) -> 'a list -> 'b list
 
@@ -117,26 +120,27 @@ end
 (* }}} *)
 (* {{{ *) (** {2 List and array utilities} *)
 module ListH : sig
+  (** Like [Array.init]. *)
   val init : int -> (int -> 'a) -> 'a list
-    (** Like [Array.init]. *)
+
+  (** Like in Haskell. *)
+  val tails : 'a list -> 'a list list
+
+  val cons : 'a -> 'a list -> 'a list
+  val split3 : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list
+
+  (** Like in Haskell. *)
+  val group_by : ('a -> 'a -> bool) -> 'a list -> 'a list list
+
+  (** Like in Haskell. *)
+  val span : ('a -> bool) -> 'a list -> 'a list * 'a list
+
+  val foldli : ('b -> int -> 'a -> 'b) -> 'b -> 'a list -> 'b
+  val foldri : (int -> 'a -> 'b -> 'b) -> 'a list -> 'b -> 'b
+  val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+  val rev_mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+  val iteri : (int -> 'a -> unit) -> 'a list -> unit
 end
-
-(** Like in Haskell. *)
-val tails : 'a list -> 'a list list
-
-val cons : 'a -> 'a list -> 'a list
-
-(** Like in Haskell. *)
-val group_by : ('a -> 'a -> bool) -> 'a list -> 'a list list
-
-(** Like in Haskell. *)
-val span : ('a -> bool) -> 'a list -> 'a list * 'a list
-
-val foldli : ('b -> int -> 'a -> 'b) -> 'b -> 'a list -> 'b
-val foldri : (int -> 'a -> 'b -> 'b) -> 'a list -> 'b -> 'b
-val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
-val rev_mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
-val iteri : (int -> 'a -> unit) -> 'a list -> unit
 
 (* }}} *)
 (* {{{ *) (** {2 Pretty printing} *)

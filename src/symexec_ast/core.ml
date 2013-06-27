@@ -14,7 +14,7 @@
 type args_out = Vars.var list
 type args_in = Psyntax.args list
 
-type 'a triple = { pre : 'a; post : 'a; modifies : args_out }
+type 'a triple = { pre : 'a; post : 'a; modifies : args_out option }
 type ast_triple = Psyntax.form triple
 type inner_triple = Sepprover.inner_form triple
 type 'a spec = 'a HashSet.t

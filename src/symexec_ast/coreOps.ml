@@ -95,3 +95,19 @@ let empty_question empty_logic =
   ; q_rules = empty_logic
   ; q_infer = false
   ; q_name = "empty_question" }
+
+type 'a refinement_check = Sepprover.inner_logic -> 'a -> 'a -> bool
+
+let refines_triple logic triple1 triple2 =
+  Sepprover.implies logic triple2.pre triple1.pre &&
+  Sepprover.implies logic triple1.post triple2.post
+
+let refines_spec logic spec1 spec2 =
+  HashSet.for_all
+    (fun t2 -> HashSet.exists (fun t1 -> refines_triple logic t1 t2) spec1)
+    spec2
+
+let mk_assume f =
+  let pre = Specification.empty_inner_form in
+  HashSet.singleton { pre; post = f; modifies = Some [] }
+let mk_assert f = HashSet.singleton { pre = f; post = f; modifies = Some [] }

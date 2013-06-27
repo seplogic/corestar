@@ -37,6 +37,10 @@ let option_map f = function
   | None -> None
   | Some x -> Some (f x)
 
+let lift_option2 op o1 o2 = match o1, o2 with
+  | Some x1, Some x2 -> Some (op x1 x2)
+  | _ -> None
+
 let map_option f l =
   let f' acc x = match f x with
     | None -> acc
@@ -55,10 +59,6 @@ let is_none = function None -> true | _ -> false
 let flip f x y = f y x
 
 let undefined _ = failwith "INTERNAL: undefined"
-
-let rec tails = function
-  | []  -> [[]]
-  | (_ :: xs) as t -> t :: tails xs
 
 module CharH = struct
   let is_space =
@@ -103,41 +103,49 @@ module ListH = struct
       | 0 -> acc
       | n -> loop (f (n - 1) :: acc) (n - 1) in
     loop [] n
-end
 
-let cons x xs = x :: xs
+  let rec tails = function
+    | []  -> [[]]
+    | (_ :: xs) as t -> t :: tails xs
 
-let group_by cmp =
-  let rec f yss xs = match yss, xs with
-    | yss, [] -> List.rev_map List.rev yss
-    | [], x :: xs -> f [[x]] xs
-    | (y :: _) as ys :: yss, x :: xs when cmp y x -> f ((x :: ys) :: yss) xs
-    | yss, x :: xs -> f ([x] :: yss) xs in
-  f []
+  let cons x xs = x :: xs
 
-let span p =
-  let rec f ys = function
-    | x :: xs when p x -> f (x :: ys) xs
-    | xs -> (List.rev ys, xs) in
-  f []
+  let split3 xs =
+    let f (x, y, z) (xs, ys, zs) = (x :: xs, y :: ys, z :: zs) in
+    List.fold_right f xs ([], [], [])
 
-let foldli f z xs =
-  let g (acc, i) x = (f acc i x, i + 1) in
-  fst (List.fold_left g (z, 0) xs)
+  let group_by cmp =
+    let rec f yss xs = match yss, xs with
+      | yss, [] -> List.rev_map List.rev yss
+      | [], x :: xs -> f [[x]] xs
+      | (y :: _) as ys :: yss, x :: xs when cmp y x -> f ((x :: ys) :: yss) xs
+      | yss, x :: xs -> f ([x] :: yss) xs in
+    f []
 
-let foldri f xs z =
-  let g x (i, acc) = (i + 1, f i x acc) in
-  snd (List.fold_right g xs (0, z))
+  let span p =
+    let rec f ys = function
+      | x :: xs when p x -> f (x :: ys) xs
+      | xs -> (List.rev ys, xs) in
+    f []
 
-let mapi f xs =
-  let g i x ys = f i x :: ys in
-  foldri g xs []
+  let foldli f z xs =
+    let g (acc, i) x = (f acc i x, i + 1) in
+    fst (List.fold_left g (z, 0) xs)
 
-let rev_mapi f xs =
-  let g ys i x = f i x :: ys in
-  foldli g [] xs
+  let foldri f xs z =
+    let g x (i, acc) = (i + 1, f i x acc) in
+    snd (List.fold_right g xs (0, z))
 
-let iteri f = ignore @@ mapi f
+  let mapi f xs =
+    let g i x ys = f i x :: ys in
+    foldri g xs []
+
+  let rev_mapi f xs =
+    let g ys i x = f i x :: ys in
+    foldli g [] xs
+
+  let iteri f = ignore @@ mapi f
+end (* of ListH *)
 
 type 'a pretty_printer = formatter -> 'a -> unit
 

@@ -5,6 +5,8 @@ val create : int -> 'a t
 val elements : 'a t -> 'a list
 val iter : ('a -> unit) -> 'a t -> unit
 val fold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+val for_all : ('a -> bool) -> 'a t -> bool
+val exists : ('a -> bool) -> 'a t -> bool
 val length : 'a t -> int
 val mem : 'a t -> 'a -> bool
 val find : 'a t -> 'a -> unit
@@ -23,6 +25,8 @@ module type S = sig
   val elements : t -> elt list
   val iter : (elt -> unit) -> t -> unit
   val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
+  val for_all : (elt -> bool) -> t -> bool
+  val exists : (elt -> bool) -> t -> bool
   val length : t -> int
   val mem : t -> elt -> bool
   val find : t -> elt -> unit

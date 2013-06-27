@@ -1,11 +1,5 @@
-- conjunction on inner_form
-  - conjunction on term structures
-    * conjunction on congruence closures
-      * make sure invariant is fine
-      * review add_neq and add_eq
-        * schedule mk_cons work from add_eq
-        * make sure you detect contradictions in both add_eq and add_neq
-      * sanitize
-      * merge_cc
+- use modifies clauses in symexec
+  - to infer them, make sure they only shrink
+  - if modifies=None, then over-approximate
 
 :load_local_vimrc

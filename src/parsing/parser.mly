@@ -368,7 +368,7 @@ rule:
 
 triple:
   L_BRACE formula R_BRACE L_BRACE formula R_BRACE
-    { { Core.pre = $2; post = $5; modifies = [] } (* XXX *) }
+    { { Core.pre = $2; post = $5; modifies = None } }
 ;
 
 spec:

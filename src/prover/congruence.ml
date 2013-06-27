@@ -619,8 +619,8 @@ module CC : PCC =
           | (x :: xs as xxs), (y :: ys as yys) ->
               let h = min (get_f x) (get_f y) in
               let p z = h = get_f z in
-              let xs1, xs2 = span p xxs in
-              let ys1, ys2 = span p yys in
+              let xs1, xs2 = ListH.span p xxs in
+              let ys1, ys2 = ListH.span p yys in
               let xs1 = List.map get_x xs1 in
               let ys1 = List.map get_x ys1 in
               acc_neq get_f get_x (pairs xs1 ys1 @ neqs) xs2 ys2 in

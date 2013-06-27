@@ -24,9 +24,18 @@ let iter f h = Hashtbl.iter (fun x _ -> f x) h
 
 let fold f h z = Hashtbl.fold (fun x _ r -> f x r) h z
 
-let elements h = fold cons h []
-
 exception X
+
+let for_all_gen iter p h =
+  let f x = if not (p x) then raise X in
+  try iter f h; true with X -> false
+
+let for_all p h = for_all_gen iter p h
+
+let exists p = not @@ for_all (not @@ p)
+
+let elements h = fold ListH.cons h []
+
 let choose_gen iter h =
   let r = ref None in
   try iter (fun x -> r := Some x; raise X) h; raise Not_found
@@ -49,6 +58,8 @@ module type S = sig
   val elements : t -> elt list
   val iter : (elt -> unit) -> t -> unit
   val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a
+  val for_all : (elt -> bool) -> t -> bool
+  val exists : (elt -> bool) -> t -> bool
   val length : t -> int
   val mem : t -> elt -> bool
   val find : t -> elt -> unit
@@ -75,5 +86,7 @@ module Make (E : HashedType) = struct
 
   (* Depend on [iter]/[fold]. *)
   let choose = choose_gen iter
-  let elements h = fold cons h []
+  let elements h = fold ListH.cons h []
+  let for_all = for_all_gen iter
+  let exists p = not @@ for_all (not @@ p)
 end

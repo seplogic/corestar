@@ -50,3 +50,12 @@ val is_global : Vars.var -> bool
 
 (** {2 Useful constants} *)
 val empty_question : 'b -> ('a, 'b) question
+
+(** {2 Refinement on triples and specs.} *)
+type 'a refinement_check = Sepprover.inner_logic -> 'a -> 'a -> bool
+val refines_triple : inner_triple refinement_check
+val refines_spec : inner_spec refinement_check
+
+(** {2 Construct simple specs} *)
+val mk_assume : Sepprover.inner_form -> inner_spec
+val mk_assert : 'a -> 'a triple spec

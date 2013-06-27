@@ -15,18 +15,17 @@ let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
-let substitute_list var = foldri (Sepprover.update_var_to @@ var)
+let substitute_list var = ListH.foldri (Sepprover.update_var_to @@ var)
 
 let substitute_args = substitute_list CoreOps.parameter_var
 let substitute_rets = substitute_list CoreOps.return_var
 
 let specialize_spec rets args =
-  let sub_vars u v = List.map (fun w -> if w = u then v else w) in
   let ret_terms = List.map (fun v -> PS.Arg_var v) rets in
   let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
-    ; modifies = foldri (sub_vars @@ CoreOps.return_var) rets modifies } in
+    ; modifies = lift_option2 (@) modifies (Some rets) } in
   HashSet.map f
 
 (* }}} *)
@@ -599,10 +598,10 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
-  let empty_inner_triple = { Core.pre = emp; post = emp; modifies = [] }
+  let empty_inner_triple = { Core.pre = emp; post = emp; modifies = Some [] }
 
   let spec_of post =
-    let post = HashSet.singleton { Core.pre = post; post; modifies = [] } in
+    let post = CoreOps.mk_assert post in
     let nop = HashSet.singleton empty_inner_triple in
     fun stop statement ->
     if statement = stop
@@ -697,7 +696,7 @@ end = struct
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = pre * missing_heap
             ; post = current_heap
-            ; modifies = PS.VarSet.elements pvars } in
+            ; modifies = Some (PS.VarSet.elements pvars) } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = HashSet.elements procedure.C.proc_spec in
