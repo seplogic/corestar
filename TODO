@@ -1,3 +1,10 @@
+- fix bug in treatment of constructors for frame inference:
+  constants (aka constructors) from the obligation should be assumed
+  distinct from the other constructors that appear in the assumption
+- kill existentials that are not in a given set
+- simplify triples by killing existentials that don't appear in both pre&post
+- fail early when a configuration contains false (or some more general
+  simplification?)
 - use modifies clauses in symexec
   - to infer them, make sure they only shrink
   - if modifies=None, then over-approximate

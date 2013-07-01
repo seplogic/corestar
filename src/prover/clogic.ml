@@ -747,6 +747,7 @@ let make_implies (heap : ts_formula) (pheap : pform) : sequent =
 
 let make_implies_inner ts_form1 ts_form2 =
   let ts, assumption = break_ts_form ts_form1 in
+  (* XXX The constructor information is lost in next two lines! *)
   let sform = make_syntactic ts_form2 in
   let obligation, seq_ts = convert_sf_without_eqs false ts sform in
   { seq_ts; assumption; obligation; matched = RMSet.empty }

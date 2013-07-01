@@ -423,13 +423,17 @@ end = struct
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
   let execute_one_triple
-      abduct make_framable pre_conf ({ Core.pre; post } as triple)
+      abduct make_framable pre_conf ({ Core.pre; post; modifies } as triple)
   =
     if log log_exec then
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_inner_triple triple
         Cfg.pp_ok_configuration pre_conf;
-    let vs = List.fold_right PS.vs_add (Sepprover.get_pvars post) PS.vs_empty in
+    let vs = match modifies with
+      (* TODO: ensure None doesn't happen (assert?poly?), and expand before *)
+      | None -> Sepprover.get_pvars post
+      | Some vs -> vs in
+    let vs = List.fold_right PS.VarSet.add vs PS.VarSet.empty in
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
