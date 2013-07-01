@@ -302,17 +302,24 @@ let get_counter_example () =
 exception Failed_eg of Clogic.sequent list
 *)
 
+type named_rule =
+  { rule_name : string (* For debug *)
+  ; rule_apply : Clogic.sequent -> Clogic.sequent list }
+
 (* A goal with penalty [<= Backtrack.min_penalty] is discharged.  A goal with with score
 [> Backtrack.max_penalty] needs a proof.  Anything in-between is kind of acceptable as a
 leaf, but we should keep looking for something better. *)
 let rec solve rules penalty n goal =
+  if safe then Clogic.check_sequent goal;
   if log log_prove then
     fprintf logf "@,@[<v 2>prove goal@ @[%a@]" Clogic.pp_sequent goal;
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
-        let subgoals = r goal in
+        if log log_prove then fprintf logf "@[Applying rule %s@\n@]" r.rule_name;
+        let subgoals = r.rule_apply goal in
+	if safe then List.iter Clogic.check_sequent subgoals;
         Backtrack.combine_list (solve rules penalty (n-1)) ([], 0) subgoals in
       Backtrack.choose_list process_rule leaf rules
     end in
@@ -334,20 +341,31 @@ let solve_idfs ?min_depth:(min_depth=min_depth) ?max_depth:(max_depth=max_depth)
 
 (* If a rule does not match, it should raise Backtrack.No_match. *)
 let search_rules logic =
-  let try_identity s = if s.obligation = s.assumption then [] else raise Backtrack.No_match in
-  let try_simplify s =
-    match simplify_sequent logic.Clogic.rw_rules s with
+  let try_identity = 
+    { rule_name = "identity"
+    ; rule_apply = fun s -> if s.obligation = s.assumption then [] else raise Backtrack.No_match } in
+  let try_simplify =
+    { rule_name = "simplify_by_rewrite"
+    ; rule_apply = fun s -> match simplify_sequent logic.Clogic.rw_rules s with
       | None -> raise Backtrack.No_match
-      | Some simp_s -> [simp_s] in
-  let try_rule r = List.flatten @@ (apply_rule r) in (* RLP: Check flatten is OK *)
+      | Some simp_s -> [simp_s] } in
+  let try_rule r =
+    { rule_name = r.Clogic.name
+    ; rule_apply = List.flatten @@ (apply_rule r) } in (* RLP: Check flatten is OK *)
   let try_rules = try_identity :: try_simplify :: List.map try_rule logic.Clogic.seq_rules in
-  let try_or_left = Clogic.apply_or_left in
-  let try_or_right = List.flatten @@ Clogic.apply_or_right in
-  let try_smt seq =
-    try
-      let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
-      [ {seq with seq_ts = ts} ]
-    with Assm_Contradiction -> [] in
+  let try_or_left =
+    { rule_name = "Or_left"
+    ; rule_apply = Clogic.apply_or_left } in
+  let try_or_right =
+    { rule_name = "Or_right"
+    ; rule_apply = List.flatten @@ Clogic.apply_or_right } in
+  let try_smt =
+    { rule_name = "SMT"
+    ; rule_apply = fun seq ->
+      try
+	let ts = Smt.ask_the_audience seq.seq_ts seq.assumption in
+	[ {seq with seq_ts = ts} ]
+      with Assm_Contradiction -> [] } in
   let native_rules = try_or_left :: try_or_right :: List.rev try_rules in
   let all_rules =
     if !Config.smt_run then try_smt :: native_rules else native_rules in
@@ -388,8 +406,9 @@ let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
     let leaves, penalty = solve_idfs rules abduction_penalty seq in
     if penalty >= Backtrack.max_penalty then raise Backtrack.No_match else
       let antiframe_frame seq =
-	Clogic.mk_ts_form seq.seq_ts seq.obligation,
-	Clogic.mk_ts_form seq.seq_ts seq.assumption in
+	let f, ts = Clogic.normalise (Cterm.new_ts ()) seq.obligation in
+	(Clogic.mk_ts_form ts f,
+	 Clogic.mk_ts_form seq.seq_ts seq.assumption) in
       let result = List.map antiframe_frame leaves in
       if log log_prove then (
         let pp_fa f (aa, af) = fprintf f "@,@[(A: %a,@ F: %a)@]"

@@ -63,6 +63,13 @@ type ts_formula =
   { ts : Cterm.term_structure
   ; form : formula }
 
+let rec check_ts_formula tsf =
+  let check_constant c = assert (Cterm.equal tsf.ts c c) in
+  let iter_pair f (a, b) = f a; f b in
+  List.iter (iter_pair check_constant) tsf.form.eqs;
+  List.iter (iter_pair check_constant) tsf.form.neqs;
+  let check_formula form = check_ts_formula {tsf with form} in
+  List.iter (iter_pair check_formula) tsf.form.disjuncts
 
 let mk_ts_form ts form =
   {ts = ts; form = form;}
@@ -537,13 +544,24 @@ let match_and_remove
       cont (ts,term)
 
 
-(* Assume that assumption does not contain eqs or neqs, they are represented in ts *)
+(* Invariant: [assumption] does not contain eqs or neqs, they are represented in [seq_ts] *)
 type sequent =
    { matched : RMSet.multiset
    ; seq_ts : term_structure
    ; assumption : formula
    ; obligation : formula }
 
+let check_sequent s =
+  let rec check_empty form =
+    assert (form.eqs = []);
+    assert (form.neqs = []) in
+(*
+    let iter_pair f (a, b) = f a; f b in
+    List.iter (iter_pair check_empty) form.disjuncts in
+*)
+  check_ts_formula {ts = s.seq_ts; form = s.assumption};
+  check_ts_formula {ts = s.seq_ts; form = s.obligation};
+  check_empty s.assumption
 
 let pp_sequent ppf { matched; seq_ts; assumption; obligation } =
     let pp_term = pp_c seq_ts in
@@ -750,6 +768,7 @@ let make_implies_inner ts_form1 ts_form2 =
   (* XXX The constructor information is lost in next two lines! *)
   let sform = make_syntactic ts_form2 in
   let obligation, seq_ts = convert_sf_without_eqs false ts sform in
+  (* let ts = Cterm.import_constructors ts ts_form2.ts in *)
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let ts_form_to_pform ts_form =

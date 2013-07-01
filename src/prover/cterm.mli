@@ -124,6 +124,7 @@ val var_not_used_in : term_structure -> Vars.var -> term_handle list -> bool
 val var_not_used_in_term : term_structure -> Vars.var -> Psyntax.args -> bool
 
 val add_constructor : string -> term_structure -> term_structure
+val import_constructors : term_structure -> term_structure -> term_structure
 
 val get_equals_pvar_free : term_structure -> Vars.var -> Psyntax.args list
 val get_pvars : term_structure -> Vars.var list

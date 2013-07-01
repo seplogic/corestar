@@ -34,6 +34,7 @@ type ts_formula = {
   ts : Cterm.term_structure;
   form : formula;
 }
+val check_ts_formula : ts_formula -> unit
 val mk_ts_form : Cterm.term_structure -> formula -> ts_formula
 val break_ts_form : ts_formula -> Cterm.term_structure * formula
 val kill_var : ts_formula -> Vars.var -> ts_formula
@@ -60,6 +61,7 @@ type sequent =
   ; seq_ts : Cterm.term_structure
   ; assumption : formula
   ; obligation : formula }
+val check_sequent : sequent -> unit
 val plain : formula -> bool
 val pp_sequent : Format.formatter -> sequent -> unit
 val true_sequent : sequent -> bool

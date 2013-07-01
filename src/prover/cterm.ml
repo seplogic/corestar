@@ -457,13 +457,12 @@ let rec add_term params pt ts : 'a * term_structure =
             let cc = CC.make_constructor cc c in
 	    lift(c), {ts with cc = cc; strings = SMap.add s c ts.strings; originals = CMap.add c (FArg_string s)  ts.originals }
 	end
-    | Arg_op (f,args) | Arg_cons (f,args) ->
+    | Arg_op (f,args) ->
 	let c,ts =
 	  try
 	    SMap.find f ts.function_symbols, ts
 	  with Not_found ->
 	    let c,cc = CC.fresh ts.cc in
-	    let cc = match pt with Arg_cons _ -> CC.make_constructor cc c | _ -> cc in
 	    c, {ts with cc = cc; function_symbols = SMap.add f c ts.function_symbols}
 	in
 	let c2,ts =
@@ -474,14 +473,35 @@ let rec add_term params pt ts : 'a * term_structure =
                   if CMap.mem c ts.originals then
                      {ts with cc=cc}
                   else
-                     {ts with cc=cc;
-                      originals =
-                          CMap.add c (FArg_op(f,[])) ts.originals}
+                     {ts with cc=cc; originals = CMap.add c (FArg_op (f,[])) ts.originals}
 	  | _ ->
 	      let c2,ts,cl = add_term_list params args (lift c,ts) [] in
 	      c2, register_op c2 (f, List.rev cl) ts
 	in
 	c2,ts
+    | Arg_cons (f,args) ->
+	let c,ts =
+	  try
+	    SMap.find f ts.function_symbols, ts
+	  with Not_found ->
+	    let c,cc = CC.fresh ts.cc in
+	    let cc = CC.make_constructor cc c in
+	    c, {ts with cc = cc; function_symbols = SMap.add f c ts.function_symbols}
+	in
+	let c2,ts =
+	  match args with
+	    [] ->
+	      let c,cc = CC.add_app ts.cc c ts.tuple in
+	      lift c,
+                  if CMap.mem c ts.originals then
+                     {ts with cc=cc}
+                  else
+                     {ts with cc=cc; originals =  CMap.add c (FArg_cons (f,[])) ts.originals}
+	  | _ ->
+	      let c2,ts,cl = add_term_list params args (lift c,ts) [] in
+	      c2, register_op c2 (f, List.rev cl) ts
+	in
+	c2,ts      
     | Arg_record fldl ->
 	(* Assume fields are sorted *)
 	let c,ts,lrl = add_field_list params fldl (lift ts.record, ts) [] in
@@ -868,6 +888,23 @@ let add_constructor
       let cc = CC.make_constructor cc c in
       {ts with cc = cc; function_symbols = SMap.add fn c ts.function_symbols}
     end
+
+let import_constructors ts ts_from =
+  let filter c =
+    CC.rep_self_cons ts_from.cc c &&
+    CMap.mem c ts_from.originals in
+  let from_terms = CC.get_reps filter (get_term ts_from) ts_from.cc in
+
+  (* one of these is not found in ts_from.originals
+  let from_terms = List.map (get_term ts_from) (CC.get_self_constructors ts_from.cc) in
+  *)
+  let from_name = function
+    | Psyntax.Arg_cons (s, _) -> s
+    | Arg_var v -> failwith (sprintf "INTERNAL: %s %s not a constructor" "Arg_var" (Vars.string_var v))
+    | Arg_string s -> failwith (sprintf "INTERNAL: %s %s not a constructor" "Arg_string" s)
+    | Arg_op (s, _) -> failwith (sprintf "INTERNAL: %s %s not a constructor" "Arg_op" s)
+    | Arg_record _ -> failwith (sprintf "INTERNAL: %s not a constructor" "Arg_record") in
+  List.fold_right add_constructor (List.map from_name from_terms) ts
 
 (* could we use rep_not_used_in? *)
 let is_pvar_free ts c =

@@ -41,6 +41,7 @@ module type PCC =
     val rep_eq : t -> constant -> constant -> bool
     val rep_uneq : t -> constant -> constant -> bool
     val rep_not_used_in : t -> constant -> constant list -> bool
+    val rep_self_cons : t -> constant -> bool
     val make_not_equal : t -> constant -> constant -> t
     val make_constructor : t -> constant -> t
     val normalise : t -> constant -> constant
@@ -72,6 +73,7 @@ module type PCC =
       
     val get_consts : t -> constant list
     val get_reps : (constant -> bool) -> (constant -> 'a) -> t -> 'a list 
+    val get_self_constructors : t -> constant list
 
     (* surjective mapping from constants to integers *)
     val const_int : constant -> t -> int 
