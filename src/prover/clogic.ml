@@ -726,10 +726,17 @@ let split_disjunct form =
       conjunction x {form with disjuncts = disjuncts},
       conjunction y {form with disjuncts = disjuncts}
 
+let internalise_qs (ts, form) =
+  let ts = add_eqs_list form.eqs ts in
+  let ts = add_neqs_list form.neqs ts in
+  ts, {form with eqs = []; neqs = []}
+
 let apply_or_left seq : sequent list =
   let a1,a2 = split_disjunct seq.assumption in
-  [{seq with assumption = a1};
-   {seq with assumption = a2}]
+  let ts1, a1 = internalise_qs (seq.seq_ts, a1) in
+  let ts2, a2 = internalise_qs (seq.seq_ts, a2) in
+  [{seq with seq_ts = ts1; assumption = a1};
+   {seq with seq_ts = ts2; assumption = a2}]
 
 let apply_or_right seq : sequent list list =
   let o1,o2 = split_disjunct seq.obligation in
