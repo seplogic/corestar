@@ -362,6 +362,7 @@ end = struct
   let emp = Specification.empty_inner_form
 
   let initialize procedure pre =
+    if safe then Sepprover.check_inner_form pre;
     let confgraph = CG.create () in
     let flowgraph = procedure.P.cfg in
     let post_of = SD.create 1 in
@@ -385,6 +386,10 @@ end = struct
     Sepprover.abduct_inner logic p q |> option_map make_nonempty
 
   let frame logic p q =
+    if safe then begin
+      Sepprover.check_inner_form p;
+      Sepprover.check_inner_form q;
+    end;
     Sepprover.frame_inner logic p q
     |> option_map (List.map (fun x -> (emp, x)))
     |> option_map make_nonempty
@@ -411,8 +416,13 @@ end = struct
       | t :: _ ->
           (try
             let w, f = Sepprover.freshen_exists (v, f) in
-            Sepprover.make_equal (PS.Arg_var w, t) f
-          with Cterm.Var_not_found -> f) in
+	    if safe then Sepprover.check_inner_form f;
+            let f = Sepprover.make_equal (PS.Arg_var w, t) f in
+	    if safe then Sepprover.check_inner_form f;
+	    f
+          with Cterm.Var_not_found -> 
+	    if safe then Sepprover.check_inner_form f;
+	    f) in
     PS.VarSet.fold replace_one vs
 
   let kill_pvars = PS.VarSet.fold Sepprover.kill_var
@@ -434,11 +444,18 @@ end = struct
       | None -> Sepprover.get_pvars post
       | Some vs -> vs in
     let vs = List.fold_right PS.VarSet.add vs PS.VarSet.empty in
+    if safe then G.check_ok_configuration pre_conf;
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
       let mk_post_conf (a, f) =
         let ( * ) = Sepprover.conjoin_inner in
+	if safe then begin
+ 	  Sepprover.check_inner_form a;
+	  Sepprover.check_inner_form (make_framable pre_conf.G.current_heap a);
+	  Sepprover.check_inner_form post;
+	  Sepprover.check_inner_form (kill_pvars vs f);
+	end;
         let conf =
           { G.missing_heap
             = pre_conf.G.missing_heap * make_framable pre_conf.G.current_heap a

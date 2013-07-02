@@ -18,6 +18,8 @@ open Corestar_std
 type inner_form
 type inner_logic
 
+val check_inner_form : inner_form -> unit
+
 val inner_truth : inner_form
 val inner_falsum : inner_form
 val convert : Psyntax.form -> inner_form

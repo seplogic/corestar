@@ -31,6 +31,12 @@ type ok_configuration =
   { current_heap : P.inner_form
   ; missing_heap : P.inner_form }
 
+let check_ok_configuration c =
+  printf "@[Checking current heap@\n@]@?";
+  P.check_inner_form c.current_heap;
+  printf "@[Checking missing heap@\n@]@?";
+  P.check_inner_form c.missing_heap
+
 let pp_ok_configuration f { current_heap; missing_heap } =
   fprintf f "(now:%a,@ missing:%a)"
     Sepprover.string_inner_form current_heap

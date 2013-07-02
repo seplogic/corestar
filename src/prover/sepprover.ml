@@ -25,6 +25,8 @@ open Psyntax
 
     type inner_form = Clogic.ts_formula
 
+    let check_inner_form = Clogic.check_ts_formula
+
     let inner_truth =
       Clogic.mk_ts_form (Cterm.new_ts ()) Clogic.truth
 

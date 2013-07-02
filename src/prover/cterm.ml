@@ -929,3 +929,6 @@ let get_equals_pvar_free ts pvar =
 
 let get_pvars ts =
   VarMap.fold (fun k _ ks -> k :: ks) ts.pvars []
+
+let forget_internal_qs ts =
+  { ts with cc = CC.forget_qs ts.cc }

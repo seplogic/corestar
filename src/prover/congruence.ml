@@ -173,6 +173,9 @@ module type PCC =
 
       val delete : t -> constant -> t
 
+      (* Forget eqs and neqs *)
+      val forget_qs : t -> t
+
       val invariant : t -> bool
       (* }}} *)
     end
@@ -1831,6 +1834,29 @@ module CC : PCC =
 	  ts (*assert false*)
       |	Standard ->
 	  {ts with unifiable = Aunifiable.set ts.unifiable r Deleted}
+
+	    
+    let forget_qs cc =
+      assert (invariant cc);
+      let n = size cc in
+      let r = grow n (create ()) in
+      let r =
+	{ r with
+	  constructor = cc.constructor
+	; unifiable = cc.unifiable } in
+(*
+      let reset reset_i = for i = 0 to n do reset_i i done in
+      let r =
+      { cc with
+        uselist = reset (reset_uselist cc)
+      ; representative = reset (reset_representative cc)
+      ; classlist = reset (reset_classlist cc)
+      ; lookup = CCMap.empty
+      ; rev_lookup = reset (reset_rev_lookup cc)
+      ; not_equal = CCmap.empty } in
+*)
+      assert (invariant r);
+      r
 
   end
 

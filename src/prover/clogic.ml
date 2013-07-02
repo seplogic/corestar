@@ -21,6 +21,8 @@ open Misc
 open Printing
 open Psyntax
 
+module CC = Congruence
+
 exception Success
 exception Failed
 exception Assm_Contradiction
@@ -63,11 +65,23 @@ type ts_formula =
   { ts : Cterm.term_structure
   ; form : formula }
 
+let rec check_ts_formula_light tsf =
+  let check_constant c = assert (Cterm.equal tsf.ts c c) in
+  let iter_pair f (a, b) = f a; f b in
+  List.iter (iter_pair check_constant) tsf.form.eqs;
+  List.iter (iter_pair check_constant) tsf.form.neqs;
+  let check_formula form = check_ts_formula_light {tsf with form} in
+  List.iter (iter_pair check_formula) tsf.form.disjuncts
+
 let rec check_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
   let iter_pair f (a, b) = f a; f b in
   List.iter (iter_pair check_constant) tsf.form.eqs;
   List.iter (iter_pair check_constant) tsf.form.neqs;
+  (try List.iter (fun (x,y) -> ignore (make_equal tsf.ts x y)) tsf.form.eqs
+  with Psyntax.Contradiction -> assert false);
+  (try List.iter (fun (x,y) -> ignore (make_not_equal tsf.ts x y)) tsf.form.neqs
+  with Psyntax.Contradiction -> assert false);
   let check_formula form = check_ts_formula {tsf with form} in
   List.iter (iter_pair check_formula) tsf.form.disjuncts
 
@@ -560,7 +574,7 @@ let check_sequent s =
     List.iter (iter_pair check_empty) form.disjuncts in
 *)
   check_ts_formula {ts = s.seq_ts; form = s.assumption};
-  check_ts_formula {ts = s.seq_ts; form = s.obligation};
+  check_ts_formula_light {ts = s.seq_ts; form = s.obligation};
   check_empty s.assumption
 
 let pp_sequent ppf { matched; seq_ts; assumption; obligation } =
@@ -771,11 +785,20 @@ let make_implies (heap : ts_formula) (pheap : pform) : sequent =
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let make_implies_inner ts_form1 ts_form2 =
+  if safe then begin
+    check_ts_formula ts_form1;
+    check_ts_formula ts_form2
+  end;
   let ts, assumption = break_ts_form ts_form1 in
   (* XXX The constructor information is lost in next two lines! *)
   let sform = make_syntactic ts_form2 in
   let obligation, seq_ts = convert_sf_without_eqs false ts sform in
   (* let ts = Cterm.import_constructors ts ts_form2.ts in *)
+  (* This assumption could contain equalities *)
+  let seq_ts = add_eqs_list assumption.eqs seq_ts in
+  let seq_ts = add_neqs_list assumption.neqs seq_ts in
+  let assumption = { assumption with eqs = []; neqs = [] } in
+(* Found equalities in the obligation which are nconsistent with seq_ts *)
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let ts_form_to_pform ts_form =

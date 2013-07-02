@@ -128,3 +128,5 @@ val import_constructors : term_structure -> term_structure -> term_structure
 
 val get_equals_pvar_free : term_structure -> Vars.var -> Psyntax.args list
 val get_pvars : term_structure -> Vars.var list
+
+val forget_internal_qs : term_structure -> term_structure
