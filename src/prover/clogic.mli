@@ -94,7 +94,7 @@ val empty_logic : logic
 val convert_logic : Psyntax.logic -> logic
 val match_form : bool -> Cterm.term_structure -> formula -> syntactic_form ->
   ('a -> 'a -> 'a) -> (Cterm.term_structure * formula -> 'a) -> 'a
-val apply_or_left : sequent -> sequent list
+val apply_or_left : sequent -> sequent list list
 val apply_or_right : sequent -> sequent list list
 val get_frame : sequent -> ts_formula
 val get_frames : sequent list -> ts_formula list
