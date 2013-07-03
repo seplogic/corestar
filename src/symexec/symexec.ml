@@ -311,7 +311,6 @@ end = struct
     | cs -> CT_split (G.Angelic, cs)
 
   let make_demonic_choice = function
-    | [] -> failwith "INTERNAL: empty demonic choice"
     | [c] -> c
     | cs -> CT_split (G.Demonic, cs)
 
@@ -415,6 +414,7 @@ end = struct
       | [] -> Sepprover.kill_var v f
       | t :: _ ->
           (try
+	    if safe then Sepprover.check_inner_form f;
             let w, f = Sepprover.freshen_exists (v, f) in
 	    if safe then Sepprover.check_inner_form f;
             let f = Sepprover.make_equal (PS.Arg_var w, t) f in
@@ -433,7 +433,8 @@ end = struct
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
   let execute_one_triple
-      abduct make_framable pre_conf ({ Core.pre; post; modifies } as triple)
+      abduct is_deadend make_framable
+      pre_conf ({ Core.pre; post; modifies } as triple)
   =
     if log log_exec then
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
@@ -462,22 +463,22 @@ end = struct
           ; current_heap = post * kill_pvars vs f } in
         if log log_exec then
           fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
-        CT_ok conf in
-      afs |> List.map mk_post_conf |> make_demonic_choice in
+        conf in
+      let mk_ok conf = CT_ok conf in
+      let keep_conf { G.missing_heap; current_heap } =
+        not (is_deadend missing_heap) && not (is_deadend current_heap) in
+      afs
+        |> List.map mk_post_conf
+        |> List.filter keep_conf
+        |> List.map mk_ok
+        |> make_demonic_choice in
     let r = option CT_error branch afs in
     if log log_exec then fprintf logf "@]@,@?";
     r
 
-  (*
-    x = e * x = f     with e free of pvars, but f contains pvars
-    x'= e * x'= f
-
-    x = x'
-    x'' = x' * x'' = x'
-  *)
-
-  let execute abduct make_framable =
-    let execute_one_triple = execute_one_triple abduct make_framable in
+  let execute abduct is_deadend make_framable =
+    let execute_one_triple =
+      execute_one_triple abduct is_deadend make_framable in
     fun spec_of pre_conf statement ->
       statement
       |> spec_of
@@ -636,14 +637,18 @@ end = struct
 
   let update_infer pvars rules body post =
     let abduct = abduct rules in
+    let is_deadend = Sepprover.inconsistent rules in
     let make_framable = replace_pvars pvars in
-    let execute = execute abduct make_framable (spec_of post body.P.stop) in
+    let execute =
+      execute abduct is_deadend make_framable (spec_of post body.P.stop) in
     update execute (abstract_conf rules)
 
   let update_check rules body post =
     let abduct = frame rules in
+    let is_deadend = Sepprover.inconsistent rules in
     let check_emp _ x = assert (x = emp); emp in
-    let execute = execute abduct check_emp (spec_of post body.P.stop) in
+    let execute =
+      execute abduct is_deadend check_emp (spec_of post body.P.stop) in
     update execute (abstract_conf rules)
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)

@@ -15,13 +15,12 @@ open Debug
 open Format
 
 (* TODO(rgrig): Don't open these. *)
-open Congruence
 open Cterm
 open Misc
 open Printing
 open Psyntax
 
-module CC = Congruence
+module CC = Congruence.CC
 
 exception Success
 exception Failed
@@ -65,15 +64,15 @@ type ts_formula =
   { ts : Cterm.term_structure
   ; form : formula }
 
-let rec check_ts_formula_light tsf =
+let rec check_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
   let iter_pair f (a, b) = f a; f b in
   List.iter (iter_pair check_constant) tsf.form.eqs;
   List.iter (iter_pair check_constant) tsf.form.neqs;
-  let check_formula form = check_ts_formula_light {tsf with form} in
+  let check_formula form = check_ts_formula {tsf with form} in
   List.iter (iter_pair check_formula) tsf.form.disjuncts
 
-let rec check_ts_formula tsf =
+let rec check_consistent_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
   let iter_pair f (a, b) = f a; f b in
   List.iter (iter_pair check_constant) tsf.form.eqs;
@@ -82,7 +81,7 @@ let rec check_ts_formula tsf =
   with Psyntax.Contradiction -> assert false);
   (try List.iter (fun (x,y) -> ignore (make_not_equal tsf.ts x y)) tsf.form.neqs
   with Psyntax.Contradiction -> assert false);
-  let check_formula form = check_ts_formula {tsf with form} in
+  let check_formula form = check_consistent_ts_formula {tsf with form} in
   List.iter (iter_pair check_formula) tsf.form.disjuncts
 
 let mk_ts_form ts form =
@@ -574,7 +573,7 @@ let check_sequent s =
     List.iter (iter_pair check_empty) form.disjuncts in
 *)
   check_ts_formula {ts = s.seq_ts; form = s.assumption};
-  check_ts_formula_light {ts = s.seq_ts; form = s.obligation};
+  check_ts_formula {ts = s.seq_ts; form = s.obligation};
   check_empty s.assumption
 
 let pp_sequent ppf { matched; seq_ts; assumption; obligation } =

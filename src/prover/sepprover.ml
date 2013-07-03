@@ -115,8 +115,8 @@ open Psyntax
 
     let implies = Prover.check_implication
 
-    let inconsistent : inner_logic -> inner_form -> bool
-      = fun logic inner_form1 -> Prover.check_inconsistency logic inner_form1
+    let inconsistent logic f =
+     try Prover.check_inconsistency logic f with Contradiction -> true
 
     let inconsistent_opt : inner_logic -> inner_form option -> bool
       = fun logic inner_form1 ->
