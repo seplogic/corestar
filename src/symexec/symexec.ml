@@ -407,25 +407,14 @@ end = struct
     in
     G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
 
-  (* Used as the [make_framable] argument of the generic [execute]. *)
-  let replace_pvars vs eqs_f =
-    let replace_one v f =
-      match Sepprover.get_equals_pvar_free v eqs_f with
-      | [] -> Sepprover.kill_var v f
-      | t :: _ ->
-          (try
-	    if safe then Sepprover.check_inner_form f;
-            let w, f = Sepprover.freshen_exists (v, f) in
-	    if safe then Sepprover.check_inner_form f;
-            let f = Sepprover.make_equal (PS.Arg_var w, t) f in
-	    if safe then Sepprover.check_inner_form f;
-	    f
-          with Cterm.Var_not_found -> 
-	    if safe then Sepprover.check_inner_form f;
-	    f) in
-    PS.VarSet.fold replace_one vs
-
   let kill_pvars = PS.VarSet.fold Sepprover.kill_var
+
+  (* Used as the [make_framable] argument of the generic [execute]. *)
+  (* Better name? *)
+  let kill_with_pure_from pvars f g =
+    let f' = Sepprover.purify_inner f in
+    let g' = Sepprover.conjoin_inner f' g in
+    kill_pvars pvars g'
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -638,7 +627,7 @@ end = struct
   let update_infer pvars rules body post =
     let abduct = abduct rules in
     let is_deadend = Sepprover.inconsistent rules in
-    let make_framable = replace_pvars pvars in
+    let make_framable = kill_with_pure_from pvars in
     let execute =
       execute abduct is_deadend make_framable (spec_of post body.P.stop) in
     update execute (abstract_conf rules)

@@ -63,3 +63,4 @@ val get_equals_pvar_free : Psyntax.var -> inner_form -> Psyntax.args list
   in [f]. *)
 val get_pvars : inner_form -> Psyntax.var list
 val make_equal : Psyntax.args * Psyntax.args -> inner_form -> inner_form
+val purify_inner : inner_form -> inner_form

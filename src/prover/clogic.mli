@@ -109,3 +109,5 @@ val make_implies_inner : ts_formula -> ts_formula -> sequent
 val ts_form_to_pform : ts_formula -> Psyntax.pform
 val ts_form_to_pform_no_ts : ts_formula -> Psyntax.pform
 val pform_to_ts_form : Psyntax.pform -> ts_formula
+val purify_form : formula ->  formula
+val purify_ts_form : ts_formula ->  ts_formula

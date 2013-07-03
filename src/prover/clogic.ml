@@ -808,3 +808,6 @@ let ts_form_to_pform_no_ts ts_form =
 
 let pform_to_ts_form pform =
   convert_with_eqs false pform
+
+let purify_form f = { f with spat = RMSet.empty }
+let purify_ts_form ts_form = { ts_form with form = purify_form ts_form.form }

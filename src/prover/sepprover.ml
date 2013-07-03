@@ -169,3 +169,5 @@ open Psyntax
    let pprint_counter_example = Prover.pprint_counter_example
    let print_counter_example = Prover.print_counter_example
    let get_counter_example = Prover.get_counter_example
+
+   let purify_inner = Clogic.purify_ts_form
