@@ -244,22 +244,21 @@ let add_neqs_list neqs ts : term_structure =
      The sorting means predicates with the same name will be next
      to each other. *)
 let intersect_with_ts ts rem_snd set1 set2 =
-  let loose_compare a b = compare (fst a) (fst b) in
-  let equal (an,ar) (bn,br) = an=bn && equal ts ar br in
   let rec match_same rem_snd set1 set2 intersect count =
     if RMSet.has_more set1 && RMSet.has_more set2 then
       let c1,nset1 = RMSet.remove set1 in
       let c2,nset2 = RMSet.remove set2 in
-      if loose_compare c1 c2 = 0 then
-	if equal c1 c2 then
+      let cmp = compare (fst c1) (fst c2) in
+      if cmp = 0 then
+	if Cterm.equal ts (snd c1) (snd c2) then
 	  let nset2 = (if rem_snd then nset2 else set2) in
 	  match_same rem_snd nset1 (RMSet.back nset2 count) (c2::intersect) 0
 	else
 	    (* Not a match, try next. *)
 	  match_same rem_snd set1 (RMSet.next set2) intersect (count+1)
-      else if loose_compare c1 c2 < 0 then
+      else if cmp < 0 then
 	  (* First set is a low one, so skip element,
-	     reverse second set over similar elements incase next element is same class*)
+	     reverse second set over similar elements in case next element is same class*)
 	match_same rem_snd (RMSet.next set1) (RMSet.back set2 count) intersect 0
       else
 	  (* Second set has lowest element, so skip element *)

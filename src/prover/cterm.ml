@@ -80,7 +80,9 @@ let new_ts () =
   evars = VarMap.empty;
   aevars = VarMap.empty;
   record_labels = SMap.empty;
-  originals = CMap.add c3 (FArg_string "TUPLE") (CMap.add c (FArg_string "RECORD") CMap.empty);
+  originals = CMap.empty;
+(*     CMap.add c3 (FArg_string "TUPLE") (CMap.add c (FArg_string "RECORD")
+CMap.empty); *)
   record = c;
   exists = c1;
   var = c2;
@@ -400,6 +402,7 @@ let pp_ts = pp_whole pp_ts' pp_star
 let pp_c ts ppf c = CC.pp_c ts.cc (pp_c ts) ppf c
 
 
+(* TODO(rgrig): This function looks very dubious. *)
 let rec add_term params pt ts : 'a * term_structure =
   let (unif : bool),
     (fresh : bool),
@@ -501,7 +504,7 @@ let rec add_term params pt ts : 'a * term_structure =
 	      let c2,ts,cl = add_term_list params args (lift c,ts) [] in
 	      c2, register_op c2 (f, List.rev cl) ts
 	in
-	c2,ts      
+	c2,ts
     | Arg_record fldl ->
 	(* Assume fields are sorted *)
 	let c,ts,lrl = add_field_list params fldl (lift ts.record, ts) [] in
