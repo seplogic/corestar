@@ -31,7 +31,7 @@ module PA = Persistentarray
       Union Find algorithm
 *)
 
-let cc_debug = ref false
+let cc_debug = ref true
 
 
 module type PCC =
@@ -265,6 +265,76 @@ module CC : PCC =
 	  constructor : Aconstructor.t;
 	  unifiable : Aunifiable.t;
 	}
+
+    let print (ts:t) : unit =
+      let rs = ts.representative in
+      let n = Arepresentative.size rs - 1 in
+      printf "@[<v>";
+      printf "@[<v2>Rep (0 through %d)@," n;
+      for i = 0 to n do
+	if i <> (Arepresentative.get rs i) then
+	  printf "%n|->%n@," i (Arepresentative.get rs i)
+      done ;
+      printf "@]";
+(*
+      printf "\nUses";
+      for i = 0 to n do
+	if (A.get (ts.uselist) i) <> [] then
+	  begin
+	    printf "\n%n  |-> " i;
+	    List.iter
+	      (function
+		  Complex_eq (a,b,c) ->
+		    printf "app(%n,%n)=%n   " a b c
+		| Not_equal a ->
+		    printf "%n != %n   " i a
+		    )
+	      (A.get (ts.uselist) i)
+	  end
+      done;
+*)
+(*
+      printf "\nClass list\n";
+      for i = 0 to n do
+	if (A.get (ts.classlist) i) <> [i] then
+	  begin
+	    printf "%n |->  " i;
+	    List.iter
+	      (fun c -> printf "%n " c)
+	      (A.get (ts.classlist) i);
+	    printf ";\n"
+	  end
+      done;
+*)
+      printf "@,@[<v2>Not equal@,";
+      CCMap.iter  (fun (a,b) () -> printf "%n!=%n;@," a b) ts.not_equal;
+      printf "@]";
+
+      printf "@,@[<v2>Lookup@,";
+      CCMap.iter  (fun (a,b) (x,y,z) -> printf "app(%n,%n) |-> (%n,%n,%n);@," a b x y z) ts.lookup;
+      printf "@]";
+
+      printf "@,@[<v2>Rev lookup@,";
+      for i = 0 to n do
+	if (Arev_lookup.get ts.rev_lookup i) <> [] then
+	  begin
+	    printf "%n" i;
+	    List.iter
+	      (fun (a,b) ->
+		printf " = app(%n,%n)@," a b )
+	      (Arev_lookup.get ts.rev_lookup i)
+	  end
+      done;
+      printf "@]";
+
+      printf "@,@[<v2>Injective info:@,";
+      for i = 0 to n do
+	match Aconstructor.get ts.constructor i with
+	  Not -> ()
+	| Self -> printf "inj(%i)@," i
+	| IApp(a,b) -> printf "inj(%i) by app(%i,%i)@," i a b
+      done;
+      printf "@]@]@?"
 
     let create () =
       {
@@ -610,6 +680,7 @@ module CC : PCC =
         ([], { cc with lookup })
 
     let add_neq (a, b) cc =
+      if !cc_debug then printf "@[Making %d != %d@]@\n@?" a b;
       (* the check below is necessary for termination *)
       let a, b = sort_pair (get_representative cc a, get_representative cc b) in
       if a = b then raise Contradiction;
@@ -773,6 +844,7 @@ module CC : PCC =
       cc
 
     let mk_self cc c =
+      if !cc_debug then printf "@[Making %d a self constructor @]@\n@?" c;
       if safe then strict_invariant cc;
       let c = get_representative cc c in
       if get_constructor cc c = Self then cc else begin
@@ -845,6 +917,11 @@ module CC : PCC =
         iterate thru *not_equal* and call add_neq
     May raise [Contradiction]. *)
     let sanitize cc =
+      if !cc_debug then begin
+	printf "@[<v2>Sanitizing@,";
+	print cc;
+	printf "@]@\n@?";
+      end;
       let n = size cc in
       let sane_cc = grow n (create ()) in
       if safe then strict_invariant sane_cc;
@@ -871,6 +948,13 @@ module CC : PCC =
 
     let merge_cc subst cc1 cc2 =
       if safe then assert (invariant cc1 && invariant cc2);
+      if !cc_debug then begin
+	printf "@[<v2>Attempting to merge@,";
+	print cc1;
+	printf "@]@,@[<v2>with@,";
+	print cc2;
+	printf "@]@\n@?"
+      end;
       let n1, n2 = size cc1, size cc2 in
       let cc1, cc2 = ref cc1, ref cc2 in   (* DANGER *)
       let subst =
@@ -941,7 +1025,13 @@ module CC : PCC =
         | _ -> raise Contradiction in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
-      sanitize !cc2
+      let result = sanitize !cc2 in
+      if !cc_debug then begin
+	printf "@[<v2>Obtaining@,";
+	print result;
+	printf "@]@\n@?"
+      end;
+      result
 
     let pp_c ts pp ppf i =
        (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)
@@ -986,73 +1076,6 @@ module CC : PCC =
 
     let pretty_print has_pp pp_term =
       pp_whole (pretty_print' has_pp pp_term) pp_star
-
-    let print (ts:t) : unit =
-      let rs = ts.representative in
-      let n = Arepresentative.size rs - 1 in
-      printf "Rep (%d)\n   " n;
-      for i = 0 to n do
-	if i <> (Arepresentative.get rs i) then
-	  printf "%n|->%n  " i (Arepresentative.get rs i)
-      done ;
-
-(*
-      printf "\nUses";
-      for i = 0 to n do
-	if (A.get (ts.uselist) i) <> [] then
-	  begin
-	    printf "\n%n  |-> " i;
-	    List.iter
-	      (function
-		  Complex_eq (a,b,c) ->
-		    printf "app(%n,%n)=%n   " a b c
-		| Not_equal a ->
-		    printf "%n != %n   " i a
-		    )
-	      (A.get (ts.uselist) i)
-	  end
-      done;
-*)
-(*
-      printf "\nClass list\n";
-      for i = 0 to n do
-	if (A.get (ts.classlist) i) <> [i] then
-	  begin
-	    printf "%n |->  " i;
-	    List.iter
-	      (fun c -> printf "%n " c)
-	      (A.get (ts.classlist) i);
-	    printf ";\n"
-	  end
-      done;
-*)
-      printf "\nNot equal\n";
-      CCMap.iter  (fun (a,b) () -> printf "  %n!=%n;\n" a b) ts.not_equal;
-
-      printf "\nLookup\n";
-      CCMap.iter  (fun (a,b) (x,y,z) -> printf "  app(%n,%n) |-> (%n,%n,%n);\n" a b x y z) ts.lookup;
-
-      printf "\nRev lookup";
-      for i = 0 to n do
-	if (Arev_lookup.get ts.rev_lookup i) <> [] then
-	  begin
-	    printf "\n %n" i;
-	    List.iter
-	      (fun (a,b) ->
-		printf " = app(%n,%n)" a b )
-	      (Arev_lookup.get ts.rev_lookup i)
-	  end
-      done;
-
-      printf "Injective info:\n";
-      for i = 0 to n do
-	match Aconstructor.get ts.constructor i with
-	  Not -> ()
-	| Self -> printf "  inj(%i)\n" i
-	| IApp(a,b) -> printf "  inj(%i) by app(%i,%i)\n" i a b
-      done;
-      printf "\n\n"
-
 
     let add_lookup ts (a,b,c) =
       { ts with
@@ -1138,18 +1161,19 @@ module CC : PCC =
 
     let rec propagate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
-	  [] -> ts
+	  [] -> sanitize ts (* Expensive! For debug... *)
 	| (a,b)::pending ->
 	    if !cc_debug then
 	      begin
-		printf "Making %i=%i " a b;
+		printf "@[<2>Making %i=%i " a b;
 		if pending <> [] then
 		  begin
 		    printf "with pending ";
 		    List.iter (fun (a,b) -> printf "(%i,%i) " a b) pending;
 		  end;
-		printf " in \n";
+		printf " in @\n";
 		print ts;
+		printf "@]@?";
 	      end;
 	    begin
 	      if rep_uneq ts a b then
@@ -1190,8 +1214,8 @@ module CC : PCC =
 		    ul in
 		let ts = clear_uselist ts old_repa in
                 if safe && !cc_debug then begin
-                  printf "@\nresulting in@\n"; print ts;
-                  printf "@\n with %d pending@\n" (List.length pending);
+                  printf "@,@[<v2>resulting in@,"; print ts;
+                  printf "@,with %d pending@]@\n@?" (List.length pending);
                 end;
 		propagate ts pending
 	    end

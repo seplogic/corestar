@@ -674,22 +674,22 @@ end = struct
       && (Sepprover.get_equals_pvar_free v pre = []) in
     let process_var v acc =
       if not (is_interesting v) then acc else begin
-        (* printf "@[seen %a@\n@]" Vars.pp_var v; *)
+        (* XXX *) printf "@[seen %a@\n@]@?" Vars.pp_var v;
         let w = Vars.freshen_exists v in
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in
     let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
-(*
+(**)
           printf "@[<2>before@ (pre:%a,@ conjuncts:%a)@]@\n" (* XXX *)
             Sepprover.string_inner_form pre
             Sepprover.string_inner_form conjuncts;
-*)
+(**)
     let r = Sepprover.conjoin_inner pre conjuncts in
-(*
+(**)
           printf "@[<2>after@ %a@]@\n" (* XXX *)
             Sepprover.string_inner_form r;
-*)
+(**)
     r
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
@@ -707,6 +707,7 @@ end = struct
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_inner_triple triple;
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
+	  printf "@[XXX extended pre: %a@\n@]@?" Sepprover.string_inner_form pre;
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = pre * missing_heap
@@ -722,6 +723,8 @@ end = struct
             let process_triple_infer =
               process_triple (update_infer pvars rules body) in
             let ts = empty_inner_triple :: ts in
+            if log log_phase then
+              fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option_map (abstract_triple rules) ts in
             let ts = option [] (fun x->x) ts in (* XXX *)
@@ -729,6 +732,8 @@ end = struct
           end else ts) in
         if log log_phase then
           fprintf logf "@[symexec checking %s@]@\n@?" procedure.C.proc_name;
+        if log log_phase then
+          fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
         let process_triple_check = process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
         let ts = option [] (fun x->x) ts in (* XXX *)
@@ -800,9 +805,12 @@ let print_specs ps =
 
 let convert_question q =
   let logic = Sepprover.convert_logic q.C.q_rules in
+  printf "@[XXX converted logic@]@\n@?";
   let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
     let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
+    printf "@[XXX converted spec@]@\n@?";
     let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
+    printf "@[XXX converted body@]@\n@?";
     { C.proc_name; proc_spec; proc_body; proc_rules = logic } in
   { C.q_procs = List.map ast_to_inner_procedure q.C.q_procs
   ; C.q_rules = logic
@@ -830,6 +838,7 @@ let verify q =
   if log log_exec then
     fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
   let q = convert_question q in
+  printf "@[XXX converted question@]@\n@?";
   let r = q |> map_procs mk_cfg |> interpret in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@?";

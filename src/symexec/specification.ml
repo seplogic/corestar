@@ -21,9 +21,7 @@ module P = Sepprover
 module PS = Psyntax
 module VS = Psyntax.VarSet
 
-let empty_inner_form = match P.convert_opt PS.mkEmpty with
-  | None -> assert false;
-  | Some emp -> emp
+let empty_inner_form = P.convert PS.mkEmpty
 
 let sub_triple sub { Core.pre; post; modifies } =
   let var2var v = match PS.find v sub with

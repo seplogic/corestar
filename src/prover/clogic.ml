@@ -790,11 +790,15 @@ let make_implies_inner ts_form1 ts_form2 =
   end;
   let ts, assumption = break_ts_form ts_form1 in
   (* XXX The constructor information is lost in next two lines! *)
+(* XXX *) printf "@[make_syntactic@\n@]@?";
   let sform = make_syntactic ts_form2 in
+(* XXX *) printf "@[convert_sf@\n@]@?";
   let obligation, seq_ts = convert_sf_without_eqs false ts sform in
   (* let ts = Cterm.import_constructors ts ts_form2.ts in *)
   (* This assumption could contain equalities *)
+(* XXX *) printf "@[Adding eqs@\n@]@?";
   let seq_ts = add_eqs_list assumption.eqs seq_ts in
+(* XXX *) printf "@[Adding neqs@\n@]@?";
   let seq_ts = add_neqs_list assumption.neqs seq_ts in
   let assumption = { assumption with eqs = []; neqs = [] } in
 (* Found equalities in the obligation which are nconsistent with seq_ts *)
