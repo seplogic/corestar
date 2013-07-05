@@ -11,6 +11,8 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
+
 (* Search and remove structure *)
 (* Multiset that allows for iteration through the elements *)
 
@@ -47,11 +49,6 @@ module Make (A : Set.OrderedType) : S with type t = A.t =
 *)
 
     exception Empty
-
-    let rec revapp xs ys =
-      match xs with
-	[] -> ys
-      | x::xs -> revapp xs (x::ys)
 
     let is_empty (x,y) : bool =
       match x,y with
@@ -92,7 +89,7 @@ module Make (A : Set.OrderedType) : S with type t = A.t =
       List.sort compare xs, []
 
     let restart (x,y) : multiset =
-      revapp y x, []
+      List.rev_append y x, []
 
     let union a b =
       let a = restart a in
@@ -109,8 +106,7 @@ module Make (A : Set.OrderedType) : S with type t = A.t =
       List.iter f x
 
     let fold f s (x, y) =
-      let f' a b = f b a in
-      List.fold_left f (List.fold_right f' y s) x
+      List.fold_left f (List.fold_right (flip f) y s) x
 
     let map_to_list a f =
       let a = restart a in
@@ -122,6 +118,7 @@ module Make (A : Set.OrderedType) : S with type t = A.t =
         rs
       in inner a []
 
+    (* deprecated: same as [fold] above.*)
     let fold_to_list a f b =
       let a = restart a in
       let rec inner a b =

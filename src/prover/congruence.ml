@@ -1714,22 +1714,6 @@ module CC : PCC =
 	   end;
        ()
 
-(*
-(* Can probably remove pattern match by using unifiable variables in terms.*)
-    let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a =
-      match pattern with
-	CHole c -> cont (try make_equal ts c con with Contradiction -> raise No_match)
-      |	CPConstant c -> if rep_eq ts c con then cont ts else raise No_match
-      |	CPApp (p1,p2) ->
-	  let cl = Arev_lookup.get ts.rev_lookup (rep ts con) in
-          Backtrack.tryall
-            (fun (c1,c2) ->
-              Backtrack.chain
-                [ patternmatch_inner p1 c1; patternmatch_inner p2 c2 ]
-                ts cont)
-            cl
-*)
-
     let rec patternmatch_inner pattern con ts (cont : t -> 'a) : 'a =
       match pattern with
       |	Constant c ->

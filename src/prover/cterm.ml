@@ -407,7 +407,7 @@ let rec add_term params pt ts : 'a * term_structure =
   let (unif : bool),
     (fresh : bool),
     (lift : term_handle -> 'a),
-    (app : CC.t -> 'a -> 'a -> 'a * CC.t),
+    app,
     register_op, register_rec = params in
 (*  Format.printf "Adding term %a.@\n" string_args pt;*)
   let c,ts =
@@ -514,7 +514,7 @@ let rec add_term params pt ts : 'a * term_structure =
   c,ts
 
 and add_term_list params ptl (c,ts) cl =
-  let _,_,_,(app : CC.t -> 'a -> 'a -> 'a * CC.t),_,_ = params in
+  let _,_,_,app,_,_ = params in
   match ptl with
     [] -> c,ts, cl
   |  p::ptl ->
@@ -523,7 +523,7 @@ and add_term_list params ptl (c,ts) cl =
       add_term_list params ptl (c,{ts with cc = cc}) (c2::cl)
 
 and add_field_list params fldl (c,ts) lrl =
-  let _,_,lift,(app : CC.t -> 'a -> 'a -> 'a * CC.t),_,_ = params in
+  let _,_,lift,app,_,_ = params in
   match fldl with
     [] -> c,ts,lrl
   |  (lab,term)::fldl ->

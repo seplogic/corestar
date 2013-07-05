@@ -48,7 +48,6 @@ module type PCC =
     val others : t -> constant -> constant list
     val eq_term : t -> curry_term -> curry_term -> bool
     val neq_term : t -> curry_term -> curry_term -> bool
-(*     val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a *)
     val unifies : t -> curry_term -> constant -> (t -> 'a) -> 'a
     val unifies_any : t -> curry_term -> (t * constant -> 'a) -> 'a
     val determined_exists :
