@@ -456,11 +456,11 @@ let make_syntactic' get_eqs get_neqs ts_form =
     let convert_tuple r =
       match get_term ts r with
         Psyntax.Arg_op("tuple",al) -> al
-      | _ -> assert false in
+      | x -> printf "@[Not a tuple: %a@\n@]@?" Psyntax.string_args x; assert false in
     let convert_pair = lift_pair (get_term ts) in
     let eqs = List.map convert_pair form.eqs in
     let neqs = List.map convert_pair form.neqs in
-    let sspat_list = RMSet.map_to_list form.spat (fun (name,i)->(name,convert_tuple i)) in
+    let sspat_list = RMSet.map_to_list form.spat (fun (name,i)-> printf "@[Retreiving %s. @]@?" name; (name,convert_tuple i)) in
     let splain_list = RMSet.map_to_list form.plain (fun (name,i)->(name,convert_tuple i)) in
     let disjuncts = List.map (lift_pair form_to_syntax) form.disjuncts in
     {seqs= eqs;

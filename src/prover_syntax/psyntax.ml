@@ -178,15 +178,16 @@ let rec subst_args subs arg : args=
   | Arg_record fldlist -> Arg_record (List.map (fun (f,v) -> f,subst_args subs v) fldlist)
 
 let rec string_args ppf arg =
+ (* XXX remove annotations from printing again(?) *)
   match arg with
-  | Arg_var v -> Format.fprintf ppf "%s" (string_var v)
+  | Arg_var v -> Format.fprintf ppf "[v] %s" (string_var v)
   | Arg_string s -> Format.fprintf ppf "\"%s\""  s
   | Arg_op ("builtin_plus",[a1;a2]) -> Format.fprintf ppf "(%a+%a)" string_args a1 string_args a2
   | Arg_op ("builtin_minus",[a1;a2]) -> Format.fprintf ppf "(%a-%a)" string_args a1 string_args a2
   | Arg_op ("builtin_mult",[a1;a2]) -> Format.fprintf ppf "(%a*%a)" string_args a1 string_args a2
   | Arg_op ("tuple",al) -> Format.fprintf ppf "(%a)" string_args_list al
-  | Arg_op (name,args) -> Format.fprintf ppf "%s(%a)" name string_args_list args
-  | Arg_cons (name,args) -> Format.fprintf ppf "%s(%a)" name string_args_list args
+  | Arg_op (name,args) -> Format.fprintf ppf "[o] %s(%a)" name string_args_list args
+  | Arg_cons (name,args) -> Format.fprintf ppf "[c] %s(%a)" name string_args_list args
   | Arg_record fldlist ->
       Format.fprintf ppf "@[{%a}@]" string_args_fldlist fldlist
 and string_args_list ppf argsl =
