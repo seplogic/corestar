@@ -113,6 +113,7 @@ exception Var_not_found
 val freshen_exists : Vars.var * term_structure -> Vars.var * term_structure
   (* [freshen_exists (v, ts)] throws [Var_not_found] if [v] is not in [ts] *)
 val get_term : term_structure -> term_handle-> Psyntax.args
+val reconstruct : term_structure -> term_handle-> Psyntax.args
 val kill_var : term_structure -> Vars.var -> term_structure
 val update_var_to : term_structure -> Vars.var -> Psyntax.args -> term_structure
 

@@ -289,6 +289,7 @@ let has_pp_c ts c : bool =
   with Not_found ->
     false
 
+(* TODO(rgrig): WAT is this? *)
 (* TODO(rgrig): Oh, NO! Just have a separate simplify function and let the user
 call it explicitly before printing, *if* desired. *)
 (* Remove pattern match variables from pretty print where possible *)
@@ -388,18 +389,16 @@ let reconstruct ts c =
   and reconstruct_handle h = reconstruct_arg (get_arg h) in
   reconstruct_arg (get_arg c)
 
-let pp_c ts ppf c : unit =
+let pp_c ts f c : unit =
   try
-    Psyntax.string_args ppf (reconstruct ts c)
+    Psyntax.string_args f (reconstruct ts c)
   with Not_found ->
-    fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
+    CC.pp_c ts.cc f c
 
 let pp_ts' pp ppf first ts =
   CC.pretty_print' (fun _ -> true) (pp_c ts) pp ppf first ts.cc
 
 let pp_ts = pp_whole pp_ts' pp_star
-
-let pp_c ts ppf c = CC.pp_c ts.cc (pp_c ts) ppf c
 
 
 (* TODO(rgrig): This function looks very dubious. *)

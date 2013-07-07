@@ -260,13 +260,6 @@ end = struct
   (* NOTE: Be careful, these are imperative data structures. *)
 
   let pp_context f c =
-    (* XXX(rg) temporary commented to silence warnings
-    let pp_tripleset f s =
-      CS.iter (fun v -> fprintf f "@[%a@]" Cfg.pp_configuration (CG.V.label v)) s in
-    let pp_fvertex v =
-      fprintf f "@[<2>pre conditions:%a@]" pp_tripleset (SD.find c.pre_of v);
-      fprintf f "@[<2>post conditions:%a@]" pp_tripleset (SD.find c.post_of v) in
-    *)
     let pp_vertex v = fprintf f "@ @[%a@]" Cfg.pp_configuration (CG.V.label v) in
     fprintf f "@[<2>Configuration graph:";
     CG.iter_vertex pp_vertex c.confgraph;
@@ -674,22 +667,12 @@ end = struct
       && (Sepprover.get_equals_pvar_free v pre = []) in
     let process_var v acc =
       if not (is_interesting v) then acc else begin
-        (* XXX *) printf "@[seen %a@\n@]@?" Vars.pp_var v;
         let w = Vars.freshen_exists v in
         PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
       end in
     let conjuncts = PS.VarSet.fold process_var pvars [] in
     let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
-(**)
-          printf "@[<2>before@ (pre:%a,@ conjuncts:%a)@]@\n" (* XXX *)
-            Sepprover.string_inner_form pre
-            Sepprover.string_inner_form conjuncts;
-(**)
     let r = Sepprover.conjoin_inner pre conjuncts in
-(**)
-          printf "@[<2>after@ %a@]@\n" (* XXX *)
-            Sepprover.string_inner_form r;
-(**)
     r
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
@@ -707,7 +690,6 @@ end = struct
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_inner_triple triple;
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
-	  printf "@[XXX extended pre: %a@\n@]@?" Sepprover.string_inner_form pre;
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Sepprover.conjoin_inner in
             { C.pre = pre * missing_heap
@@ -805,12 +787,9 @@ let print_specs ps =
 
 let convert_question q =
   let logic = Sepprover.convert_logic q.C.q_rules in
-  printf "@[XXX converted logic@]@\n@?";
   let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
     let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
-    printf "@[XXX converted spec@]@\n@?";
     let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
-    printf "@[XXX converted body@]@\n@?";
     { C.proc_name; proc_spec; proc_body; proc_rules = logic } in
   { C.q_procs = List.map ast_to_inner_procedure q.C.q_procs
   ; C.q_rules = logic
@@ -838,7 +817,6 @@ let verify q =
   if log log_exec then
     fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
   let q = convert_question q in
-  printf "@[XXX converted question@]@\n@?";
   let r = q |> map_procs mk_cfg |> interpret in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@?";

@@ -10,6 +10,9 @@
    coreStar is distributed under a BSD license,  see,
       LICENSE.txt
  ********************************************************)
+
+open Corestar_std
+
 exception Success
 exception Failed
 exception Assm_Contradiction
@@ -40,8 +43,8 @@ val break_ts_form : ts_formula -> Cterm.term_structure * formula
 val kill_var : ts_formula -> Vars.var -> ts_formula
 val freshen_exists : Vars.var * ts_formula -> Vars.var * ts_formula
 val update_var_to : ts_formula -> Vars.var -> Psyntax.args -> ts_formula
-val pp_ts_formula : Format.formatter -> ts_formula -> unit
-val pp_syntactic_form : Format.formatter -> syntactic_form -> unit
+val pp_ts_formula : ts_formula pretty_printer
+val pp_syntactic_form : syntactic_form pretty_printer
 val conjunction : formula -> formula -> formula
 val empty : formula
 val false_sform : syntactic_form
@@ -63,7 +66,7 @@ type sequent =
   ; obligation : formula }
 val check_sequent : sequent -> unit
 val plain : formula -> bool
-val pp_sequent : Format.formatter -> sequent -> unit
+val pp_sequent : sequent pretty_printer
 val true_sequent : sequent -> bool
 val frame_sequent : sequent -> bool
 type sequent_rule =

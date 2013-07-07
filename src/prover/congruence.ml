@@ -11,6 +11,10 @@
       LICENSE.txt
  ********************************************************)
 
+(* TODO(rgrig): Is it reasonable to discard this file, in favor of Z3? *)
+(* TODO(rgrig): Change the whole implementation to use [strict_invariant]. *)
+(* TODO(rgrig): efficient way to propagete neqs for constructors *)
+
 open Corestar_std
 open Debug
 open Format
@@ -31,7 +35,7 @@ module PA = Persistentarray
       Union Find algorithm
 *)
 
-let cc_debug = ref true
+let cc_debug = ref false
 
 
 module type PCC =
@@ -138,8 +142,7 @@ module type PCC =
       (** Like [pretty_print'], but uses * as separator (so that
        * arguments [pp_sep] and [first] are mising). *)
       val pretty_print :
-        (constant -> bool) ->
-        (formatter -> constant -> unit) -> formatter -> t -> unit
+        (constant -> bool) -> constant pretty_printer -> t pretty_printer
 
       (** [pretty_print' has_pp pp_c pp_sep ppf first cc] prints to [ppf]
        * the information in the congruence closure [cc]. Constants involved
@@ -157,7 +160,7 @@ module type PCC =
         t ->
         bool
 
-      val pp_c : t -> (formatter -> constant -> unit) -> (formatter -> constant -> unit)
+      val pp_c : t -> constant pretty_printer
 
       val get_eqs : (constant -> bool) -> (constant -> 'a) -> t -> ('a * 'a) list
       val get_neqs : (constant -> bool) -> (constant -> 'a) -> t -> ('a * 'a) list
@@ -927,7 +930,9 @@ module CC : PCC =
       if safe then strict_invariant sane_cc;
       let sane_cc = { sane_cc with unifiable = cc.unifiable } in
       if safe then strict_invariant sane_cc;
-      let ace _ c_eq acc =
+      let ace (x, y) ((xx, yy, _) as c_eq) acc =
+        assert (x = xx);
+        assert (y = yy);
         let eqs, acc = add_complex_eq c_eq acc in
         assert (eqs = []);
         acc in
@@ -1033,9 +1038,10 @@ module CC : PCC =
       end;
       result
 
-    let pp_c ts pp ppf i =
-       (*if true then pp ppf i else fprintf ppf "{%a}_%i" pp i i*)
-      pp ppf i (*(rep ts i)*)
+    let pp_c cc f c =
+      if get_constructor cc c <> Not
+      then fprintf f "cons[%d]" c
+      else fprintf f "ct[%d]" c
 
     let for_each_rep ts (f : constant -> unit) =
       let n = Arepresentative.size ts.representative in
@@ -1161,7 +1167,7 @@ module CC : PCC =
 
     let rec propagate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
-	  [] -> sanitize ts (* Expensive! For debug... *)
+          [] -> ts
 	| (a,b)::pending ->
 	    if !cc_debug then
 	      begin
