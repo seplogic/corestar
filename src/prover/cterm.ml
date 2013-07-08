@@ -32,6 +32,13 @@ type flattened_args =
   | FArg_cons of string * term_handle list
   | FArg_record of (string *  term_handle) list
 
+let pp_fargs f = function
+  | FArg_var v -> fprintf f "[fv] %s" (Vars.string_var v)
+  | FArg_string s -> fprintf f "[fs] %s" s
+  | FArg_op (s, l) -> fprintf f "[fo] %s" s
+  | FArg_cons (s, l) -> fprintf f "[fc] %s" s
+  | FArg_record fs -> fprintf f "[fr]"
+
 module SMap = Map.Make(
     struct
       type t = string
@@ -217,6 +224,11 @@ let conjoin t1 t2 =
         | FArg_record fs ->
             let field (name, t) = (name, get_id t) in
             FArg_record (List.map field fs)) in
+      printf "@[Adding sub: %a = %d -> %d = %a@\n@]@?"
+	pp_fargs term1
+	(CC.const_int id1 t1.cc)
+	(CC.const_int (get_id id1) t2.cc)
+	pp_fargs term2;
       CMap.add (get_id id1) term2 in
     CMap.fold f cm1 cm2 in
   let originals = merge_cmap t1.originals t2.originals in
@@ -393,6 +405,9 @@ let pp_c ts ppf c : unit =
     Psyntax.string_args ppf (reconstruct ts c)
   with Not_found ->
     fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
+
+let pp_c_raw ts ppf c =
+  fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
 
 let pp_ts' pp ppf first ts =
   CC.pretty_print' (fun _ -> true) (pp_c ts) pp ppf first ts.cc

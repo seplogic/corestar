@@ -94,6 +94,7 @@ val get_pargs : bool -> term_structure -> term_handle list -> term_handle -> Psy
 val get_pargs_norecs : bool -> term_structure -> term_handle list -> term_handle -> Psyntax.args
 
 val pp_c : term_structure -> formatter -> term_handle -> unit
+val pp_c_raw : term_structure -> formatter -> term_handle -> unit (* For debug *)
 val has_pp_c : term_structure -> term_handle -> bool
 
 val get_args_rep : term_structure -> (term_handle * Psyntax.args) list

@@ -11,6 +11,7 @@
       LICENSE.txt
  ********************************************************)
 
+open Corestar_std
 open Debug
 open Format
 
@@ -64,13 +65,30 @@ type ts_formula =
   { ts : Cterm.term_structure
   ; form : formula }
 
+let check_rmset ts =
+  RMSet.iter
+    (fun (n, i) ->
+      match Cterm.get_pargs false ts [] i with
+	| Arg_op ("tuple", x) ->
+	  printf "@[Tuple application: %s to %a = (%a)@\n@]@?"
+	    n
+	    (Cterm.pp_c_raw ts) i
+	    (pp_list_sep ", " Psyntax.string_args) x;
+	| x ->
+	  printf "@[Non-tuple application: %s to %a = %a@\n@]@?"
+	    n
+	    (Cterm.pp_c_raw ts) i
+	    Psyntax.string_args x; assert false)
+
 let rec check_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
   let iter_pair f (a, b) = f a; f b in
   List.iter (iter_pair check_constant) tsf.form.eqs;
   List.iter (iter_pair check_constant) tsf.form.neqs;
   let check_formula form = check_ts_formula {tsf with form} in
-  List.iter (iter_pair check_formula) tsf.form.disjuncts
+  List.iter (iter_pair check_formula) tsf.form.disjuncts;
+  check_rmset tsf.ts tsf.form.spat;
+  check_rmset tsf.ts tsf.form.plain
 
 let rec check_consistent_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
@@ -443,8 +461,8 @@ let conjoin fresh (f : ts_formula) (sf : syntactic_form) =
   {ts = ts; form = nf;}
 
 let conjoin_inner ts1 ts2 =
-  { ts = Cterm.conjoin ts1.ts ts2.ts
-  ; form = conjunction ts1.form ts2.form }
+  { ts = Cterm.conjoin ts1.ts ts2.ts         (* RLP: This produces a substitution *)
+  ; form = conjunction ts1.form ts2.form }   (* RLP: This should take that substtution into account?? *)
 
 (* TODO(rgrig): It should be unnecessary to call this function. *)
 let make_syntactic' get_eqs get_neqs ts_form =

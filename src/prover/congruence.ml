@@ -953,6 +953,14 @@ module CC : PCC =
 	print cc1;
 	printf "@]@,@[<v2>with@,";
 	print cc2;
+	printf "@]@\n@[<v2>using substitution:@,";
+	for i = 0 to size cc1 - 1 do
+	  try
+	    let b, j = subst i in
+	    printf "%d -> %b, %d@," i b j
+          with Not_found ->
+	    printf "%d -> ?" i
+	done; 
 	printf "@]@\n@?"
       end;
       let n1, n2 = size cc1, size cc2 in
@@ -1161,7 +1169,7 @@ module CC : PCC =
 
     let rec propagate (ts : t) (pending : (constant * constant) list) : t =
       match pending with
-	  [] -> sanitize ts (* Expensive! For debug... *)
+	  [] -> assert (invariant ts); (*sanitize*) ts
 	| (a,b)::pending ->
 	    if !cc_debug then
 	      begin

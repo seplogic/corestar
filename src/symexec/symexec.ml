@@ -445,6 +445,7 @@ end = struct
 	  Sepprover.check_inner_form (make_framable pre_conf.G.current_heap a);
 	  Sepprover.check_inner_form post;
 	  Sepprover.check_inner_form (kill_pvars vs f);
+	  Sepprover.check_inner_form (post * kill_pvars vs f);
 	end;
         let conf =
           { G.missing_heap
