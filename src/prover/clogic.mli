@@ -45,7 +45,10 @@ val freshen_exists : Vars.var * ts_formula -> Vars.var * ts_formula
 val update_var_to : ts_formula -> Vars.var -> Psyntax.args -> ts_formula
 val pp_ts_formula : ts_formula pretty_printer
 val pp_syntactic_form : syntactic_form pretty_printer
+
+(* PRE: both formulas use term handles from the same term structure. *)
 val conjunction : formula -> formula -> formula
+
 val empty : formula
 val false_sform : syntactic_form
 val truth : formula

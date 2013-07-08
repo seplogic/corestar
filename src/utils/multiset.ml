@@ -28,13 +28,12 @@ module type S =
     val restart : multiset -> multiset
     val iter : (t -> unit) -> multiset -> unit
     val fold : ('a -> t -> 'a) -> 'a -> multiset -> 'a
-    val lift_list : t list -> multiset
+    val from_list : t list -> multiset
+    val to_list : multiset -> t list
     val union : multiset -> multiset -> multiset
     val empty : multiset
     val intersect : multiset -> multiset -> (multiset * multiset * multiset)
     val back : multiset -> int -> multiset
-    val map_to_list : multiset -> (t -> 'b) -> 'b list
-    val fold_to_list : multiset -> (t -> 'a -> 'a) -> 'a -> 'a
   end
 
 module Make (A : Set.OrderedType) : S with type t = A.t =
@@ -50,107 +49,75 @@ module Make (A : Set.OrderedType) : S with type t = A.t =
 
     exception Empty
 
-    let is_empty (x,y) : bool =
-      match x,y with
-	[],[] -> true
-      | _,_ -> false
+    let is_empty (xs, ys) =
+      xs = [] && ys = []
 
-    let has_more ((x,y) : multiset) : bool =
-      match x with
-	[] -> false
-      | _ -> true
+    let has_more (xs, ys) =
+      xs <> []
 
-    let next ((x,y) : multiset) : multiset=
-      match x with
-	[] -> raise Empty
-      | (x::xs)  -> (xs,x::y)
+    let next (xs, ys) = match xs with
+      | [] -> raise Empty
+      | x :: xs  -> (xs, x :: ys)
 
-    let rec back ((xs,ys) : multiset) (n : int) : multiset=
-      match n with
-	0 -> (xs,ys)
+    let rec back ((xs, ys) as zs) = function
+      | 0 -> zs
       | n ->
-	  begin
-	    match ys with
-	      [] -> raise Empty
-	    | (y::ys)  -> back (y::xs,ys) (n-1)
-	  end
+          begin match ys with
+            | [] -> raise Empty
+            | y :: ys -> back (y :: xs, ys) (n - 1)
+          end
 
-    let peek ((x,y) : multiset) : A.t =
-      match x with
-      [] -> raise Empty
-      | (x::xs) -> x
+    let peek = function
+      | (x :: _, _) -> x
+      | _ -> raise Empty
 
-    let remove ((x,y) : multiset) : A.t * multiset=
-      match x with
-	[] -> raise Empty
-      | (x::xs) -> x,(xs,y)
+    let remove = function
+      | (x :: xs, ys) -> (x, (xs, ys))
+      | _ -> raise Empty
 
-    let lift_list (xs : A.t list)  : multiset =
-      List.sort compare xs, []
+    let from_list xs =
+      (List.sort compare xs, [])
 
-    let restart (x,y) : multiset =
-      List.rev_append y x, []
+    let to_list (xs, ys) =
+      List.rev_append ys xs
+
+    let restart zs =
+      (to_list zs, [])
 
     let union a b =
-      let a = restart a in
-      let b = restart b in
-      match a, b with
-	(a,[]), (b,[]) -> List.merge compare a b, []
-      | _ -> assert false
+      (List.merge compare (to_list a) (to_list b), [])
 
     let empty =
-      [],[]
+      ([], [])
 
-    let iter f (x, y) =
-      List.iter f (List.rev y);
-      List.iter f x
+    let iter f (xs, ys) =
+      List.iter f (List.rev ys);
+      List.iter f xs
 
-    let fold f s (x, y) =
-      List.fold_left f (List.fold_right (flip f) y s) x
-
-    let map_to_list a f =
-      let a = restart a in
-      let rec inner a rs =
-      if has_more a then
-        let x,a = remove a in
-        inner a ((f x)::rs)
-      else
-        rs
-      in inner a []
-
-    (* deprecated: same as [fold] above.*)
-    let fold_to_list a f b =
-      let a = restart a in
-      let rec inner a b =
-	      if has_more a then
-	        let x,a = remove a in
-          let r = f x b in
-	        inner a r
-	      else
-	        b
-      in inner a b
+    let fold f z (xs, ys) =
+      List.fold_left f (List.fold_right (flip f) ys z) xs
 
     let intersect set1 set2 =
       if is_empty set1 then
-	empty,empty,set2
+        empty,empty,set2
       else if is_empty set2 then
-	empty,set1,empty
+        empty,set1,empty
       else
-	let set1 = restart set1 in
-	let set2 = restart set2 in
-	let rec f set1 set2 res =
-	  if has_more set1 && has_more set2 then
-	    let x1,nset1 = remove set1 in
-	    let x2,nset2 = remove set2 in
-	    if compare x1 x2 = 0 then
-	      f nset1 nset2 (x1::res)
-	    else if compare x1 x2 < 0 then
-	      f (next set1) set2 res
-	    else
-	      f set1 (next set2) res
-	  else
-	    (List.rev res,[]), restart set1, restart set2
-	in
-	f set1 set2 []
+        let set1 = restart set1 in
+        let set2 = restart set2 in
+        let rec f set1 set2 res =
+          if has_more set1 && has_more set2 then
+            let x1,nset1 = remove set1 in
+            let x2,nset2 = remove set2 in
+            if compare x1 x2 = 0 then
+              f nset1 nset2 (x1::res)
+            else if compare x1 x2 < 0 then
+              f (next set1) set2 res
+            else
+              f set1 (next set2) res
+          else
+            (List.rev res,[]), restart set1, restart set2
+        in
+        f set1 set2 []
 
   end

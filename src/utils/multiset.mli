@@ -40,7 +40,9 @@ module type S =
     val fold : ('a -> t -> 'a) -> 'a -> multiset -> 'a
 
 (* Convert a normal list to this kind of multiset *)
-    val lift_list : t list -> multiset
+    val from_list : t list -> multiset
+    val to_list : multiset -> t list
+
 (* union of two multisets, restarts interator of new multiset *)
     val union : multiset -> multiset -> multiset
     val empty : multiset
@@ -51,11 +53,6 @@ module type S =
     val intersect : multiset -> multiset -> (multiset * multiset * multiset)
 
     val back : multiset -> int -> multiset
-
-    val map_to_list : multiset -> (t -> 'b) -> 'b list
-
-(* fold_to_list ([x1; ...; xn], []) f a == f xn (f xn-1 (... (f x1 a) ...)) *)
-    val fold_to_list : multiset -> (t -> 'a -> 'a) -> 'a -> 'a
   end
 
 module Make (A : Map.OrderedType) : S with type t = A.t

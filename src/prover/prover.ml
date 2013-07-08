@@ -45,21 +45,21 @@ let rec out_normalise ts form =
 
 
 let rec form_reps form reps =
-  let reps = (RMSet.map_to_list form.spat snd) @ reps in
-  let reps = (RMSet.map_to_list form.plain snd)  @ reps in
+  let reps = (List.map snd (RMSet.to_list form.spat)) @ reps in
+  let reps = (List.map snd (RMSet.to_list form.plain))  @ reps in
   let reps = List.fold_left (fun acc (a,b) -> a::b::acc) reps form.eqs in
   let reps = List.fold_left (fun acc (a,b) -> a::b::acc) reps form.neqs in
   let reps = List.fold_left (fun acc (a,b) -> form_reps a (form_reps b acc)) reps form.disjuncts in
   reps
 
 let rec sequent_reps sequent reps =
-  let reps = (RMSet.map_to_list sequent.matched snd) @ reps in
+  let reps = (List.map snd (RMSet.to_list sequent.matched)) @ reps in
   let reps = form_reps sequent.assumption reps in
   let reps = form_reps sequent.obligation reps in
   reps
 
 let rec sequent_ass_reps sequent reps =
-  let reps = (RMSet.map_to_list sequent.matched snd) @ reps in
+  let reps = (List.map snd (RMSet.to_list sequent.matched)) @ reps in
   let reps = form_reps sequent.assumption reps in
   reps
 

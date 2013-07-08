@@ -11,14 +11,14 @@
       LICENSE.txt
  ********************************************************)
 
-
-open Clogic
-open Congruence
 open Corestar_std
-open Cterm
 open Debug
 open Format
-open List
+
+(* TODO(rgrig): Do not open these. *)
+open Clogic
+open Congruence
+open Cterm
 open Psyntax
 open Smtsyntax
 open Unix
@@ -116,7 +116,7 @@ let rec equiv_partition
     : 'a list list =
   match xs with
   | x::xs ->
-     let (e, xs') = partition (eq x) xs in
+     let (e, xs') = List.partition (eq x) xs in
      let eqs = equiv_partition eq xs' in
      (x::e) :: eqs
   | [] -> []
@@ -127,7 +127,7 @@ let rec list_to_pairs
     (xs : 'a list)
     : ('a * 'a) list =
   match xs with
-  | x::xs -> (map (fun y -> (x,y)) xs) @ list_to_pairs xs
+  | x::xs -> (List.map (fun y -> (x,y)) xs) @ list_to_pairs xs
   | [] -> []
 
 
@@ -169,7 +169,7 @@ module SMTTypeSet =
 type smttypeset = SMTTypeSet.t
 
 let smt_union_list (l : smttypeset list) : smttypeset =
-  fold_right SMTTypeSet.union l SMTTypeSet.empty
+  List.fold_right SMTTypeSet.union l SMTTypeSet.empty
 
 (*
 builtin_div
@@ -188,14 +188,14 @@ let rec args_smttype (arg : Psyntax.args) : smttypeset =
           let rxp = (Str.regexp "^\\(-?[0-9]+\\)") in
           if Str.string_match rxp s 0 then SMTTypeSet.empty
           else SMTTypeSet.singleton (SMT_Op("string_const_"^s, 0))
-  | Arg_op ("builtin_plus",args) -> smt_union_list (map args_smttype args)
-  | Arg_op ("builtin_minus",args) -> smt_union_list (map args_smttype args)
-  | Arg_op ("builtin_mult",args) -> smt_union_list (map args_smttype args)
+  | Arg_op ("builtin_plus",args) -> smt_union_list (List.map args_smttype args)
+  | Arg_op ("builtin_minus",args) -> smt_union_list (List.map args_smttype args)
+  | Arg_op ("builtin_mult",args) -> smt_union_list (List.map args_smttype args)
   | Arg_op ("numeric_const", [Arg_string(a)]) -> SMTTypeSet.empty
   | Arg_op (name, args) ->
-          let s = SMTTypeSet.singleton (SMT_Op(("op_"^name), (length args))) in
-          smt_union_list (s::(map args_smttype args))
-  | Arg_cons (name, args) -> smt_union_list (map args_smttype args)
+          let s = SMTTypeSet.singleton (SMT_Op(("op_"^name), (List.length args))) in
+          smt_union_list (s::(List.map args_smttype args))
+  | Arg_cons (name, args) -> smt_union_list (List.map args_smttype args)
   | Arg_record fldlist -> SMTTypeSet.empty
 
 
@@ -255,7 +255,7 @@ let string_sexp_pred (p : string * Psyntax.args) : (string * smttypeset) =
     let name = id_munge("pred_"^name) in
     match args with
       | Arg_op ("tuple",al) ->
-          let types = SMTTypeSet.add (SMT_Pred(name,(length al))) (args_smttype args) in
+          let types = SMTTypeSet.add (SMT_Pred(name,(List.length al))) (args_smttype args) in
           ((if al = [] then name else
             Printf.sprintf "(%s %s)" name (string_sexp_args_list al)),
           types)
@@ -267,18 +267,18 @@ let rec string_sexp_form
     (form : formula)
     : (string * smttypeset) =
   (* Construct equalities and inequalities *)
-  let eqs = map (fun (a1,a2) -> ((get_pargs_norecs false ts [] a1),
+  let eqs = List.map (fun (a1,a2) -> ((get_pargs_norecs false ts [] a1),
                                    (get_pargs_norecs false ts [] a2))) form.eqs in
-  let neqs = map (fun (a1,a2) -> ((get_pargs_norecs false ts [] a1),
+  let neqs = List.map (fun (a1,a2) -> ((get_pargs_norecs false ts [] a1),
                                     (get_pargs_norecs false ts [] a2))) form.neqs in
-  let eq_sexp = String.concat " " (map string_sexp_eq eqs) in
-  let neq_sexp = String.concat " " (map string_sexp_eq neqs) in
+  let eq_sexp = String.concat " " (List.map string_sexp_eq eqs) in
+  let neq_sexp = String.concat " " (List.map string_sexp_eq neqs) in
 
-  let eqneqs = (let a,b = split (eqs@neqs) in a@b) in
-  let eq_types = smt_union_list (map args_smttype eqneqs) in
+  let eqneqs = (let a,b = List.split (eqs@neqs) in a@b) in
+  let eq_types = smt_union_list (List.map args_smttype eqneqs) in
 
   let disj_list, disj_type_list =
-     split (map (fun (f1,f2) ->
+     List.split (List.map (fun (f1,f2) ->
                   let f1s, f1v = string_sexp_form ts f1 in
                   let f2s, f2v = string_sexp_form ts f2 in
                   ( "(or " ^ f1s ^ " " ^ f2s ^ ")",
@@ -287,9 +287,12 @@ let rec string_sexp_form
   let disj_types = smt_union_list disj_type_list in
 
   let plain_list, plain_type_list =
-     split ( map string_sexp_pred
-            ( RMSet.map_to_list form.plain
-            (fun (s,r) -> (s, get_pargs_norecs false ts [] r)))) in
+     List.split
+      (List.map
+        string_sexp_pred
+        (List.map
+          (fun (s, r) -> (s, get_pargs_norecs false ts [] r))
+          (RMSet.to_list form.plain))) in
   let plain_sexp = String.concat " " plain_list in
 
   let plain_types = smt_union_list plain_type_list in
@@ -403,15 +406,15 @@ let finish_him ts asm obl =
     smt_push();
 
     (* Construct equalities and ineqalities from ts *)
-    let eqs = filter (fun (a,b) -> a <> b) (get_eqs_norecs ts) in
-    let neqs = filter (fun (a,b) -> a <> b) (get_neqs_norecs ts) in
-    let asm_eq_sexp = String.concat " " (map string_sexp_eq eqs) in
-    let asm_neq_sexp = String.concat " " (map string_sexp_neq neqs) in
+    let eqs = List.filter (fun (a,b) -> a <> b) (get_eqs_norecs ts) in
+    let neqs = List.filter (fun (a,b) -> a <> b) (get_neqs_norecs ts) in
+    let asm_eq_sexp = String.concat " " (List.map string_sexp_eq eqs) in
+    let asm_neq_sexp = String.concat " " (List.map string_sexp_neq neqs) in
 
-    let ts_types = smt_union_list (map args_smttype (get_args_all ts)) in
+    let ts_types = smt_union_list (List.map args_smttype (get_args_all ts)) in
 
     let ts_eqneq_types = smt_union_list
-      (map (fun (a,b) -> SMTTypeSet.union (args_smttype a) (args_smttype b)) (eqs @ neqs)) in
+      (List.map (fun (a,b) -> SMTTypeSet.union (args_smttype a) (args_smttype b)) (eqs @ neqs)) in
 
     (* Construct sexps and types for assumption and obligation *)
     let asm_sexp, asm_types = string_sexp_form ts asm in
@@ -483,12 +486,12 @@ let ask_the_audience
     smt_push();
 
     (* Construct equalities and ineqalities from ts *)
-    let eqs = filter (fun (a,b) -> a <> b) (get_eqs_norecs ts) in
-    let neqs = filter (fun (a,b) -> a <> b) (get_neqs_norecs ts) in
-    let ts_eq_sexp = String.concat " " (map string_sexp_eq eqs) in
-    let ts_neq_sexp = String.concat " " (map string_sexp_neq neqs) in
+    let eqs = List.filter (fun (a,b) -> a <> b) (get_eqs_norecs ts) in
+    let neqs = List.filter (fun (a,b) -> a <> b) (get_neqs_norecs ts) in
+    let ts_eq_sexp = String.concat " " (List.map string_sexp_eq eqs) in
+    let ts_neq_sexp = String.concat " " (List.map string_sexp_neq neqs) in
 
-    let ts_types = smt_union_list (map args_smttype (get_args_all ts)) in
+    let ts_types = smt_union_list (List.map args_smttype (get_args_all ts)) in
 
     (* Construct sexps and types for assumption and obligation *)
     let form_sexp, form_types = string_sexp_form ts form in
@@ -508,27 +511,15 @@ types; *)
     if Config.smt_debug() then printf "@[[Checking for contradiction in assumption]@.";
     if smt_check_unsat() then (smt_reset(); raise Assm_Contradiction);
 
-    (* check whether there are any new equalities to find; otherwise raise Backtrack.No_match *)
-    (*
-    if Config.smt_debug() then printf "[Checking for new equalities]@\n";
-    smt_push();
-    let reps = get_args_rep ts in
-    let rep_sexps = String.concat " " (map (fun (x,y) -> string_sexp_neq (snd x,snd y))
-                                                (list_to_pairs reps) )
-    in
-    smt_assert ( "(and true " ^ rep_sexps ^ " )" );
-    if smt_check_sat() then (smt_reset(); raise Backtrack.No_match);
-    smt_pop();
-    *)
     (* Update the term structure using the new equalities *)
     let reps = get_args_rep ts in
-    let req_equiv = map (map fst)
+    let req_equiv = List.map (List.map fst)
                         (equiv_partition (fun x y -> smt_test_eq (snd x) (snd y)) reps)
     in
-    if for_all (fun ls -> List.length ls = 1) req_equiv then
+    if List.for_all (fun ls -> List.length ls = 1) req_equiv then
       (smt_reset(); raise Backtrack.No_match);
     smt_pop();
-    fold_left make_list_equal ts req_equiv
+    List.fold_left make_list_equal ts req_equiv
   with
   | SMT_error r ->
     smt_reset();

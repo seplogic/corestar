@@ -203,7 +203,7 @@ let empty : formula =
 let false_sform =
   {
   sspat = SMSet.empty;
-  splain = SMSet.lift_list [("@False",[])];
+  splain = SMSet.from_list [("@False",[])];
   sdisjuncts = [];
   seqs = [];
   sneqs = [];
@@ -283,7 +283,7 @@ let intersect_with_ts ts rem_snd set1 set2 =
 	match_same rem_snd set1 (RMSet.next set2) intersect 0
     else
 	(* No more left to match *)
-      (RMSet.lift_list intersect, RMSet.restart set1, RMSet.restart set2)
+      (RMSet.from_list intersect, RMSet.restart set1, RMSet.restart set2)
   in
   match_same rem_snd set1 set2 [] 0
 
@@ -365,19 +365,19 @@ let rec convert_to_inner (form : Psyntax.pform) : syntactic_form =
   in
   let (sspat,splain,sdisj,seqs,sneqs) = List.fold_left convert_atomic_to_inner ([],[],[],[],[]) form in
   {
-   sspat = SMSet.lift_list sspat;
-   splain = SMSet.lift_list splain;
+   sspat = SMSet.from_list sspat;
+   splain = SMSet.from_list splain;
    sdisjuncts = sdisj;
    seqs = seqs;
    sneqs = sneqs;
   }
 
 
-let rec convert_to_pform {sspat=sspat; splain=splain; sdisjuncts=sdisjuncts; seqs=seqs; sneqs=sneqs} =
+let rec convert_to_pform { sspat; splain; sdisjuncts; seqs; sneqs } =
   let eqs = List.map (fun (a1, a2) -> P_EQ (a1, a2)) seqs in
   let neqs = List.map (fun (a1, a2) -> P_NEQ (a1, a2)) sneqs in
-  let plain = SMSet.map_to_list splain (fun (s,a) -> P_PPred (s,a)) in
-  let spat = SMSet.map_to_list sspat (fun (s,a) -> P_SPred (s,a)) in
+  let plain = List.map (fun (s,a) -> P_PPred (s,a)) (SMSet.to_list splain) in
+  let spat = List.map (fun (s,a) -> P_SPred (s,a)) (SMSet.to_list sspat) in
   let disjuncts = List.map (fun (f1, f2) -> P_Or (convert_to_pform f1, convert_to_pform f2)) sdisjuncts in
   eqs @ neqs @ plain @ spat @ disjuncts
 
@@ -411,7 +411,7 @@ let rec convert_sf fresh (ts :term_structure) (sf : syntactic_form) : formula * 
   let disj, ts  = convert_sf_pair_list fresh ts sf.sdisjuncts [] in
   let ts = add_eqs_t_list fresh sf.seqs ts in
   let ts = add_neqs_t_list fresh sf.sneqs ts in
-  {spat = RMSet.lift_list spat; plain = RMSet.lift_list plain; disjuncts = disj;eqs=[];neqs=[]}, ts
+  {spat = RMSet.from_list spat; plain = RMSet.from_list plain; disjuncts = disj;eqs=[];neqs=[]}, ts
 and convert_sf_without_eqs
  fresh (ts :term_structure) (sf : syntactic_form) : formula * term_structure =
   let spat, ts = smset_to_list fresh sf.sspat ts in
@@ -419,7 +419,7 @@ and convert_sf_without_eqs
   let disj, ts  = convert_sf_pair_list fresh ts sf.sdisjuncts [] in
   let eqs,ts = add_pair_list fresh sf.seqs ts [] in
   let neqs,ts = add_pair_list fresh sf.sneqs ts [] in
-  {spat = RMSet.lift_list spat; plain = RMSet.lift_list plain; disjuncts = disj;
+  {spat = RMSet.from_list spat; plain = RMSet.from_list plain; disjuncts = disj;
   eqs=eqs;neqs=neqs}, ts
 and convert_sf_pair_list
     fresh (ts :term_structure)
@@ -452,17 +452,35 @@ let rec convert_ground (ts :term_structure) (sf : syntactic_form) : formula * te
   let plain, ts = smset_to_list_ground sf.splain ts in
   let eqs, ts = List.fold_left (fun (eqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::eqs,ts)) ([],ts) sf.seqs in
   let neqs, ts = List.fold_left (fun (neqs,ts) (x,y) -> let cx,ts = ground_pattern x ts in let cy,ts = ground_pattern y ts in ((cx,cy)::neqs,ts)) ([],ts) sf.sneqs in
-  {spat = RMSet.empty; plain = RMSet.lift_list plain; disjuncts = []; eqs=eqs; neqs=neqs}, ts
+  {spat = RMSet.empty; plain = RMSet.from_list plain; disjuncts = []; eqs=eqs; neqs=neqs}, ts
 
 
+(* deprecated *)
 let conjoin fresh (f : ts_formula) (sf : syntactic_form) =
-  let nf,ts = convert_sf fresh f.ts sf in
-  let nf = conjunction nf f.form in
-  {ts = ts; form = nf;}
+  let form, ts = convert_sf fresh f.ts sf in
+  let form = conjunction form f.form in
+  { ts; form }
+
+let substitute_in_rmset subst xs =
+  let xs = RMSet.to_list xs in
+  let xs = List.map (fun (n, h) -> (n, subst h)) xs in
+  RMSet.from_list xs
+
+let rec substitute_in_formula subst { spat; plain; disjuncts; eqs; neqs } =
+  let map_pair_list f = List.map (fun (x, y) -> (f x, f y)) in
+  { spat = substitute_in_rmset subst spat
+  ; plain = substitute_in_rmset subst plain
+  ; disjuncts = map_pair_list (substitute_in_formula subst) disjuncts
+  ; eqs = map_pair_list subst eqs
+  ; neqs = map_pair_list subst neqs }
 
 let conjoin_inner ts1 ts2 =
-  { ts = Cterm.conjoin ts1.ts ts2.ts         (* RLP: This produces a substitution *)
-  ; form = conjunction ts1.form ts2.form }   (* RLP: This should take that substtution into account?? *)
+  if safe then check_ts_formula ts1;
+  if safe then check_ts_formula ts2;
+  let subst, ts = Cterm.conjoin ts1.ts ts2.ts in
+  let ts1_form = substitute_in_formula subst ts1.form in
+  let form = conjunction ts1_form ts2.form in
+  { ts; form }
 
 (* TODO(rgrig): It should be unnecessary to call this function. *)
 let make_syntactic' get_eqs get_neqs ts_form =
@@ -479,13 +497,17 @@ let make_syntactic' get_eqs get_neqs ts_form =
     let convert_pair = lift_pair get_term in
     let eqs = List.map convert_pair form.eqs in
     let neqs = List.map convert_pair form.neqs in
-    let sspat_list = RMSet.map_to_list form.spat (fun (name,i)-> printf "@[Retreiving %s. @]@?" name; (name,convert_tuple i)) in
-    let splain_list = RMSet.map_to_list form.plain (fun (name,i)->(name,convert_tuple i)) in
+    let sspat_list =
+      form.spat |> RMSet.to_list |>
+      List.map (fun (name,i)-> printf "@[Retreiving %s. @]@?" name; (name,convert_tuple i)) in
+    let splain_list =
+      form.plain |> RMSet.to_list |>
+      List.map (fun (name,i)->(name,convert_tuple i)) in
     let disjuncts = List.map (lift_pair form_to_syntax) form.disjuncts in
     {seqs= eqs;
       sneqs=neqs;
-      sspat = SMSet.lift_list sspat_list;
-      splain = SMSet.lift_list splain_list;
+      sspat = SMSet.from_list sspat_list;
+      splain = SMSet.from_list splain_list;
       sdisjuncts = disjuncts}
   in
   let sform = form_to_syntax form in
@@ -753,9 +775,9 @@ and match_disjunct remove combine ds =
 let split_disjunct form =
   match form.disjuncts with
     [] -> raise Backtrack.No_match
-  | (x,y)::disjuncts ->
-      conjunction x {form with disjuncts = disjuncts},
-      conjunction y {form with disjuncts = disjuncts}
+  | (x, y) :: disjuncts ->
+      ( conjunction x { form with disjuncts },
+        conjunction y { form with disjuncts } )
 
 let internalise_qs (ts, form) =
   let ts = add_eqs_list form.eqs ts in

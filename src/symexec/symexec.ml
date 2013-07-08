@@ -724,7 +724,7 @@ end = struct
         if infer then begin
           let new_ts =
             List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in
-	  (* Check if specifications ar better changed *)
+	  (* Check if specifications are better. *)
           let old_ts = HashSet.elements procedure.C.proc_spec in
           let not_better nt =
             List.exists (fun ot -> implies_triple rules ot nt) old_ts in

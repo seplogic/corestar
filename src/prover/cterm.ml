@@ -192,7 +192,6 @@ let compute_term_subst get_fresh subst cm1 cm2inv =
 
 let conjoin t1 t2 =
   if safe then (inv t1; inv t2);
-  let t1, t2 = if term_size t1 > term_size t2 then t2, t1 else t1, t2 in
   let cc2 = ref t2.cc in
   let subst = c_mk_subst () in
   let fresh_id () = let id, new_cc = CC.fresh !cc2 in cc2 := new_cc; id in
@@ -232,24 +231,26 @@ let conjoin t1 t2 =
       CMap.add (get_id id1) term2 in
     CMap.fold f cm1 cm2 in
   let originals = merge_cmap t1.originals t2.originals in
-  let t = { cc =
+  let subst, cc =
       (try CC.merge_cc (c_subst_find_gen subst) t1.cc !cc2
-      with Not_found -> assert false)
-  ; function_symbols = merge_smaps t1.function_symbols t2.function_symbols
-  ; strings = merge_smaps t1.strings t2.strings
-  ; pvars = merge_varmaps t1.pvars t2.pvars
-  ; apvars = merge_varmaps t1.apvars t2.apvars
-  ; evars = merge_varmaps t1.evars t2.evars
-  ; avars = merge_varmaps t1.avars t2.avars
-  ; aevars = merge_varmaps t1.aevars t2.aevars
-  ; record_labels = merge_smaps t1.record_labels t2.record_labels
-  ; record = t2.record
-  ; exists = t2.exists
-  ; var = t2.var
-  ; tuple = t2.tuple
-  ; originals } in
+      with Not_found -> failwith "INTERNAL: d82h3: shouldn't happen") in
+  let t =
+    { cc
+    ; function_symbols = merge_smaps t1.function_symbols t2.function_symbols
+    ; strings = merge_smaps t1.strings t2.strings
+    ; pvars = merge_varmaps t1.pvars t2.pvars
+    ; apvars = merge_varmaps t1.apvars t2.apvars
+    ; evars = merge_varmaps t1.evars t2.evars
+    ; avars = merge_varmaps t1.avars t2.avars
+    ; aevars = merge_varmaps t1.aevars t2.aevars
+    ; record_labels = merge_smaps t1.record_labels t2.record_labels
+    ; record = t2.record
+    ; exists = t2.exists
+    ; var = t2.var
+    ; tuple = t2.tuple
+    ; originals } in
   if safe then inv t;
-  t
+  (subst, t)
 
 let local_debug = false
 

@@ -14,6 +14,10 @@
 open Corestar_std
 open Format
 
+(* TODO(rgrig): Term handles should have bigger scope.
+    The small scope of term handles makes it necessary to apply many
+    substitutions, which are a source of bugs. *)
+
 type term_structure
 
 type term_handle
@@ -27,7 +31,11 @@ type pattern
 *)
 val new_ts : unit -> term_structure
 
-val conjoin : term_structure -> term_structure -> term_structure
+(*  [fst (conjoin ts1 ts2)] is the substitution that was applied to [ts1];
+    [snd (conjoin ts1 ts2)] is the conjunction of [ts1] and [ts2]. *)
+val conjoin
+  : term_structure -> term_structure
+  -> (term_handle -> term_handle) * term_structure
 
 (* Convert a Psyntax.args with AnyVars into a pattern to match *)
 (*val make_pattern : Psyntax.args -> term_structure -> (pattern * term_structure)))))))))*)

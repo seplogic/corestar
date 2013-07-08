@@ -31,7 +31,8 @@ module type PCC =
     val fresh_unifiable : t -> constant * t
     val fresh_exists : t -> constant * t
     val fresh_unifiable_exists : t -> constant * t
-    val merge_cc : (constant -> bool * constant) -> t -> t -> t
+    val merge_cc
+      : (constant -> bool * constant) -> t -> t -> (constant -> constant) * t
     val make_equal : t -> constant -> constant -> t
     val rep_eq : t -> constant -> constant -> bool
     val rep_uneq : t -> constant -> constant -> bool
