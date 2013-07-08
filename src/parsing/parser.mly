@@ -443,7 +443,7 @@ import_entry:
 
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
-  | prover_query { ParserAst.ProverQuery $1 }
+  | prover_query { ParserAst.ProverQuery $1 (* deprecated *) }
   | rule { ParserAst.Rule $1 }
 ;
 

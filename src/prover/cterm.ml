@@ -301,6 +301,7 @@ let has_pp_c ts c : bool =
   with Not_found ->
     false
 
+(* TODO(rgrig): WAT is this? *)
 (* TODO(rgrig): Oh, NO! Just have a separate simplify function and let the user
 call it explicitly before printing, *if* desired. *)
 (* Remove pattern match variables from pretty print where possible *)
@@ -400,11 +401,11 @@ let reconstruct ts c =
   and reconstruct_handle h = reconstruct_arg (get_arg h) in
   reconstruct_arg (get_arg c)
 
-let pp_c ts ppf c : unit =
+let pp_c ts f c : unit =
   try
-    Psyntax.string_args ppf (reconstruct ts c)
+    Psyntax.string_args f (reconstruct ts c)
   with Not_found ->
-    fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
+    CC.pp_c ts.cc f c
 
 let pp_c_raw ts ppf c =
   fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
@@ -414,15 +415,13 @@ let pp_ts' pp ppf first ts =
 
 let pp_ts = pp_whole pp_ts' pp_star
 
-let pp_c ts ppf c = CC.pp_c ts.cc (pp_c ts) ppf c
-
 
 (* TODO(rgrig): This function looks very dubious. *)
 let rec add_term params pt ts : 'a * term_structure =
   let (unif : bool),
     (fresh : bool),
     (lift : term_handle -> 'a),
-    (app : CC.t -> 'a -> 'a -> 'a * CC.t),
+    app,
     register_op, register_rec = params in
 (*  Format.printf "Adding term %a.@\n" string_args pt;*)
   let c,ts =
@@ -529,7 +528,7 @@ let rec add_term params pt ts : 'a * term_structure =
   c,ts
 
 and add_term_list params ptl (c,ts) cl =
-  let _,_,_,(app : CC.t -> 'a -> 'a -> 'a * CC.t),_,_ = params in
+  let _,_,_,app,_,_ = params in
   match ptl with
     [] -> c,ts, cl
   |  p::ptl ->
@@ -538,7 +537,7 @@ and add_term_list params ptl (c,ts) cl =
       add_term_list params ptl (c,{ts with cc = cc}) (c2::cl)
 
 and add_field_list params fldl (c,ts) lrl =
-  let _,_,lift,(app : CC.t -> 'a -> 'a -> 'a * CC.t),_,_ = params in
+  let _,_,lift,app,_,_ = params in
   match fldl with
     [] -> c,ts,lrl
   |  (lab,term)::fldl ->

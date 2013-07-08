@@ -125,7 +125,7 @@ let update_var_to ts_form v e =
 (* {{{ printing of atomic formulas *)
 (* TODO(rgrig): What's a better name for RMSet.t and SMSet.t? *)
 let pp_rmset_element prefix pp_term ppf (s, t) =
-  fprintf ppf "@[%s%s%a@]" prefix s pp_term t
+  fprintf ppf "@[%s%s(%a)@]" prefix s pp_term t
 
 let pp_smset_element prefix ppf (n, args) =
   fprintf ppf "@[%s%s(%a)@]" prefix n string_args_list args
@@ -469,13 +469,14 @@ let make_syntactic' get_eqs get_neqs ts_form =
   let ts,form = break_ts_form ts_form in
   let eqs = get_eqs ts in
   let neqs = get_neqs ts in
+  let get_term = Cterm.reconstruct ts in
 
   let rec form_to_syntax form =
     let convert_tuple r =
-      match get_term ts r with
+      match get_term r with
         Psyntax.Arg_op("tuple",al) -> al
       | x -> printf "@[Not a tuple: %a@\n@]@?" Psyntax.string_args x; assert false in
-    let convert_pair = lift_pair (get_term ts) in
+    let convert_pair = lift_pair get_term in
     let eqs = List.map convert_pair form.eqs in
     let neqs = List.map convert_pair form.neqs in
     let sspat_list = RMSet.map_to_list form.spat (fun (name,i)-> printf "@[Retreiving %s. @]@?" name; (name,convert_tuple i)) in
@@ -806,19 +807,12 @@ let make_implies_inner ts_form1 ts_form2 =
     check_ts_formula ts_form2
   end;
   let ts, assumption = break_ts_form ts_form1 in
-  (* XXX The constructor information is lost in next two lines! *)
-(* XXX *) printf "@[make_syntactic@\n@]@?";
+  (* XXX The constructor information is partially lost in next two lines! *)
   let sform = make_syntactic ts_form2 in
-(* XXX *) printf "@[convert_sf@\n@]@?";
   let obligation, seq_ts = convert_sf_without_eqs false ts sform in
-  (* let ts = Cterm.import_constructors ts ts_form2.ts in *)
-  (* This assumption could contain equalities *)
-(* XXX *) printf "@[Adding eqs@\n@]@?";
   let seq_ts = add_eqs_list assumption.eqs seq_ts in
-(* XXX *) printf "@[Adding neqs@\n@]@?";
   let seq_ts = add_neqs_list assumption.neqs seq_ts in
   let assumption = { assumption with eqs = []; neqs = [] } in
-(* Found equalities in the obligation which are nconsistent with seq_ts *)
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let ts_form_to_pform ts_form =

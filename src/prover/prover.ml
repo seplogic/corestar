@@ -409,10 +409,8 @@ let abduction_penalty g =
 (* RLP: this code typechecks, but not at all sure it does the right thing... *)
 let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
   try
-    (* XXX *) printf "@[Begin Prover.abduct\n@]@?";
     let seq = Clogic.make_implies_inner hypothesis conclusion in
     (* RLP: What does this bit do? *)
-    (* XXX *) printf "@[Adding constructors (for no known good reason): %a@\n@]@?" (pp_list pp_string) logic.Clogic.consdecl;
     let ts = List.fold_right Cterm.add_constructor logic.Clogic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
     let rules = search_rules logic in
