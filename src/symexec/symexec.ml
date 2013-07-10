@@ -455,7 +455,12 @@ end = struct
         |> List.filter keep_conf
         |> List.map mk_ok
         |> make_demonic_choice in
-    let r = option CT_error branch afs in
+    let r = match afs with
+      | None ->
+          if log log_exec then
+            fprintf logf "(error conf)";
+          CT_error
+      | Some afs -> branch afs in
     if log log_exec then fprintf logf "@]@,@?";
     r
 

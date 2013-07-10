@@ -25,6 +25,12 @@ type term_handle = CC.constant
 
 type pattern = CC.curry_term
 
+type 'a qs = ('a * 'a) list (* for eqs and neqs *)
+
+type raw_qs =
+  { raw_eqs : term_handle qs
+  ; raw_neqs : term_handle qs }
+
 type flattened_args =
   | FArg_var of Vars.var
   | FArg_string of string
@@ -950,3 +956,7 @@ let get_pvars ts =
 
 let forget_internal_qs ts =
   { ts with cc = CC.forget_qs ts.cc }
+
+let get_raw_qs ts =
+  { raw_eqs = CC.get_eqs (fun _ -> true) id ts.cc
+  ; raw_neqs = CC.get_neqs (fun _ -> true) id ts.cc }

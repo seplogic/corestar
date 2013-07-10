@@ -824,18 +824,26 @@ let make_implies (heap : ts_formula) (pheap : pform) : sequent =
   let obligation, seq_ts = convert false ts pheap in
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
-let make_implies_inner ts_form1 ts_form2 =
+let move_qs_to_formula { ts; form } =
+  let raw_qs = Cterm.get_raw_qs ts in
+  let form =
+    { form with
+      eqs = raw_qs.Cterm.raw_eqs @ form.eqs
+    ; neqs = raw_qs.Cterm.raw_neqs @ form.neqs } in
+  let ts = Cterm.forget_internal_qs ts in
+  { ts; form }
+
+let make_sequent ts_form1 ts_form2 =
   if safe then begin
     check_ts_formula ts_form1;
     check_ts_formula ts_form2
   end;
   let ts, assumption = break_ts_form ts_form1 in
-  (* XXX The constructor information is partially lost in next two lines! *)
-  let sform = make_syntactic ts_form2 in
-  let obligation, seq_ts = convert_sf_without_eqs false ts sform in
-  let seq_ts = add_eqs_list assumption.eqs seq_ts in
-  let seq_ts = add_neqs_list assumption.neqs seq_ts in
-  let assumption = { assumption with eqs = []; neqs = [] } in
+  let ts_form2 = move_qs_to_formula ts_form2 in
+  let subst, seq_ts = Cterm.conjoin ts ts_form2.ts in
+  let assumption = substitute_in_formula subst assumption in
+  let seq_ts, assumption = internalise_qs (seq_ts, assumption) in
+  let obligation = ts_form2.form in
   { seq_ts; assumption; obligation; matched = RMSet.empty }
 
 let ts_form_to_pform ts_form =

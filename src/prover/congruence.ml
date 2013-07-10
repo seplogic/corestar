@@ -575,9 +575,11 @@ module CC : PCC =
         incr use_cnt; chk_use_neq b (Not_equal a) in
       CCMap.iter record_eq cc.lookup;
       CCMap.iter record_neq cc.not_equal;
+(*       printf "XXX before usecnt=%d@\n@?" !use_cnt; (* XXX *) *)
       for c = 0 to n - 1 do
         use_cnt := !use_cnt - List.length (get_uselist cc c)
       done;
+(*       printf "XXX after usecnt=%d@\n@?" !use_cnt; (* XXX *) *)
       assert (!use_cnt = 0);
 
       let eq_cnt = ref 0 in
@@ -1055,22 +1057,21 @@ module CC : PCC =
       (sub, result)
 
     let for_each_rep ts (f : constant -> unit) =
-      let n = Arepresentative.size ts.representative in
+      let n = size ts in
       for i = 0 to n-1 do
-        if Arepresentative.get ts.representative i = i then
+        if get_representative ts i = i then
           f i
       done
 
-    let get_eqs mask map ts =
+    let get_eqs mask map cc =
       let acc = ref [] in
-      for_each_rep ts
-        (fun rep  ->
-          if mask rep then
-          let rp = map rep in
-          List.iter
-            (fun i -> if mask i && rep <> i then acc := (rp,map i)::!acc)
-            (Aclasslist.get ts.classlist rep)
-          ) ;
+      for c = 0 to size cc - 1 do
+        if mask c then begin
+          let d = get_representative cc c in
+          if c <> d && mask d then
+            acc =:: (map c, map d)
+        end
+      done;
       !acc
 
     let get_neqs mask map ts =
@@ -1863,25 +1864,15 @@ module CC : PCC =
 
 
     let forget_qs cc =
-      assert (invariant cc);
+      if safe then (assert (invariant cc));
       let n = size cc in
       let r = grow n (create ()) in
-      let r =
-        { r with
-          constructor = cc.constructor
-        ; unifiable = cc.unifiable } in
-(*
-      let reset reset_i = for i = 0 to n do reset_i i done in
-      let r =
-      { cc with
-        uselist = reset (reset_uselist cc)
-      ; representative = reset (reset_representative cc)
-      ; classlist = reset (reset_classlist cc)
-      ; lookup = CCMap.empty
-      ; rev_lookup = reset (reset_rev_lookup cc)
-      ; not_equal = CCmap.empty } in
-*)
-      assert (invariant r);
+      let r = { r with unifiable = cc.unifiable } in
+      let copy_self c cons acc = match cons with
+        | Self -> mk_self acc (deep_rep cc c)
+        | _ -> acc in
+      let r = Aconstructor.foldi copy_self cc.constructor r in
+      if safe then strict_invariant r;
       r
 
   end

@@ -73,6 +73,9 @@ val flip : ('a -> 'b -> 'c) -> ('b -> 'a -> 'c)
 (** Almost like in Haskell, modulo laziness. *)
 val undefined : 'a -> 'b
 
+(** Like in Haskell. *)
+val id : 'a -> 'a
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 

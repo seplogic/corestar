@@ -24,6 +24,12 @@ type term_handle
 
 type pattern
 
+type 'a qs = ('a * 'a) list (* for eqs and neqs *)
+
+type raw_qs =
+  { raw_eqs : term_handle qs
+  ; raw_neqs : term_handle qs }
+
 (*
    Create a new term structure
    It is externally functional, however underneath it uses mutation,
@@ -140,3 +146,4 @@ val get_equals_pvar_free : term_structure -> Vars.var -> Psyntax.args list
 val get_pvars : term_structure -> Vars.var list
 
 val forget_internal_qs : term_structure -> term_structure
+val get_raw_qs : term_structure -> raw_qs

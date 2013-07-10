@@ -410,7 +410,7 @@ let abduction_penalty g =
 (* RLP: this code typechecks, but not at all sure it does the right thing... *)
 let abduct logic hypothesis conclusion = (* failwith "TODO: Prover.abduct" *)
   try
-    let seq = Clogic.make_implies_inner hypothesis conclusion in
+    let seq = Clogic.make_sequent hypothesis conclusion in
     (* RLP: What does this bit do? *)
     let ts = List.fold_right Cterm.add_constructor logic.Clogic.consdecl seq.seq_ts in
     let seq = {seq with seq_ts = ts} in
@@ -472,12 +472,12 @@ let check_implication_frame_syntactic logic pform pform2 =
 
 
 let check_implication logic ts_form1 ts_form2 =
-  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in
+  let seq = Clogic.make_sequent ts_form1 ts_form2 in
   if safe then Clogic.check_sequent seq;
   check_imp logic seq
 
 let check_frame logic ts_form1 ts_form2 =
-  let seq = Clogic.make_implies_inner ts_form1 ts_form2 in
+  let seq = Clogic.make_sequent ts_form1 ts_form2 in
   if safe then Clogic.check_sequent seq;
   check_frm logic seq
 
@@ -486,7 +486,7 @@ let check_frame logic ts_form1 ts_form2 =
 (*  check_implication_inner logic ts heap1 ([],[],[False]) *)
 (* TODO: Check whether this makes sense *)
 let check_inconsistency logic ts_form =
-  let seq = Clogic.make_implies_inner ts_form (Clogic.convert_with_eqs false mkFalse) in
+  let seq = Clogic.make_sequent ts_form (Clogic.convert_with_eqs false mkFalse) in
   if safe then Clogic.check_sequent seq;
   check_imp ~min_depth:2 ~max_depth:2 logic seq
 

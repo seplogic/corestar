@@ -110,8 +110,7 @@ val convert :
   Cterm.term_structure -> Psyntax.pform -> formula * Cterm.term_structure
 val convert_ground : Cterm.term_structure -> syntactic_form -> (formula * Cterm.term_structure)
 val make_implies : ts_formula -> Psyntax.pform -> sequent
-val make_syntactic : ts_formula -> syntactic_form
-val make_implies_inner : ts_formula -> ts_formula -> sequent
+val make_sequent : ts_formula -> ts_formula -> sequent
 val ts_form_to_pform : ts_formula -> Psyntax.pform
 val ts_form_to_pform_no_ts : ts_formula -> Psyntax.pform
 val pform_to_ts_form : Psyntax.pform -> ts_formula
