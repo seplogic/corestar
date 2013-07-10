@@ -374,16 +374,21 @@ module CC : PCC =
     let set_unifiable cc i v = { cc with unifiable = Aunifiable.set cc.unifiable i v }
     let reset_unifiable cc i = { cc with unifiable = Aunifiable.reset cc.unifiable i }
 
+    (* NOTE: Should only be used temporarily while Congruence is a Frankenstein
+    monster. *)
+    let rec deep_rep cc c =
+      let d = get_representative cc c in
+      if c = d then c else deep_rep cc d
+
     (* deprecate *)
-    let rep = get_representative
     let set_rep = set_representative
 
-    let rep_eq (ts : t) (c : constant) (c2 : constant) : bool =
-      rep ts c = rep ts c2
+    let rep_eq cc c1 c2 =
+      get_representative cc c1 = get_representative cc c2
 
     let rec rep_uneq (ts : t) (c : constant) (c2 : constant) : bool =
-      let c = rep ts c in
-      let c2 = rep ts c2 in
+      let c = get_representative ts c in
+      let c2 = get_representative ts c2 in
       if c <> c2 then
         match Aconstructor.get ts.constructor c, Aconstructor.get ts.constructor c2 with
           Not, _
@@ -402,7 +407,7 @@ module CC : PCC =
 
     let lookup ts (a,b) =
       try
-        Some (CCMap.find ((rep ts a),(rep ts b)) ts.lookup )
+        Some (CCMap.find ((get_representative ts a),(get_representative ts b)) ts.lookup )
       with Not_found -> None
 
     let invariant (ts : t) : bool = not safe || begin
@@ -437,7 +442,7 @@ module CC : PCC =
           (* Check reverse map exists *)
           assert (List.exists (fun (r1,r2) -> rep_eq ts a r1 && rep_eq ts b r2) rl);
           (* Check there exists a use for "a" *)
-          let ula = Auselist.get ts.uselist (rep ts a) in
+          let ula = get_uselist ts (get_representative ts a) in
           assert (List.exists
                     (function
                         Complex_eq (r1,r2,r3) ->
@@ -446,7 +451,7 @@ module CC : PCC =
                           rep_eq ts r2 b
                       |         _ -> false)
                      ula);
-          let ulb = Auselist.get ts.uselist (rep ts b) in
+          let ulb = get_uselist ts (get_representative ts b) in
           assert (List.exists
                     (function
                         Complex_eq (r1,r2,r3) ->
@@ -942,7 +947,7 @@ module CC : PCC =
       let sane_cc = CCMap.fold ace cc.lookup sane_cc in
       if safe then strict_invariant sane_cc;
       let copy_self c cons acc = match cons with
-        | Self -> mk_self acc c
+        | Self -> mk_self acc (deep_rep cc c)
         | _ -> acc in
       let sane_cc = Aconstructor.foldi copy_self cc.constructor sane_cc in
       if safe then strict_invariant sane_cc;
@@ -1029,23 +1034,16 @@ module CC : PCC =
         let a2, b2, c2 = sub a1, sub b1, sub c1 in
         try
           let _, _, c2' = CCMap.find (a2, b2) lookup in
-(*           union c2 c2'; (* XXX *) *)
-          assert (rep cc2 c2 = rep cc2 c2'); (* TODO: OK to *make* them equal? *)
+          union c2 c2'; (* XXX *)
+(* assert (rep cc2 c2 = rep cc2 c2'); (* TODO: OK to *make* them equal? *)  *)
           lookup
         with Not_found -> CCMap.add (a2, b2) (a2, b2, c2) lookup in
       cc2 := { !cc2 with lookup = CCMap.fold app !cc1.lookup !cc2.lookup };
       (* NOTE: reps should not be changed below; e.g., don't call [union] *)
       (* update constructor, unifiable *)
       let merge_cons cons1 cons2 = match cons1, cons2 with
-        | Not, Not -> Not
-        | Self, Self -> Self
-        | IApp (a, b), (IApp (aa, bb) as r) ->
-            assert (rep cc2 (sub a) = rep cc2 aa);
-            assert (rep cc2 (sub b) = rep cc2 bb);
-            r
-        (* TODO: Do something sensible here. *)
-        | _ -> failwith "INTERNAL: Should this raise Contradiction?" in
-(*         | _ -> raise Contradiction in *)
+        | Self, _ | _, Self -> Self (* will be propagated by sanitize *)
+        | _ -> Not in
       merge_array merge_cons get_constructor set_constructor;
       merge_array merge_unify get_unifiable set_unifiable;
       let result = sanitize !cc2 in
@@ -1079,8 +1077,8 @@ module CC : PCC =
       let r = Hashtbl.create 13 in (* to take care of duplicates *)
       CCMap.iter
         (fun (a,b) () ->
-          let a = rep ts a in
-          let b = rep ts b in
+          let a = get_representative ts a in
+          let b = get_representative ts b in
           if mask a && mask b then
           Hashtbl.add r (map (min a b), map (max a b)) ())
         ts.not_equal;
@@ -1098,17 +1096,17 @@ module CC : PCC =
 
     let add_lookup ts (a,b,c) =
       { ts with
-        lookup = CCMap.add ((rep ts a),(rep ts b)) (a,b,c) ts.lookup
+        lookup = CCMap.add ((get_representative ts a),(get_representative ts b)) (a,b,c) ts.lookup
       ; rev_lookup =
           Arev_lookup.set
             ts.rev_lookup
-            (rep ts c)
-            ((a,b)::Arev_lookup.get ts.rev_lookup (rep ts c)) }
+            (get_representative ts c)
+            ((a,b)::get_rev_lookup ts (get_representative ts c)) }
 
     let add_use ts a fe : t =
-      let a = rep ts a in
-      let oldul = Auselist.get ts.uselist a in
-      {ts with uselist = Auselist.set ts.uselist a (fe::oldul)}
+      let a = get_representative ts a in
+      let oldul = get_uselist ts a in
+      set_uselist ts a (fe::oldul)
 
     let clear_uselist ts r =
         {ts with uselist = Auselist.set ts.uselist r [] }
@@ -1117,7 +1115,7 @@ module CC : PCC =
       set_classlist cc c (cs @ get_classlist cc c)
 
     let make_not_equal (ts : t) (a : constant) (b : constant) : t =
-      let a,b = rep ts a, rep ts b in
+      let a,b = get_representative ts a, get_representative ts b in
       if a=b then raise Contradiction;
       let (a,b) = if a<b then (a,b) else (b,a) in
       let ula = get_uselist ts a in
@@ -1134,8 +1132,8 @@ module CC : PCC =
          (* Only deal where it is a use on the left of an application *)
       | Complex_eq (a,b,c) when (rep_eq ts a d) ->
           begin
-            let r = rep ts c in
-            match Aconstructor.get ts.constructor r with
+            let r = get_representative ts c in
+            match get_constructor ts r with
           (* Can't make it an IApp, is already an constructor *)
               Self -> raise Contradiction
           (* Can make it an constructor *)
@@ -1170,7 +1168,7 @@ module CC : PCC =
     let no_live ts nr =
         List.for_all
           (fun x -> match (Aunifiable.get ts.unifiable x) with Standard -> false | _ -> true)
-          (Aclasslist.get ts.classlist (rep ts nr))
+          (get_classlist ts (get_representative ts nr))
 
 
     (* deprecated *)
@@ -1200,8 +1198,8 @@ module CC : PCC =
               else if rep_eq ts a b then
                 propagate ts pending
               else
-                let old_repa = rep ts a in
-                let repb = rep ts b in
+                let old_repa = get_representative ts a in
+                let repb = get_representative ts b in
                 let rl =
                   (Arev_lookup.get ts.rev_lookup old_repa)
                   @ (Arev_lookup.get ts.rev_lookup repb) in
@@ -1266,11 +1264,14 @@ module CC : PCC =
           (function
             | Not_equal _ -> true
             | Complex_eq (c1,c2,c) ->
-                rep_not_used_in ts (rep ts c) b (a::visited)
+                rep_not_used_in ts (get_representative ts c) b (a::visited)
         ) (get_uselist ts a)
 
     let rep_not_used_in (ts : t) ( a : constant) (b : constant list) : bool =
-          rep_not_used_in ts (rep ts a) (List.map (rep ts) b) []
+      rep_not_used_in ts
+        (get_representative ts a)
+        (List.map (get_representative ts) b)
+        []
 
     let rep_self_cons cc c = get_constructor cc c = Self
 
@@ -1283,7 +1284,7 @@ module CC : PCC =
     let make_constructor (ts : t) (a : constant) : t =
       (*assert (A.get ts.constructor (rep ts a) = Not);*)  (* FIXME: is this needed? *)
       assert (invariant ts);
-      let ts = {ts with constructor = Aconstructor.set ts.constructor (rep ts a) Self} in
+      let ts = set_constructor ts (get_representative ts a) Self in
       let ts,p = make_uses_constructor a (ts,[]) in
       let ts = propagate ts p in
       assert (invariant ts);
@@ -1299,7 +1300,7 @@ module CC : PCC =
                 let ts = add_use ts a (Complex_eq (a,b,c)) in
                 let ts = add_use ts b (Complex_eq (a,b,c)) in
                 (* If a is constructor, then so should c be. *)
-                if Aconstructor.get ts.constructor (rep ts a) <> Not then
+                if get_constructor ts (get_representative ts a) <> Not then
                   let ts,pending = make_use_constructor a (ts,[]) (Complex_eq (a,b,c)) in
                   propagate ts pending
                 else
@@ -1310,7 +1311,7 @@ module CC : PCC =
 
     let rec normalize (ts  : t) (term1 : curry_term) : curry_term =
       match term1 with
-        Constant c -> Constant (rep ts c)
+        Constant c -> Constant (get_representative ts c)
       |        App (terml,termr) ->
           let terml = normalize ts terml in
           let termr = normalize ts termr in
@@ -1319,7 +1320,7 @@ module CC : PCC =
               begin
                 match lookup ts (c1,c2) with
                   None -> App (terml,termr)
-                | Some (e,f,g) -> Constant (rep ts g)
+                | Some (e,f,g) -> Constant (get_representative ts g)
               end
           | _ ->  App(terml,termr)
 
@@ -1331,14 +1332,14 @@ module CC : PCC =
           let c, ts = fresh ts in
           let ts = merge ts (Complex (c1,c2,c)) in
           c, ts
-      | Some (e,f,g) -> rep ts g, ts) in
+      | Some (e,f,g) -> get_representative ts g, ts) in
       assert (invariant ts);
       (c, ts)
 
 
     let rec add_curry_term (ts  : t) (term1 : curry_term) : constant * t  =
       match term1 with
-        Constant c -> rep ts c, ts
+        Constant c -> get_representative ts c, ts
       |        App (terml,termr) ->
           let c1,ts = add_curry_term ts terml in
           let c2,ts = add_curry_term ts termr in
@@ -1362,7 +1363,7 @@ module CC : PCC =
       let i = ref 0 in
            (* creates mapping for the next constant *)
       let add_map x =
-        let r = rep ts x in
+        let r = get_representative ts x in
         if Array.get set r then () else
         begin
           Array.set set r true ;
@@ -1371,9 +1372,9 @@ module CC : PCC =
           i := !i + 1;
         end in
            (* Check if considered live *)
-      let live r = Array.get set (rep ts r) in
+      let live r = Array.get set (get_representative ts r) in
            (* Get new representative for constant *)
-      let newrep r = Array.get map (rep ts r) in
+      let newrep r = Array.get map (get_representative ts r) in
            (* Add mapping for all the externally live constants *)
       List.iter add_map cs;
       let j = ref 0 in
@@ -1463,7 +1464,7 @@ module CC : PCC =
 
     let test debug =
       let print_constant ts c =
-        printf "Constant %n has rep %n\n" c (rep ts c) in
+        printf "Constant %n has rep %n\n" c (get_representative ts c) in
       let nth r1 r2 n =
         let rec f n =
           match n with
@@ -1740,12 +1741,12 @@ module CC : PCC =
             cont ts
           else
             begin
-              match Aunifiable.get ts.unifiable (rep ts c), Aunifiable.get ts.unifiable (rep ts con) with
+              match get_unifiable ts (get_representative ts c), get_unifiable ts (get_representative ts con) with
               Unifiable, _
             | UnifiableExists, Exists ->
                 cont (try make_equal ts c con with Contradiction -> raise No_match)
             | UnifiableExists, _ ->
-                if no_live ts (rep ts con) then
+                if no_live ts (get_representative ts con) then
                     (* If not live accesses treat as an exists *)
                     cont (try make_equal ts c con with Contradiction -> raise No_match)
                 else
@@ -1756,7 +1757,7 @@ module CC : PCC =
             | Deleted, _ -> raise No_match
             end
       |        App (p1,p2) ->
-          let cl = Arev_lookup.get ts.rev_lookup (rep ts con) in
+          let cl = Arev_lookup.get ts.rev_lookup (get_representative ts con) in
           Backtrack.tryall
              (fun (c1,c2) ->
                Backtrack.chain
@@ -1775,7 +1776,7 @@ module CC : PCC =
         if n = Auselist.size ts.uselist then
           raise No_match
         else
-            if n <> rep ts n then f (n+1)
+            if n <> get_representative ts n then f (n+1)
             else
               try
                 unifies ts c1 n (fun ts -> cont (ts,n))
@@ -1803,7 +1804,7 @@ module CC : PCC =
           (make_equal ts c2 c1), []
         end
       else
-        match Aconstructor.get ts.constructor (rep ts c1), Aconstructor.get ts.constructor (rep ts c2) with
+        match get_constructor ts (get_representative ts c1), get_constructor ts (get_representative ts c2) with
           IApp(a,b), IApp(c,d) ->
             begin
               let ts, cp1 = determined_exists ts cl a c in
@@ -1814,10 +1815,8 @@ module CC : PCC =
 
 
 
-    let normalise ts c =
-      rep ts c
-    let others ts c =
-      Aclasslist.get ts.classlist (rep ts c)
+    let normalise = get_representative
+    let others ts c = get_classlist ts (get_representative ts c)
 
    let rec inter_list (i : int) (j : int) : int list =  if i > j then [] else (i :: inter_list (i+1) j)
 

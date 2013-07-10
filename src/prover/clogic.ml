@@ -65,17 +65,17 @@ type ts_formula =
   { ts : Cterm.term_structure
   ; form : formula }
 
-let check_rmset ts =
+let dump_rmset ts =
   RMSet.iter
     (fun (n, i) ->
       match Cterm.get_pargs false ts [] i with
 	| Arg_op ("tuple", x) ->
-	  printf "@[Tuple application: %s to %a = (%a)@\n@]@?"
+          printf "@[Tuple application: %s to %a = (%a)@\n@]@?"
 	    n
 	    (Cterm.pp_c_raw ts) i
 	    (pp_list_sep ", " Psyntax.string_args) x;
 	| x ->
-	  printf "@[Non-tuple application: %s to %a = %a@\n@]@?"
+          printf "@[Non-tuple application: %s to %a = %a@\n@]@?"
 	    n
 	    (Cterm.pp_c_raw ts) i
 	    Psyntax.string_args x; assert false)
@@ -87,8 +87,9 @@ let rec check_ts_formula tsf =
   List.iter (iter_pair check_constant) tsf.form.neqs;
   let check_formula form = check_ts_formula {tsf with form} in
   List.iter (iter_pair check_formula) tsf.form.disjuncts;
-  check_rmset tsf.ts tsf.form.spat;
-  check_rmset tsf.ts tsf.form.plain
+(* DBG  dump_rmset tsf.ts tsf.form.spat; *)
+(* DBG  dump_rmset tsf.ts tsf.form.plain; *)
+  ()
 
 let rec check_consistent_ts_formula tsf =
   let check_constant c = assert (Cterm.equal tsf.ts c c) in
@@ -302,7 +303,7 @@ let rec normalise ts form : formula * term_structure =
 	    let f1,ts1 = normalise ts1 f1 in
 	    Some (f1,ts1)
 	  with Contradiction ->
-(*	    printf "Contradiction left@\n";*)
+	    printf "Contradiction left@\n"; (* DBG *)
 	    None in
 	let f2o =
 	  try
@@ -311,7 +312,7 @@ let rec normalise ts form : formula * term_structure =
 	    let f2,ts2 = normalise ts2 f2 in
 	    Some (f2,ts2)
 	  with Contradiction ->
-(*	    printf "Contradiction right@\n";*)
+            printf "Contradiction right@\n"; (* DBG *)
 	    None in
 	match f1o,f2o with
 	  None,None -> raise Contradiction

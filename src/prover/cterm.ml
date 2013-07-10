@@ -223,11 +223,11 @@ let conjoin t1 t2 =
         | FArg_record fs ->
             let field (name, t) = (name, get_id t) in
             FArg_record (List.map field fs)) in
-      printf "@[Adding sub: %a = %d -> %d = %a@\n@]@?"
+(* DBG      printf "@[Adding sub: %a = %d -> %d = %a@\n@]@?"
 	pp_fargs term1
 	(CC.const_int id1 t1.cc)
 	(CC.const_int (get_id id1) t2.cc)
-	pp_fargs term2;
+	pp_fargs term2; *)
       CMap.add (get_id id1) term2 in
     CMap.fold f cm1 cm2 in
   let originals = merge_cmap t1.originals t2.originals in

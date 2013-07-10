@@ -79,7 +79,7 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
       try
       convert_sf fresh  seq.seq_ts pseq.assumption_diff
       with Contradiction -> begin
-        if log log_prove_detail then
+        if log log_prove then
           fprintf logf "Failed to add formula to lhs: %a@\n"
           pp_syntactic_form pseq.assumption_diff;
         raise Contradiction
@@ -92,7 +92,7 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
       try
         convert_sf fresh ts pseq.assumption_same
       with Contradiction -> begin
-        if log log_prove_detail then
+        if log log_prove then
           fprintf logf "Failed to add formula to matched: %a@\n"
           pp_syntactic_form pseq.assumption_same;
         assert false
@@ -107,11 +107,12 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
         obs, ts
       with Contradiction ->
         try
+          printf "Replacing contradiction with False@\n@?"; (* DBG *)
           convert_sf_without_eqs true ts false_sform
         with Contradiction -> assert false in
     Some { assumption; obligation; matched; seq_ts }
   end with Contradiction -> begin
-    if log log_prove_detail then
+    if log log_prove then
       fprintf logf "Contradiction detected!!@\n";
     None
   end
@@ -183,7 +184,7 @@ let apply_rule sr seq =
     && contains seq_ts obligation sr.without_right
     && check sr.where seq in (* TODO: do we want to use the old asm / ob here for the SMT guard? *)
   if not ok then raise Backtrack.No_match;
-  if log log_prove_detail then fprintf logf "@[Match rule %s@]@\n" sr.name;
+  if log log_prove then fprintf logf "@[Match rule %s@]@\n" sr.name;
   List.map (map_option (sequent_join_fresh seq)) sr.premises)))
 
 let rewrite_guard_check seq (ts,guard) =
@@ -222,7 +223,7 @@ try
     try
       out_normalise seq.seq_ts ass
     with Contradiction -> begin
-      if log log_prove_detail then
+      if log log_prove then
         fprintf logf "Success: %a@\n" pp_sequent seq;
       raise Success
     end
@@ -319,7 +320,7 @@ let rec solve rules penalty n goal =
       let process_rule r =
         let subgoals = r.rule_apply goal in
         if log log_prove then
-          fprintf logf "@[Applied rule %s@\n@]@?" r.rule_name;
+          fprintf logf "@\n@[Applied rule %s@\n@]@?" r.rule_name;
 	if safe then List.iter (List.iter Clogic.check_sequent) subgoals;
         subgoals in
       let solve_subgoal = solve rules penalty (n-1) in
