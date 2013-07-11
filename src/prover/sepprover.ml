@@ -111,8 +111,7 @@ open Psyntax
 
     let update_var_to v e f = Clogic.update_var_to f v e
 
-    let string_inner_form : Format.formatter -> inner_form -> unit =
-      Clogic.pp_ts_formula
+    let string_inner_form = Clogic.pp_ts_formula
 
     (******************************************
        Entailment operations

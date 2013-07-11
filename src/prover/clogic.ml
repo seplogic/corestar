@@ -167,7 +167,7 @@ and pp_syntactic_form ppf sform = pp_whole pp_syntactic_form' pp_star ppf sform
 
 let pp_ts_formula' pp ppf first {ts=ts; form=form} =
   let first = Cterm.pp_ts' pp ppf first ts in
-  pp_formula' (pp_c ts) pp ppf first form
+  pp_formula' (pp_c_raw ts) pp ppf first form (* XXX *)
 
 let pp_ts_formula = pp_whole pp_ts_formula' pp_star
 

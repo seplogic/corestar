@@ -414,8 +414,8 @@ let pp_c ts f c : unit =
   with Not_found ->
     CC.pp_c ts.cc f c
 
-let pp_c_raw ts ppf c =
-  fprintf ppf "ct[%d]" (CC.const_int c ts.cc)
+let pp_c_raw ts f c =
+  fprintf f "%a<%a>" (pp_c ts) c (CC.pp_c ts.cc) c
 
 let pp_ts' pp ppf first ts =
   CC.pretty_print' (fun _ -> true) (pp_c ts) pp ppf first ts.cc

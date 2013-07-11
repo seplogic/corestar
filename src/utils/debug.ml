@@ -69,7 +69,7 @@
 
 open Format
 
-let safe = false
+let safe = true
 
 let log_exec = 1 lsl 0
 let log_load = 1 lsl 1
@@ -81,7 +81,7 @@ let log_cfg = 1 lsl 6
 let log_mm = 1 lsl 7
 let log_cc = 1 lsl 8
 
-let log_active = log_phase
+let log_active = log_phase lor log_exec
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0
