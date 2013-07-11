@@ -52,12 +52,12 @@ open Psyntax
       = fun form inner_form -> Clogic.conjoin false inner_form (Clogic.convert_to_inner form)
 
     let conjoin_inner f1 f2 =
-(*       try *)
+      try
           Clogic.conjoin_inner f1 f2
-(*       with Contradiction -> begin *)
+      with Contradiction -> begin
 (*         printf "Contradiction in conjoin_inner@\n@?";  (* DBG *) *)
-(*         inner_falsum *)
-(*       end *)
+        inner_falsum
+      end
 
     let kill_var : var -> inner_form -> inner_form
       = fun v inner_form ->

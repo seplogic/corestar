@@ -781,9 +781,13 @@ let split_disjunct form =
         conjunction y { form with disjuncts } )
 
 let internalise_qs (ts, form) =
-  let ts = add_eqs_list form.eqs ts in
-  let ts = add_neqs_list form.neqs ts in
-  ts, {form with eqs = []; neqs = []}
+  try
+    let ts = add_eqs_list form.eqs ts in
+    let ts = add_neqs_list form.neqs ts in
+    (ts, {form with eqs = []; neqs = []})
+  with Contradiction ->
+    let form, ts = convert_sf false ts false_sform in
+    (ts, form)
 
 let apply_or_left seq =
   let a1,a2 = split_disjunct seq.assumption in

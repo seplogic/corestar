@@ -508,8 +508,12 @@ end = struct
       Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
 
   let implies_triple logic t1 t2 =
+    printf "XXX BEGIN {{{ implies_triple check@\n@?";
+    let r =
     Sepprover.implies logic t1.C.post t2.C.post &&
     Sepprover.implies logic t2.C.pre t1.C.pre
+    in printf "XXX }}} END implies_triple check@\n@?";
+    r
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -734,12 +738,17 @@ end = struct
           let old_ts = HashSet.elements procedure.C.proc_spec in
           let not_better nt =
             List.exists (fun ot -> implies_triple rules ot nt) old_ts in
-          if List.for_all not_better new_ts then OK
-          else
+          if List.for_all not_better new_ts then begin
+            if log log_exec then begin
+              fprintf logf "@[Reached fixed-point for %s@\n@]@?"
+                procedure.C.proc_name
+            end;
+            OK
+          end else
             (procedure.C.proc_spec <- HashSet.of_list new_ts;
              if log log_exec then begin
                fprintf logf "@[<2>Abducted triples:";
-	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_inner_triple triple;) ts;
+	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_inner_triple triple) ts;
 	       fprintf logf "@]@,@?"
              end;
 	     Spec_updated)

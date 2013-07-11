@@ -801,6 +801,11 @@ let update_var_to ts v e =
   let ts = make_equal ts c c2 in
   ts
 
+let is_evar ts c =
+  try match CMap.find c ts.originals with
+    | FArg_var v -> Vars.is_evar v
+    | _ -> false
+  with Not_found -> false
 
 let rewrite (ts : term_structure) (rm : rewrite_rule list) (query : term_structure * rewrite_guard -> bool) : term_structure =
   let rec rwgo rm ts =

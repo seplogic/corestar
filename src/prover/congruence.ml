@@ -668,6 +668,7 @@ module CC : PCC =
       Aconstructor.find_indices ((=) Self) cc.constructor
 
     let remove_complex_eq (x, y, z) cc =
+(*       printf "XXX remove_complex_eq(%d,%d,%d)@\n@?" x y z; *)
       let lookup = CCMap.remove (x, y) cc.lookup in
       let cc = set_rev_lookup cc z
         (List.filter ((<>) (x, y)) (get_rev_lookup cc z)) in (* SLOW *)
@@ -678,6 +679,7 @@ module CC : PCC =
       { cc with lookup }
 
     let add_complex_eq (x, y, z) cc =
+(*       printf "XXX add_complex_eq(%d,%d,%d)@\n@?" x y z; *)
       try
         let xx, yy, zz = CCMap.find (x, y) cc.lookup in
         assert (xx = x && yy = y);
@@ -760,9 +762,11 @@ module CC : PCC =
 
     (* TODO: Turn lists into sets. See SLOW below. *)
     let add_eq (a, b) cc =
+(*       printf "XXX add_eq(%d, %d)@\n@?" a b; *)
       let a, b = get_representative cc a, get_representative cc b in
       if a = b then ([], cc) else begin
         let a, b = if get_weight cc a < get_weight cc b then b, a else a, b in
+(*         printf "XXX merging %d into %d@\n@?" b a; *)
         (* NOTE: This function should use O(get_weight cc b) time, not counting
         the work done for marking constants as constructors. *)
 
@@ -773,9 +777,15 @@ module CC : PCC =
         let cc = set_classlist cc b [] in
 
         (* merge constructor[a] with constructor[b] *)
+        let pc f = function
+          | Not -> fprintf f "Not"
+          | Self -> fprintf f "Self"
+          | IApp (a,b) -> fprintf f "IApp(%d,%d)" a b in
         let ws, cons_a = match get_constructor cc a, get_constructor cc b with
           (* NOTE: for reps, once a constructor, always a constructor *)
-          | Not, cons | cons, Not -> ([], cons)
+          | (Not as ac), (cons as bc) | (cons as ac), (Not as bc) ->
+(*       printf "XXX (cons(%d)=%a; cons(%d)=%a)@\n@?" a pc ac b pc bc; *)
+              ([], cons)
           | IApp (x1, y1) as cons, IApp (x2, y2) ->
               ([mk_wu_add_eq (x1, x2); mk_wu_add_eq (y1, y2)], cons)
           | _ -> raise Contradiction in
@@ -828,6 +838,7 @@ module CC : PCC =
                 (Misc.insert_sorted (Not_equal a) (get_uselist cc x)) in
               cc in
         let cc = List.fold_left update_neq cc (get_uselist cc b) in
+        let cc = reset_uselist cc b in
 
         let cc = set_unifiable cc a
           (merge_unify (get_unifiable cc a) (get_unifiable cc b)) in
@@ -840,9 +851,15 @@ module CC : PCC =
       end (* of add_eq *)
 
     let work j cc = match j with
-      | WU_add_eq (a, b) -> add_eq (a, b) cc
-      | WU_add_neq (a, b) -> add_neq (a, b) cc
-      | WU_mk_cons (a, b, c) -> mk_cons (a, b, c) cc
+      | WU_add_eq (a, b) ->
+(*           printf "XXX dispatch add_eq(%d,%d)@\n@?" a b; *)
+          add_eq (a, b) cc
+      | WU_add_neq (a, b) ->
+(*           printf "XXX dispatch add_neq(%d,%d)@\n@?" a b; *)
+          add_neq (a, b) cc
+      | WU_mk_cons (a, b, c) ->
+(*           printf "XXX dispatch mk_cons(%d,%d,%d)@\n@?" a b c; *)
+          mk_cons (a, b, c) cc
 
     let rec unsafe_work_list js cc = match js with
       | [] -> cc
@@ -1168,9 +1185,8 @@ module CC : PCC =
 
     let no_live ts nr =
         List.for_all
-          (fun x -> match (Aunifiable.get ts.unifiable x) with Standard -> false | _ -> true)
+          (fun x -> get_unifiable ts x <> Standard)
           (get_classlist ts (get_representative ts nr))
-
 
     (* deprecated *)
     let unifiable_merge cc a b =
