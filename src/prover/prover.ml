@@ -232,8 +232,7 @@ try
     let obs,_ =
       try Clogic.normalise ts obs
       with Contradiction ->
-        (printf "XXX Failed 1@\n@?";
-        raise Failed) in
+        raise Failed in
     let ob_eqs = obs.eqs in
     let rec duts ts ob_eqs new_ob_eqs =
       match ob_eqs with
@@ -244,20 +243,17 @@ try
     let ts, ob_eqs =
       try duts ts ob_eqs []
       with Contradiction ->
-        (printf "XXX Failed 2@\n@?";
-        raise Failed) in
+        raise Failed in
     let ob_neqs = obs.neqs in
     let ts = try Cterm.rewrite ts rm (rewrite_guard_check seq) with Contradiction -> raise Success in
     let ob_eqs,ts_ob =
       try remove equal make_equal ts ob_eqs
       with Contradiction ->
-        (printf "XXX Failed 3@\n@?";
-        raise Failed) in
+        raise Failed in
     let ob_neqs,ts_ob =
       try remove not_equal make_not_equal ts_ob ob_neqs
       with Contradiction ->
-        (printf "XXX Failed 4@\n@?";
-        raise Failed) in
+        raise Failed in
   (* Assuming obligations equalities and inequalities,
      and try to match same terms on each side *)
     let a_spat = ass.spat in
@@ -286,7 +282,6 @@ try
     (*printf "After simplification : %a@\n" pp_sequent seq;*)
     Some seq
   with Failed ->
-    printf "XXX YEP, Failed@\n@?";
     let obs,ts = convert_sf_without_eqs true ts false_sform in
     Some {seq with
       seq_ts = ts;
@@ -298,8 +293,7 @@ let simplify { Clogic.seq_ts; assumption; obligation; matched } =
   try
     let process_q mk_q ts (a, b) =
       if Cterm.is_evar ts a || Cterm.is_evar ts b
-      then (printf "XXX addq(%a,%a)@\n@?"
-        (Cterm.pp_c ts) a (Cterm.pp_c ts) b; mk_q ts a b) else ts in
+      then mk_q ts a b else ts in
     let seq_ts =
       List.fold_left (process_q Cterm.make_equal) seq_ts obligation.Clogic.eqs in
     let seq_ts =
@@ -310,7 +304,7 @@ let simplify { Clogic.seq_ts; assumption; obligation; matched } =
     let neqs = List.filter unknown_neq obligation.Clogic.neqs in
     let obligation = { obligation with Clogic.eqs; neqs } in
     [[{ seq_ts; assumption; obligation; matched }]]
-  with Contradiction -> (printf "XXX got contradiction@\n@?"; [])
+  with Contradiction -> []
 
 let prover_counter_example : Clogic.sequent list ref = ref []
 
@@ -384,7 +378,7 @@ let search_rules logic =
     { rule_name = "identity"
     ; rule_apply = fun s ->
       if s.obligation = s.assumption then [[]] else raise Backtrack.No_match } in
-(*  let try_simplify =  XXX this does something complicated that fails sometimes
+(*  let try_simplify =  TODO this does something complicated that fails sometimes
     { rule_name = "simplify_by_rewrite"
     ; rule_apply = fun s ->
       match simplify_sequent logic.Clogic.rw_rules s with

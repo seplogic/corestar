@@ -508,12 +508,8 @@ end = struct
       Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
 
   let implies_triple logic t1 t2 =
-    printf "XXX BEGIN {{{ implies_triple check@\n@?";
-    let r =
     Sepprover.implies logic t1.C.post t2.C.post &&
     Sepprover.implies logic t2.C.pre t1.C.pre
-    in printf "XXX }}} END implies_triple check@\n@?";
-    r
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -832,8 +828,8 @@ For a list of functions, all functions have to be OK.
 let verify q =
   if log log_exec then
     fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
-  let q = convert_question q in
-  let r = q |> map_procs mk_cfg |> interpret in
+  let q = map_procs mk_cfg (convert_question q) in
+  let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@?";
   r

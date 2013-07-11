@@ -184,7 +184,6 @@ let rec string_args ppf arg =
   | Arg_op ("builtin_plus",[a1;a2]) -> Format.fprintf ppf "(%a+%a)" string_args a1 string_args a2
   | Arg_op ("builtin_minus",[a1;a2]) -> Format.fprintf ppf "(%a-%a)" string_args a1 string_args a2
   | Arg_op ("builtin_mult",[a1;a2]) -> Format.fprintf ppf "(%a*%a)" string_args a1 string_args a2
-(*   | Arg_op ("tuple",al) -> Format.fprintf ppf "(%a)" string_args_list al  XXX *)
   | Arg_op (name,args) -> Format.fprintf ppf "%s(%a)" name string_args_list args
   | Arg_cons (name,args) -> Format.fprintf ppf "%s[%a]" name string_args_list args
   | Arg_record fldlist ->
