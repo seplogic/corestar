@@ -1,8 +1,0 @@
-global_types.cmo: spec_def.cmo 
-global_types.cmx: spec_def.cmx 
-load.cmo: global_types.cmo 
-load.cmx: global_types.cmx 
-spec_def.cmo: 
-spec_def.cmx: 
-support_syntax.cmo: 
-support_syntax.cmx: 

@@ -63,50 +63,6 @@ open Psyntax
       = fun v inner_form ->
         Clogic.kill_var inner_form v
 
-    let abstract_val : inner_form -> inner_form
-      = fun inner_form ->
-        let pform = Clogic.ts_form_to_pform inner_form in
-        let abs_pform = Plugin_manager.abstract_val pform in
-        let abs_inner_form = Clogic.pform_to_ts_form abs_pform in
-        abs_inner_form
-
-    let join : inner_form -> inner_form -> inner_form
-      = fun if1 if2 ->
-        let pf1 = Clogic.ts_form_to_pform if1 in
-        let pf2 = Clogic.ts_form_to_pform if2 in
-        match Plugin_manager.join pf1 pf2 with
-        | [] -> Format.printf "No plugin with join loaded!\n"; inner_truth
-        | pf::_ -> Clogic.pform_to_ts_form pf
-
-    let meet : inner_form -> inner_form -> inner_form
-      = fun if1 if2 ->
-        let pf1 = Clogic.ts_form_to_pform if1 in
-        let pf2 = Clogic.ts_form_to_pform if2 in
-        match Plugin_manager.meet pf1 pf2 with
-        | [] -> Format.printf "No plugin with meet loaded!\n"; inner_falsum
-        | pf::_ -> Clogic.pform_to_ts_form pf
-
-    let widening : inner_form -> inner_form -> inner_form
-      = fun if1 if2 ->
-        let pf1 = Clogic.ts_form_to_pform if1 in
-        let pf2 = Clogic.ts_form_to_pform if2 in
-        match Plugin_manager.widening pf1 pf2 with
-        | [] -> Format.printf "No plugin with widening loaded!\n"; inner_truth
-        | pf::_ -> Clogic.pform_to_ts_form pf
-
-    let join_over_numeric : inner_form -> inner_form -> inner_form * inner_form
-      = fun if1 if2 ->
-        let split_numerical (pform : pform) : pform * pform =
-          List.partition (fun pf_at -> is_numerical_pform_at pf_at) pform in
-        let num_pf1,rest_pf1 = split_numerical (Clogic.ts_form_to_pform if1) in
-        let num_pf2,rest_pf2 = split_numerical (Clogic.ts_form_to_pform if2) in
-        let join_ts_form =
-          match Plugin_manager.join num_pf1 num_pf2 with
-          | [] -> Format.printf "No plugin with join loaded!\n"; inner_truth
-          | pf::_ -> Clogic.pform_to_ts_form pf
-        in
-        (conjoin rest_pf1 join_ts_form, conjoin rest_pf2 join_ts_form)
-
     let freshen_exists = Clogic.freshen_exists
 
     let update_var_to v e f = Clogic.update_var_to f v e

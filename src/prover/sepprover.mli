@@ -28,11 +28,6 @@ val convert_opt : Psyntax.form -> inner_form option (* deprecated *)
 val conjoin : Psyntax.form -> inner_form -> inner_form (* deprecated *)
 val conjoin_inner : inner_form -> inner_form -> inner_form
 val kill_var : Psyntax.var -> inner_form -> inner_form
-val abstract_val : inner_form -> inner_form
-val join : inner_form -> inner_form -> inner_form
-val meet : inner_form -> inner_form -> inner_form
-val widening : inner_form -> inner_form -> inner_form
-val join_over_numeric : inner_form -> inner_form -> inner_form * inner_form
 val freshen_exists : Psyntax.var * inner_form -> Psyntax.var * inner_form
 val update_var_to : Psyntax.var -> Psyntax.term -> inner_form -> inner_form
 val string_inner_form : inner_form pretty_printer
@@ -40,12 +35,6 @@ val string_inner_form : inner_form pretty_printer
 val implies : inner_logic -> inner_form -> inner_form -> bool
 val inconsistent : inner_logic -> inner_form -> bool
 val inconsistent_opt : inner_logic -> inner_form option -> bool
-(*
-val frame
-  : inner_logic -> inner_form -> Psyntax.form -> inner_form list option
-val frame_opt
-  : inner_logic -> inner_form option -> Psyntax.form -> inner_form list option
-  *)
 val frame_inner
   : inner_logic -> inner_form -> inner_form -> inner_form list option
 val abduct_inner

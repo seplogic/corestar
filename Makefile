@@ -1,24 +1,16 @@
 # section that changes often
 
-ifndef CORESTAR_HOME
-	CORESTAR_HOME=$(CURDIR)
-endif
-export CORESTAR_HOME
-
-SRC_DIRS=src
 MAINS=corestar
 
 # section that shouldn't change often
 
 SHELL=/bin/bash
-SRC_SUBDIRS=$(addsuffix .subdirs,$(SRC_DIRS))
-OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v \
-	   `cat $(SRC_SUBDIRS)`
+OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v
 CPLN=scripts/_build/cpln.byte
 
 build: native
 
-native byte: $(SRC_SUBDIRS)
+native byte:
 	@$(MAKE) -C scripts byte
 	@$(OCAMLBUILD) $(addsuffix .$@,$(MAINS))
 	@mkdir -p bin
@@ -33,7 +25,7 @@ doc:
 	$(MAKE) -C doc/tutorial      		# DEV
 
 scripts:
-	$(MAKE) -C scripts							# DEV
+	$(MAKE) -C scripts			# DEV
 
 all: build test
 
@@ -45,10 +37,7 @@ clean:
 	$(MAKE) -C scripts clean       	# DEV
 	$(MAKE) -C doc/tutorial clean  	# DEV
 
-%.subdirs: %
-	ls -F $*/ | grep / | sed "s./.." | sed "s.^.-I $*/." > $*.subdirs
-
-.PHONY: all build byte clean doc native scripts test
+.PHONY: all build byte clean doc native scripts test test-byte test-native
 
 -include .install.mk
 

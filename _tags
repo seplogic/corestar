@@ -1,4 +1,8 @@
-true: package(dynlink)
 true: package(str)
 true: package(unix)
 true: debug
+<src>: include
+<src/parsing>: include
+<src/prover>: include
+<src/symexec>: include
+<src/utils>: include
