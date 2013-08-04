@@ -15,33 +15,20 @@ open Core
 open Corestar_std
 open Format
 
-let ast_to_inner_triple { pre; post; modifies } =
-  let f = Sepprover.convert in { pre = f pre; post = f post; modifies }
+module F = Formula
 
-let ast_to_inner_spec = HashSet.map ast_to_inner_triple
+let pp_args_out = pp_list_sep "," pp_string
+let pp_args_in = pp_list_sep "," F.pp
 
-let ast_to_inner_core = function
-  | Nop_stmt_core -> Nop_stmt_core
-  | Label_stmt_core l -> Label_stmt_core l
-  | Assignment_core c ->
-      Assignment_core { c with asgn_spec = ast_to_inner_spec c.asgn_spec }
-  | Call_core c -> Call_core c
-  | Goto_stmt_core ls -> Goto_stmt_core ls
-  | End -> End
+let pp_triple f { pre; post; modifies } =
+  let pm f = function
+    | None -> fprintf f "*"
+    | Some vs -> fprintf f "%a:=*" (pp_list_sep "," pp_string) vs in
+  fprintf f "{%a}@,[%a]@,{%a}" F.pp pre pm modifies F.pp post
 
-let pp_args_out = pp_list_sep "," Vars.pp_var
-let pp_args_in = pp_list_sep "," Psyntax.string_args
+let pp_spec f ts = pp_list_sep "+" pp_triple f (TripleSet.elements ts)
 
-let pp_triple pf f { pre; post } =
-  fprintf f "{%a}@,{%a}" pf pre pf post
-let pp_ast_triple = pp_triple Psyntax.string_form
-let pp_inner_triple = pp_triple Sepprover.string_inner_form
-
-let pp_spec pf f ts = pp_list_sep " " (pp_triple pf) f (HashSet.elements ts)
-let pp_ast_spec = pp_spec Psyntax.string_form
-let pp_inner_spec = pp_spec Sepprover.string_inner_form
-
-let pp_core pp_spec f = function
+let pp_statement f = function
   | Nop_stmt_core -> fprintf f "nop;"
   | Label_stmt_core l -> fprintf f "label %s;" l
   | Assignment_core { asgn_rets; asgn_args; asgn_spec } ->
@@ -54,26 +41,21 @@ let pp_core pp_spec f = function
       fprintf f "goto %a;" (pp_list_sep "," pp_string) ls
   | End -> fprintf f "end;"
 
-let pp_ast_core = pp_core pp_ast_spec
-let pp_inner_core = pp_core pp_inner_spec
-
 let pp_logic _ _ = failwith "TODO"
 
-let pp_proc pp_spec f { proc_name; proc_spec; proc_body } =
+let pp_ast_procedure f { proc_name; proc_spec; proc_body } =
   let pp_body f body =
-    let pp_nl_core f c = fprintf f "@\n%a" (pp_core pp_spec) c in
+    let pp_nl_core f c = fprintf f "@\n%a" pp_statement c in
     fprintf f "@\n@[<2>?%a@]" (pp_list pp_nl_core) body in
   fprintf f "@\n@[";
   fprintf f "@[<2>procedure %s :@\n%a@]" proc_name pp_spec proc_spec;
   option () (pp_body f) proc_body;
   fprintf f "@]"
 
-let pp_ast_proc = pp_proc pp_ast_spec
-
 let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
   fprintf f "@[infer %b@@\n%a@\n%a@]"
     q_infer
-    (pp_list pp_ast_proc) q_procs
+    (pp_list pp_ast_procedure) q_procs
     pp_logic q_rules
 
 let name_ret_v1 = "$ret_v1"
@@ -90,24 +72,26 @@ let is_parameter = has_prefix "@parameter"
 let is_return = has_prefix "$ret"
 let is_global = has_prefix global_prefix
 
-let empty_question empty_logic =
+let empty_ast_question =
   { q_procs = []
-  ; q_rules = empty_logic
+  ; q_rules = failwith "TODO: empty logic"
   ; q_infer = false
   ; q_name = "empty_question" }
 
-type 'a refinement_check = Sepprover.inner_logic -> 'a -> 'a -> bool
+type 'a refinement_check = Type.todo -> 'a -> 'a -> bool
 
 let refines_triple logic triple1 triple2 =
+  failwith "TODO"
+  (*
   Sepprover.implies logic triple2.pre triple1.pre &&
   Sepprover.implies logic triple1.post triple2.post
+  *)
 
 let refines_spec logic spec1 spec2 =
-  HashSet.for_all
-    (fun t2 -> HashSet.exists (fun t1 -> refines_triple logic t1 t2) spec1)
+  TripleSet.for_all
+    (fun t2 -> TripleSet.exists (fun t1 -> refines_triple logic t1 t2) spec1)
     spec2
 
 let mk_assume f =
-  let pre = Specification.empty_inner_form in
-  HashSet.singleton { pre; post = f; modifies = Some [] }
-let mk_assert f = HashSet.singleton { pre = f; post = f; modifies = Some [] }
+  TripleSet.singleton { pre = F.emp; post = f; modifies = Some [] }
+let mk_assert f = TripleSet.singleton { pre = f; post = f; modifies = Some [] }

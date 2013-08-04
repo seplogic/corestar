@@ -17,21 +17,12 @@ open Core
 open Corestar_std
 
 
-(** {2 Converters} *)
-
-val ast_to_inner_triple : ast_triple -> inner_triple
-val ast_to_inner_spec : ast_spec -> inner_spec
-val ast_to_inner_core : ast_core -> inner_core
-
 (** {2 Pretty printers} *)
 
-val pp_ast_triple : ast_triple pretty_printer
-val pp_inner_triple : inner_triple pretty_printer
-val pp_ast_spec : ast_spec pretty_printer
-val pp_inner_spec : inner_spec pretty_printer
-val pp_ast_core : ast_core pretty_printer
-val pp_inner_core : inner_core pretty_printer
-val pp_ast_proc : ast_procedure pretty_printer
+val pp_triple : triple pretty_printer
+val pp_spec : spec pretty_printer
+val pp_statement : statement pretty_printer
+val pp_ast_procedure : ast_procedure pretty_printer
 val pp_ast_question : ast_question pretty_printer
 
 
@@ -49,13 +40,13 @@ val is_return : Vars.var -> bool
 val is_global : Vars.var -> bool
 
 (** {2 Useful constants} *)
-val empty_question : 'b -> ('a, 'b) question
+val empty_ast_question : ast_question
 
 (** {2 Refinement on triples and specs.} *)
-type 'a refinement_check = Sepprover.inner_logic -> 'a -> 'a -> bool
-val refines_triple : inner_triple refinement_check
-val refines_spec : inner_spec refinement_check
+type 'a refinement_check = Type.todo (* logic *) -> 'a -> 'a -> bool
+val refines_triple : triple refinement_check
+val refines_spec : spec refinement_check
 
 (** {2 Construct simple specs} *)
-val mk_assume : Sepprover.inner_form -> inner_spec
-val mk_assert : 'a -> 'a triple spec
+val mk_assume : F.t -> spec
+val mk_assert : F.t -> spec

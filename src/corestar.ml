@@ -6,19 +6,18 @@ open Format
 
 module C = Core
 module PA = ParserAst
-module PS = Psyntax
 
 
 (* NOTE: The lists of rules, procedures, etc, in the result are
 reversed compared to the argument. *)
 let question_of_entries xs =
   let f q = function
-    | PA.ProverQuery pq ->
-        eprintf "@[WARNING: Ignoring prover query.@." (* TODO(rgrig) *);
-        q
-    | PA.Rule r -> { q with C.q_rules = PS.add_rule q.C.q_rules r }
+    | PA.Rule r -> { q with C.q_rules = failwith "TODO: add rule r" }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
-  let z = { (CoreOps.empty_question PS.empty_logic) with C.q_infer = !Config.use_abduction } in
+  let z =
+    { CoreOps.empty_ast_question with
+      C.q_rules = failwith "TODO: empty logic?"
+    ; C.q_infer = !Config.use_abduction } in
   List.fold_left f z xs
 
 let path = System.getenv_dirlist (System.getenv "COREPATH")
@@ -29,7 +28,6 @@ let load fn =
   { q with C.q_name = fn }
 
 let verify fn =
-  if !Config.smt_run then Smt.smt_init ();
   if log log_phase then fprintf logf "@[verifying file %s@." fn;
   try begin
     if Symexec.verify (load fn) then

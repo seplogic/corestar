@@ -3,13 +3,13 @@ open Format
 
 module C = Core
 module DG = Digraph
-module P = Sepprover
+module F = Formula
 
 type cfg_vertex =
   | Abs_cfg
-  | Call_cfg of C.call_core
+  | Call_cfg of C.call
   | Nop_cfg
-  | Spec_cfg of C.inner_spec
+  | Spec_cfg of C.spec
   (* NOTE: [Nop_cfg] gives some flexibility in choosing the shape of the graph.
   For example, [Procedure] below assumes one start and one stop node. *)
 
@@ -17,7 +17,7 @@ let pp_vertex f = function
   | Abs_cfg -> fprintf f "abstract"
   | Call_cfg c -> fprintf f "call %s" c.C.call_name
   | Nop_cfg -> fprintf f "nop"
-  | Spec_cfg specs -> HashSet.iter (fun s -> fprintf f "spec {%a} " CoreOps.pp_inner_triple s) specs
+  | Spec_cfg spec -> fprintf f "spec %a" CoreOps.pp_spec spec
 
 module Cfg = DG.Make (struct type t = cfg_vertex end) (DG.UnlabeledEdge)
 module CfgVHashtbl = Hashtbl.Make (Cfg.V)
@@ -27,18 +27,10 @@ module CfgVHashSet = HashSet.Make (Cfg.V)
   [current_heap] is reached without fault.
   INV: [missing_heap] must not mention program variables, only logical ones
 *)
-type ok_configuration =
-  { current_heap : P.inner_form
-  ; missing_heap : P.inner_form }
-
-let check_ok_configuration c =
-  P.check_inner_form c.current_heap;
-  P.check_inner_form c.missing_heap
+type ok_configuration = { current_heap : F.t; missing_heap : F.t }
 
 let pp_ok_configuration f { current_heap; missing_heap } =
-  fprintf f "(now:%a,@ missing:%a)"
-    Sepprover.string_inner_form current_heap
-    Sepprover.string_inner_form missing_heap
+  fprintf f "(now:%a,@ missing:%a)" F.pp current_heap F.pp missing_heap
 
 type split_type = Angelic | Demonic
 
@@ -74,7 +66,7 @@ module DotCfg = DG.Dot (struct
     | Abs_cfg -> l "ABS"
     | Call_cfg c -> l c.C.call_name
     | Nop_cfg -> l "NOP"
-    | Spec_cfg s -> l (string_of CoreOps.pp_inner_spec s)
+    | Spec_cfg s -> l (string_of CoreOps.pp_spec s)
 end)
 
 module DotConf = DG.Dot (struct

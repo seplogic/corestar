@@ -13,14 +13,11 @@
 
 %{ (* header *)
 
-(* TODO(rgrig): Don't open these. *)
-open Lexing
-open Parsing
-open Printing
-open Vars
+open Corestar_std
+open Format
 
 module C = Core
-module PS = Psyntax
+module F = Formula
 
 let newVar x =
   if x.[0] = '_' then begin
@@ -30,19 +27,20 @@ let newVar x =
 
 let file_name = ref None
 
-let location_to_string pos =
-  Printf.sprintf "Line %d character %d" pos.pos_lnum  (pos.pos_cnum - pos.pos_bol + 1)
+let pp_pos f pos =
+  let line = pos.Lexing.pos_lnum in
+  let column = pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1 in
+  fprintf f "%d:%d" line column
 
-let parse_error s =
+let message prefix text =
   let start_pos = Parsing.symbol_start_pos () in
   let end_pos = Parsing.symbol_end_pos () in
-  Printf.printf "Error between %s and %s\n%s\n" (location_to_string start_pos) (location_to_string end_pos) s
+  let fn = from_option "<unknown file>" !file_name in
+  eprintf "@{<b>%s: %s:(%a)-(%a):@} %s"
+    prefix fn pp_pos start_pos pp_pos end_pos text
 
-let parse_warning s =
-  let start_pos = Parsing.symbol_start_pos () in
-  let end_pos = Parsing.symbol_end_pos () in
-  Printf.printf "Warning %s (between %s and %s)\n" s (location_to_string start_pos) (location_to_string end_pos)
-
+let parse_error = message "E"
+let parse_warning = message "W"
 
 %} /* declarations */
 
@@ -157,8 +155,8 @@ cmpop:
 /* Expressions */
 
 lvariable:
-  | identifier { newVar($1) }
-  | QUESTIONMARK identifier { Vars.concretea_str $2 }
+  | identifier { $1 }
+  | QUESTIONMARK identifier { "?" ^ $2 }
 ;
 lvariable_list_ne:
   |  lvariable    { [$1] }
@@ -169,43 +167,11 @@ lvariable_list:
   | lvariable_list_ne { $1 }
 ;
 
-lvariable_npv:
-  | identifier { newVar($1) }
-;
-lvariable_npv_list_ne:
-  |  lvariable_npv    { [$1] }
-  |  lvariable_npv COMMA lvariable_npv_list_ne  { $1 :: $3 }
-;
-lvariable_npv_list:
-  |  {[]}
-  | lvariable_npv_list_ne { $1 }
-;
-
-/* Code for matching where not allowing question mark variables:
-   no pattern vars */
-term_npv:
-  | lvariable_npv { PS.Arg_var ($1)}
-  | identifier L_PAREN term_npv_list R_PAREN { PS.Arg_op($1, $3) }
-  | L_PAREN term_npv binop term_npv R_PAREN { PS.Arg_op($3, [$2;$4]) }
-  | L_BRACE fldlist_npv R_BRACE { PS.mkArgRecord $2 }
-  | STRING_CONSTANT { PS.Arg_string($1) }
-;
-term_npv_list_ne:
-  | term_npv {$1::[]}
-  | term_npv COMMA term_npv_list_ne { $1::$3 }
-;
-term_npv_list:
-  | /*empty*/  {[]}
-  | term_npv_list_ne {$1}
-;
-
-/* With pattern vars*/
 term:
-  | lvariable { PS.Arg_var ($1) }
-  | identifier L_PAREN term_list R_PAREN { PS.Arg_op($1, $3) }
-  | L_PAREN term binop term R_PAREN { PS.Arg_op($3, [$2;$4]) }
-  | L_BRACE fldlist R_BRACE { PS.mkArgRecord $2 }
-  | STRING_CONSTANT { PS.Arg_string($1) }
+  | lvariable { F.mk_var $1 }
+  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
+  | L_PAREN term binop term R_PAREN { F.mk_app $3 [$2; $4] }
+  | STRING_CONSTANT { F.mk_string_const $1 }
 ;
 term_list_ne:
   | term {$1::[]}
@@ -216,152 +182,32 @@ term_list:
   | term_list_ne {$1}
 ;
 
-fldlist_npv:
-   | identifier EQUALS term_npv { [($1,$3)] }
-   | /*empty*/ { [] }
-   | identifier EQUALS term_npv SEMICOLON fldlist_npv  { ($1,$3) :: $5 }
-;
-
-fldlist:
-   | identifier EQUALS term { [($1,$3)] }
-   | /*empty*/ { [] }
-   | identifier EQUALS term SEMICOLON fldlist  { ($1,$3) :: $5 }
-;
-
-
 /* Formulae */
 
 formula:
-  | /*empty*/  { PS.mkEmpty }
-  | EMP  { PS.mkEmpty }
-  | FALSE { PS.mkFalse }
-  | BANG identifier L_PAREN term_list R_PAREN { PS.mkPPred ($2, $4) }
-  | identifier L_PAREN term_list R_PAREN { PS.mkSPred($1,$3) }
-  | formula MULT formula { PS.mkStar $1 $3 }
-  | formula OROR formula { PS.mkOr ($1,$3) }
-  | term NOT_EQUALS term { PS.mkNEQ ($1,$3) }
-  | term EQUALS term { PS.mkEQ ($1, $3) }
-  | term cmpop term { PS.mkPPred ($2, [$1;$3]) }
+  | /*empty*/  { F.emp }
+  | EMP  { F.emp }
+  | FALSE { F.fls }
+  | BANG identifier L_PAREN term_list R_PAREN { F.mk_app ("!"^$2) $4 }
+  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
+  | formula MULT formula { F.mk_2 "*" $1 $3 }
+  | formula OROR formula { F.mk_2 "or" $1 $3 }
+  | term NOT_EQUALS term { F.mk_2 "!=" $1 $3 }
+  | term EQUALS term { F.mk_2 "==" $1 $3 }
+  | term cmpop term { F.mk_2 $2 $1 $3 }
   | L_PAREN formula R_PAREN { $2 }
 ;
 
-formula_npv:
-  | /*empty*/  { PS.mkEmpty }
-  | EMP  { PS.mkEmpty }
-  | FALSE { PS.mkFalse}
-  | BANG identifier L_PAREN term_npv_list R_PAREN { PS.mkPPred ($2, $4) }
-  | identifier L_PAREN term_npv_list R_PAREN { PS.mkSPred($1,$3) }
-  | formula_npv MULT formula_npv { PS.mkStar $1 $3 }
-  | formula_npv OROR formula_npv { PS.mkOr ($1,$3) }
-  | term_npv NOT_EQUALS term_npv { PS.mkNEQ ($1,$3) }
-  | term_npv EQUALS term_npv { PS.mkEQ ($1,$3) }
-  | term_npv cmpop term_npv { PS.mkPPred ($2, [$1;$3]) }
-  | L_PAREN formula_npv R_PAREN { $2 }
-;
-
 spatial_at:
-  | identifier L_PAREN term_list R_PAREN { PS.mkSPred($1,$3) }
+  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
 ;
 spatial_list_ne:
-  | spatial_at MULT spatial_list_ne  { PS.mkStar $1 $3 }
+  | spatial_at MULT spatial_list_ne  { F.mk_2 "*" $1 $3 }
   | spatial_at    { $1 }
 ;
 spatial_list:
   | spatial_list_ne { $1 }
-  | /*empty*/  { PS.mkEmpty }
-;
-
-
-/* Sequents and rules */
-
-sequent:
-    spatial_list OR formula VDASH formula { PS.mk_psequent $1 $3 $5 }
-;
-sequent_list:
-  |  /* empty */ { [] }
-  | TRUE { [] }
-  | sequent {[$1]}
-  | sequent SEMICOLON sequent_list { $1::$3 }
-;
-sequent_list_or_list:
-  |  sequent_list {[$1]}
-  |  sequent_list ORTEXT sequent_list_or_list { $1::$3 }
-;
-
-without:
-  | WITHOUT formula { ($2, PS.mkEmpty) }
-  | WITHOUT formula VDASH formula { ($2,$4) }
-  | /* empty */ { (PS.mkEmpty, PS.mkEmpty) }
-;
-
-without_simp:
-  | WITHOUT formula { $2 }
-  | /* empty */ { [] }
-;
-
-varterm:
-  | lvariable_list { PS.Var (PS.vs_from_list $1) }
-;
-
-clause:
-  | varterm NOTINCONTEXT { PS.NotInContext $1 }
-  | varterm NOTIN term { PS.NotInTerm ($1,$3) }
-  | formula PUREGUARD { PS.PureGuard $1 }   /* TODO: check that the formula here is really pure */
-;
-
-clause_list:
-  | clause  { [$1] }
-  | clause SEMICOLON clause_list {$1 :: $3}
-;
-
-where:
-  | WHERE clause_list { $2 }
-  | /* empty */ { [] }
-;
-
-ifclause:
-  | /* empty plain term */ { [] }
-  | IF formula {$2}
-;
-
-/* TODO: Test that simplified rules are fine for pure bits.*/
-equiv_rule:
-  | EQUIV identifier_op COLON formula IMP formula BIMP formula without_simp
-    { PS.EquivRule ($2,$4,$6,$8,$9) }
-  | EQUIV identifier_op COLON formula IMP formula without_simp
-    { PS.EquivRule ($2,$4,$6,PS.mkEmpty,$7) }
-  | EQUIV identifier_op COLON formula BIMP formula without_simp
-    { PS.EquivRule ($2,PS.mkEmpty,$4,$6,$7) }
-;
-
-rule:
-  | CONSTRUCTOR identifier
-    { PS.ConsDecl $2 }
-  | RULE identifier_op COLON sequent without where IF sequent_list_or_list
-    { PS.SeqRule($4,$8,$2,$5,$6) }
-  | REWRITERULE identifier_op COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
-    { PS.RewriteRule
-      ( { PS.function_name = $4
-        ; arguments = $6
-        ; result = $9
-        ; guard = { PS.without_form=$11; rewrite_where=$12; if_form=$10 }
-        ; rewrite_name = $2
-        ; saturate = false } ) }
-  | REWRITERULE identifier_op MULT COLON identifier L_PAREN term_list R_PAREN EQUALS term ifclause without_simp where
-    { PS.RewriteRule
-      ( { PS.function_name = $5
-        ; arguments = $7
-        ; result = $10
-        ; guard = { PS.without_form=$12; rewrite_where=$13; if_form=$11 }
-        ; rewrite_name = $2
-        ; saturate=true } ) }
-  | ABSRULE identifier_op COLON formula LEADSTO formula where
-    { let seq = PS.mk_psequent PS.mkEmpty $4 PS.mkEmpty in
-      let wo = (PS.mkEmpty, PS.mkEmpty) in
-      let seq2= PS.mk_psequent PS.mkEmpty $6 PS.mkEmpty in
-      let seq_list=[[seq2]] in
-      PS.SeqRule(seq,seq_list,$2,wo,$7) }
-  | equiv_rule { $1 }
+  | /*empty*/  { F.emp }
 ;
 
 /* Specifications */
@@ -372,18 +218,18 @@ triple:
 ;
 
 spec:
-  | /* empty */ { HashSet.create 1 }
-  | spec triple { HashSet.add $1 $2; $1 }
+  | /* empty */ { C.TripleSet.create 0 }
+  | spec triple { C.TripleSet.add $1 $2; $1 }
 ;
 
 
 /* Core statements */
 
 core_assn_args:
-  | lvariable_npv_list COLON_EQUALS { $1 }
+  | lvariable_list COLON_EQUALS { $1 }
   | /* empty */  { [] }
 ;
-core_args_in: L_PAREN term_npv_list R_PAREN { $2 };
+core_args_in: L_PAREN term_list R_PAREN { $2 };
 
 label_list:
   | IDENTIFIER   { [$1] }
@@ -393,9 +239,9 @@ label_list:
 call_stmt: /* split in cases to avoid parsing conflict */
   | IDENTIFIER core_args_in
     { { C.call_name = $1; call_rets = []; call_args = $2 } }
-  | lvariable_npv COLON_EQUALS IDENTIFIER core_args_in
+  | lvariable COLON_EQUALS IDENTIFIER core_args_in
     { { C.call_name = $3; call_rets = [$1]; call_args = $4 } }
-  | lvariable_npv COMMA lvariable_npv_list_ne COLON_EQUALS IDENTIFIER core_args_in
+  | lvariable COMMA lvariable_list_ne COLON_EQUALS IDENTIFIER core_args_in
     { { C.call_name = $5; call_rets = $1 :: $3; call_args = $6 } }
 ;
 
@@ -417,13 +263,6 @@ core_stmt_list:
 
 /* Input files */
 
-prover_query:
-  | IMPLICATION COLON formula_npv VDASH formula_npv {PS.Implication($3,$5)}
-  | INCONSISTENCY COLON formula_npv {PS.Inconsistency($3)}
-  | FRAME COLON formula_npv VDASH formula_npv {PS.Frame($3,$5)}
-  | ABDUCTION COLON formula_npv VDASH formula_npv {PS.Abduction($3,$5)}
-;
-
 body:
   | /* empty */ { None }
   | QUESTIONMARK core_stmt_list { Some $2 }
@@ -434,7 +273,7 @@ procedure:
     { { C.proc_name = $2
       ; proc_spec = $4
       ; proc_body = $5
-      ; proc_rules = Psyntax.empty_logic (* XXX *) } }
+      ; proc_rules = failwith "TODO: empty logic?" } }
 ;
 
 import_entry:
@@ -443,8 +282,6 @@ import_entry:
 
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
-  | prover_query { ParserAst.ProverQuery $1 (* deprecated *) }
-  | rule { ParserAst.Rule $1 }
 ;
 
 entry:

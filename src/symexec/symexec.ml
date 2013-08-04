@@ -5,9 +5,9 @@ open Debug
 open Format
 
 module C = Core
+module F = Formula
 module G = Cfg
 module P = Cfg.Procedure
-module PS = Psyntax
 
 exception Fatal of string
 
@@ -15,28 +15,25 @@ let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
-let substitute_list var = ListH.foldri (Sepprover.update_var_to @@ var)
+let substitute_list var = failwith "TODO"
+  (* ListH.foldri (Sepprover.update_var_to @@ var) *)
 
 let substitute_args = substitute_list CoreOps.parameter_var
 let substitute_rets = substitute_list CoreOps.return_var
 
-let specialize_spec rets args =
-  let ret_terms = List.map (fun v -> PS.Arg_var v) rets in
+let specialize_spec rets args xs =
+  let ret_terms = List.map (fun v -> F.mk_var v) rets in
   let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
     ; modifies = lift_option2 (@) modifies (Some rets) } in
-  HashSet.map f
+  xs |> C.TripleSet.elements |> List.map f |> C.TripleSet.of_list
 
 (* }}} *)
-let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
-  let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
-  let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
-  { C.proc_name; proc_spec; proc_body; proc_rules = Psyntax.empty_logic (*XXX*) }
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
 module CfgH = Digraph.Make
-  (struct type t = C.inner_core end)
+  (struct type t = C.statement end)
   (Digraph.UnlabeledEdge)
 module HVHashtbl = Hashtbl.Make (CfgH.V)
 module HVHashSet = HashSet.Make (CfgH.V)
@@ -175,7 +172,7 @@ let mk_cfg q =
 
 (* helpers for [compute_call_graph] {{{ *)
 module CallGraph = Digraph.Make
-  (struct type t = (P.t, C.inner_spec, Sepprover.inner_logic) C.procedure end)
+  (struct type t = P.t C.procedure end)
   (Digraph.UnlabeledEdge)
 module DotCg = Digraph.Dot (struct
   include Digraph.DotDefault (CallGraph)
@@ -229,7 +226,7 @@ module ProcedureInterpreter : sig
     | Unknown
   val interpret
     : (string -> CallGraph.V.label)
-      -> Sepprover.inner_logic
+      -> Type.todo (* logic *)
       -> bool
       -> CallGraph.V.label
       -> interpret_procedure_result
@@ -351,17 +348,14 @@ end = struct
     update_post_confs execute abstract context new_pre s;
     CS.length new_pre > 0
 
-  let emp = Specification.empty_inner_form
-
   let initialize procedure pre =
-    if safe then Sepprover.check_inner_form pre;
     let confgraph = CG.create () in
     let flowgraph = procedure.P.cfg in
     let post_of = SD.create 1 in
     let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
     let conf = CG.V.create
-      (G.OkConf ({ G.current_heap = pre; missing_heap = emp }, G.Demonic)) in
+      (G.OkConf ({ G.current_heap = pre; missing_heap = F.emp }, G.Demonic)) in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
     SD.add post_of procedure.P.start (CS.singleton conf);
@@ -371,20 +365,18 @@ end = struct
   module ConfBfs = Bfs.Make (CS)
 
   let make_nonempty = function
-    | [] -> [(emp, emp)]
+    | [] -> [(F.emp, F.emp)]
     | xs -> xs
 
-  let abduct logic p q =
-    Sepprover.abduct_inner logic p q |> option_map make_nonempty
+  let abduct logic p q = failwith "TODO"
+(*     Sepprover.abduct_inner logic p q |> option_map make_nonempty *)
 
-  let frame logic p q =
-    if safe then begin
-      Sepprover.check_inner_form p;
-      Sepprover.check_inner_form q;
-    end;
+  let frame logic p q = failwith "TODO"
+(*
     Sepprover.frame_inner logic p q
-    |> option_map (List.map (fun x -> (emp, x)))
+    |> option_map (List.map (fun x -> (F.emp, x)))
     |> option_map make_nonempty
+*)
 
   let collect_pvars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
@@ -393,21 +385,27 @@ end = struct
           failwith "INTERNAL: calls should be removed by [inline_call_specs]"
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
-            let cp_formula f =
-              List.fold_right PS.VarSet.add (Sepprover.get_pvars f) in
+            let cp_formula f = failwith "TODO get pvars from fromula f" in
+(*               List.fold_right PS.VarSet.add (Sepprover.get_pvars f) in *)
             acc |> cp_formula pre |> cp_formula post in
-          HashSet.fold cp_triple spec acc
+          C.TripleSet.fold cp_triple spec acc
     in
+    failwith "TODO: see below"
+(*
     G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
+*)
 
-  let kill_pvars = PS.VarSet.fold Sepprover.kill_var
+  let kill_pvars vs f = failwith "TODO kill vs from f"
+(*     PS.VarSet.fold Sepprover.kill_var *)
 
   (* Used as the [make_framable] argument of the generic [execute]. *)
   (* Better name? *)
-  let kill_with_pure_from pvars f g =
+  let kill_with_pure_from pvars f g = failwith "TODO"
+(*
     let f' = Sepprover.purify_inner f in
     let g' = Sepprover.conjoin_inner f' g in
     kill_pvars pvars g'
+*)
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -420,26 +418,22 @@ end = struct
   =
     if log log_exec then
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
-        CoreOps.pp_inner_triple triple
+        CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
+    let vs = failwith "TODO: see below" in
+(*
     let vs = match modifies with
       (* TODO: ensure None doesn't happen (assert?poly?), and expand before *)
       | None -> Sepprover.get_pvars post
       | Some vs -> vs in
     let vs = List.fold_right PS.VarSet.add vs PS.VarSet.empty in
-    if safe then G.check_ok_configuration pre_conf;
+*)
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
       let mk_post_conf (a, f) =
-        let ( * ) = Sepprover.conjoin_inner in
-	if safe then begin
- 	  Sepprover.check_inner_form a;
-	  Sepprover.check_inner_form (make_framable pre_conf.G.current_heap a);
-	  Sepprover.check_inner_form post;
-	  Sepprover.check_inner_form (kill_pvars vs f);
-	  Sepprover.check_inner_form (post * kill_pvars vs f);
-	end;
+        let ( * ) = failwith "TODO" in
+(*           Sepprover.conjoin_inner in *)
         let conf =
           { G.missing_heap
             = pre_conf.G.missing_heap * make_framable pre_conf.G.current_heap a
@@ -470,7 +464,7 @@ end = struct
     fun spec_of pre_conf statement ->
       statement
       |> spec_of
-      |> HashSet.elements
+      |> C.TripleSet.elements
       |> List.map (execute_one_triple pre_conf)
       |> make_angelic_choice
 
@@ -504,12 +498,17 @@ end = struct
     | G.ErrorConf, G.ErrorConf -> true
     | G.ErrorConf, _ | _, G.ErrorConf -> false
     | G.OkConf (c1, _), G.OkConf (c2, _) ->
+        failwith "TODO"
+(*
       Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
       Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
+*)
 
-  let implies_triple logic t1 t2 =
+  let implies_triple logic t1 t2 = failwith "TODO"
+(*
     Sepprover.implies logic t1.C.post t2.C.post &&
     Sepprover.implies logic t2.C.pre t1.C.pre
+*)
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -608,11 +607,11 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
-  let empty_inner_triple = { Core.pre = emp; post = emp; modifies = Some [] }
+  let empty_triple = { Core.pre = F.emp; post = F.emp; modifies = Some [] }
 
   let spec_of post =
     let post = CoreOps.mk_assert post in
-    let nop = HashSet.singleton empty_inner_triple in
+    let nop = C.TripleSet.singleton empty_triple in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -625,7 +624,8 @@ end = struct
 
   let update_infer pvars rules body post =
     let abduct = abduct rules in
-    let is_deadend = Sepprover.inconsistent rules in
+    let is_deadend = failwith "TODO" in
+(*     let is_deadend = Sepprover.inconsistent rules in *)
     let make_framable = kill_with_pure_from pvars in
     let execute =
       execute abduct is_deadend make_framable (spec_of post body.P.stop) in
@@ -633,8 +633,9 @@ end = struct
 
   let update_check rules body post =
     let abduct = frame rules in
-    let is_deadend = Sepprover.inconsistent rules in
-    let check_emp _ x = assert (x = emp); emp in
+    let is_deadend = failwith "TODO" in
+(*     let is_deadend = Sepprover.inconsistent rules in *)
+    let check_emp _ x = assert (x = F.emp); F.emp in
     let execute =
       execute abduct is_deadend check_emp (spec_of post body.P.stop) in
     update execute (abstract_conf rules)
@@ -667,19 +668,22 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
-  let extend_precondition pvars pre =
-    let is_interesting v =
+  let extend_precondition pvars pre = failwith "TODO"
+(*
+    let is_interesting v = failwith "TODO" in
       (CoreOps.is_parameter v || CoreOps.is_global v)
       && (Sepprover.get_equals_pvar_free v pre = []) in
     let process_var v acc =
       if not (is_interesting v) then acc else begin
         let w = Vars.freshen_exists v in
-        PS.mkEQ (PS.mkVar v, PS.mkVar w) :: acc
+        F.mk_eq (F.mk_var v, F.mk_var w) :: acc
       end in
+    failwith "TODO"
     let conjuncts = PS.VarSet.fold process_var pvars [] in
     let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
     let r = Sepprover.conjoin_inner pre conjuncts in
     r
+*)
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
@@ -693,25 +697,27 @@ end = struct
         let pvars = collect_pvars body.P.cfg in (* XXX: Use modifies clauses! *)
         let process_triple update triple =
           if log log_phase then
-            fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_inner_triple triple;
+            fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_triple triple;
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
-            let ( * ) = Sepprover.conjoin_inner in
+            let ( * ) = failwith "TODO" in
+(*             let ( * ) = Sepprover.conjoin_inner in *)
             let pre = pre * missing_heap in
             { C.pre = pre
             ; post = current_heap
-            ; modifies = Some (PS.VarSet.elements pvars) } in
+            ; modifies = failwith "TODO" } in
+(*             ; modifies = Some (PS.VarSet.elements pvars) } in *)
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
-        let ts = HashSet.elements procedure.C.proc_spec in
+        let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
             if log log_phase then
               fprintf logf "@[symexec inferring %s@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer pvars rules body) in
-            let ts = empty_inner_triple :: ts in
+            let ts = empty_triple :: ts in
             if log log_phase then
               fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
@@ -728,10 +734,10 @@ end = struct
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
-          let new_ts =
-            List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in
+          let new_ts = failwith "TODO" in
+(*             List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in  *)
 	  (* Check if specifications are better. *)
-          let old_ts = HashSet.elements procedure.C.proc_spec in
+          let old_ts = C.TripleSet.elements procedure.C.proc_spec in
           let not_better nt =
             List.exists (fun ot -> implies_triple rules ot nt) old_ts in
           if List.for_all not_better new_ts then begin
@@ -741,17 +747,17 @@ end = struct
             end;
             OK
           end else
-            (procedure.C.proc_spec <- HashSet.of_list new_ts;
+            (procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
              if log log_exec then begin
                fprintf logf "@[<2>Abducted triples:";
-	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_inner_triple triple) ts;
+	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_triple triple) ts;
 	       fprintf logf "@]@,@?"
              end;
 	     Spec_updated)
 	end
 	else begin
-          let new_specs = HashSet.of_list ts in
-	  if HashSet.length new_specs = HashSet.length procedure.C.proc_spec
+          let new_specs = C.TripleSet.of_list ts in
+	  if C.TripleSet.length new_specs = C.TripleSet.length procedure.C.proc_spec
           then OK
 	  else NOK
 	end
@@ -790,23 +796,12 @@ let interpret q =
   List.for_all (interpret_one_scc proc_of_name) qs
 
 let print_specs ps =
-  let triple f t = fprintf f "@\n@[<2>%a@]" CoreOps.pp_inner_triple t in
+  let triple f t = fprintf f "@\n@[<2>%a@]" CoreOps.pp_triple t in
   let proc f p =
     fprintf f "@\n@[<2>%s%a@]"
       p.C.proc_name
-      (pp_list triple) (HashSet.elements p.C.proc_spec) in
+      (pp_list triple) (C.TripleSet.elements p.C.proc_spec) in
   printf "@[<2>@{<g>INFERRED@}:%a@\n@]@?" (pp_list proc) ps
-
-let convert_question q =
-  let logic = Sepprover.convert_logic q.C.q_rules in
-  let ast_to_inner_procedure { C.proc_name; proc_spec; proc_body } =
-    let proc_spec = CoreOps.ast_to_inner_spec proc_spec in
-    let proc_body = option_map (List.map CoreOps.ast_to_inner_core) proc_body in
-    { C.proc_name; proc_spec; proc_body; proc_rules = logic } in
-  { C.q_procs = List.map ast_to_inner_procedure q.C.q_procs
-  ; C.q_rules = logic
-  ; C.q_infer = q.C.q_infer
-  ; C.q_name = q.C.q_name }
 
 (*
 Summary of result of symbolic execution:
@@ -828,7 +823,7 @@ For a list of functions, all functions have to be OK.
 let verify q =
   if log log_exec then
     fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
-  let q = map_procs mk_cfg (convert_question q) in
+  let q = map_procs mk_cfg q in
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@?";
