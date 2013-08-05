@@ -1,0 +1,30 @@
+In a moment of insanity, I, Radu Grigore, decided to throw away lots of
+perfectly functioning code, and replace it with some other lot of perfectly
+functioning code.  Since the beginning, coreStar had dealt with equalities,
+disequalities, uninterpreted functions, and related matters by its own.
+Specifically, it had three modules (Congruence, Cterm, Clogic), the first of
+which was very complicated, and the other twos heaping on top of it.  For
+efficiency, it represented formulas in a very complicated way, which made it
+difficult to perform operations such as ‘build P*Q out of P and Q’.  We (Rasmus
+and I) tried to remedy the situation by implementing the said operations.  In
+the process, we fixed several glaring bugs in the old code, and replaced them
+with subtle bugs, which we were subsequently unable to repair.
+
+Needless to say, I consider this state of affairs as unsatisfactory.
+
+So, here is the plan, in brief format:  Discharge anything that has to do with
+equalities and uninterpreted functions to an SMT solver, and keep the formula
+representation inside coreStar as simple as possible.  Don't worry about
+efficiency; fix it later if necessary.
+
+Now, a bit more detail.
+
+
+--------------------------------------------------------------------------------
+- Formula representation
+
+I want to use a tree of strings.
+
+
+
+vim:spell:tw=80:fo+=t:
