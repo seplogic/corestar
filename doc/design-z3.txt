@@ -17,14 +17,80 @@ equalities and uninterpreted functions to an SMT solver, and keep the formula
 representation inside coreStar as simple as possible.  Don't worry about
 efficiency; fix it later if necessary.
 
-Now, a bit more detail.
+Now, a bit more detail.  The main data type that we must define is that for
+expressions/formulas/terms.  (I don't want to distinguish between them.) The
+operations on formulas include
+  - Building them from syntactic descriptions; for example, ‘make P*Q out of P
+    and Q’.  This must be done by the parser, and is also useful sometimes in
+    the middle of symbolic execution.
+  - Convert to SMT format.
+  - Bring to a normal form, which the separation prover can handle.  I think the
+    normal form could simply use the same OCaml type, although it's conceptually
+    a subtype.
 
 
 --------------------------------------------------------------------------------
 - Formula representation
 
-I want to use a tree of strings.
+The two main constructors are
+  make_app : operator → formula list → formula
+  make_var : string → formula
+and the accompanying deconstructors are
+  break_app : formula → (operator * formula list)
+  break_var : formula → srting
 
+*Why:*  Of course, this could be just a (transparent) variant type.  Why go
+through the trouble to hide it behind constructors/deconstructors?  I think it's
+likely that we would have to implement hash-consing [1], such that we can
+determine in O(1) time whether two formulas/terms are syntactically equal.  The
+old implementation was doing this by using some integer identifiers in
+Congruence, which had a limited scope, meaning that it was *sometimes* possible
+to compare terms quickly.
+
+Structural equality should be tested using the function
+  eq : formula → formula → bool
+rather than the OCaml's polymorphic comparison =.  This way, it will be easier
+to switch to a new implementation in the future.
+
+*TODO:* I'm not sure whether [operator] should be just a string, or a variant
+that identifies the operators 
+
+Some other helpers need to be provided.  For example, instead of
+  make_app Star [a; b]
+it's more convenient to say
+  make_star a b
+But, such conveniences should be easy to implement in terms of the above.
+
+*Why:*  Destructors are supposed to make it reasonably convenient to use pattern
+matching, even if the variant type used for formulas is not transparent.
+
+
+--------------------------------------------------------------------------------
+- Sequent representation
+
+The coreStar sequents have the shape
+  R | P ⊢ Q
+and the semantics
+  if h ⊨ P * R, then h ⊨ Q * R
+for some definition of ⊨.
+
+*TODO:* I say ‘some’ because I'm not sure whether we assume the intuitionistic
+definition in some essential way.  (In the past I simply assumed the
+intuitionistic definition when thinking about it, but other users, such as
+Jules, probably aren't.  Another way to put it: While modifying the alt-abd
+branch I didn't pay attention to whether those modifications would make life
+hard for Jules. Sorry.)
+
+I *think* it might be fine to have a transparent type
+  type sequent =
+    { sequent_frame : formula
+    ; sequent_hypothesis : formula
+    ; sequent_consequence : formula }
+
+
+
+
+[1] http://youtu.be/IK0G04Mry3s
 
 
 vim:spell:tw=80:fo+=t:
