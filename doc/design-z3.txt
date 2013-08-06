@@ -18,15 +18,44 @@ representation inside coreStar as simple as possible.  Don't worry about
 efficiency; fix it later if necessary.
 
 Now, a bit more detail.  The main data type that we must define is that for
-expressions/formulas/terms.  (I don't want to distinguish between them.) The
-operations on formulas include
-  - Building them from syntactic descriptions; for example, ‘make P*Q out of P
-    and Q’.  This must be done by the parser, and is also useful sometimes in
-    the middle of symbolic execution.
-  - Convert to SMT format.
-  - Bring to a normal form, which the separation prover can handle.  I think the
-    normal form could simply use the same OCaml type, although it's conceptually
-    a subtype.
+expressions.  I plan to use these to represent several things:
+  - terms: 0, 1, x, 1 + x, ...
+  - formulas: x == y,  x.f |-> y,  x == y * y != z
+  - patterns:  _x.next |-> _y * _y.next |-> _x
+These share several common operations:
+  - construction:  the operators used in patterns are the same as those used in
+    formulas and terms, although operators used in formulas are disjoint from
+    those used in terms
+  - convert to normal forms, such as the form expected by the prover; a normal
+    form could be subtype, but I'd prefer just semantic checks (e.g.
+    is_normal_form_foo : formula -> bool)
+Roughly, we would need to distinguish several types of operators, such as
+  - those used in terms: +, -, ...
+  - equality and disequality (they are special because pattern matching is done
+    modulo equality; see later)
+It is, however, not completely clear to me how many categories we should have.
+For example, are spatial predicates treated mostly the same or mostly different
+from non-spatial (pure) predicates?  In the former case, you'd not want a
+distinction at the type level; in the latter case, you would.
+
+*Remark:*  The previous paragraph raises the question of how much information to
+encode in types.  My personal preference appears below.  I'm unsure whether what
+I propose is too little or too much.  I suspect most people (that means you)
+would think ‘too little’.  It seems to me there is no such thing as the ‘right
+amount’, but there is a reasonable range, and the most important thing is to not
+go overboard.  One reason why I tilt towards the ‘too little’ end of the range
+is that I'm uncertain what are the right categories of operators, and code that
+uses types less feels more malleable.
+
+There are also operations that apply only to some particular kinds of
+expressions, such as:
+  - terms and formulas: conversion to the SMT format (I think there's no such
+    thing as a pattern in SMT)
+  - terms/formulas vs pattern: matching
+
+*TODO:* Since we don't want to handle equalities and since pattern matching is
+done modulo equalities, we must use Z3 during pattern matching.  We need to
+clarify how this is done.
 
 
 --------------------------------------------------------------------------------
