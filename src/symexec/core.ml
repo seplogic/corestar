@@ -11,21 +11,21 @@
       LICENSE.txt
  ********************************************************)
 
-module F = Formula
+module Expr = Expression
 
 type args_out = string list
-type args_in = F.t list
+type args_in = Expr.t list
 
-type triple = { pre : F.t; post : F.t; modifies : args_out option }
+type triple = { pre : Expr.t; post : Expr.t; modifies : args_out option }
 
 module TripleSet = HashSet.Make (struct
   type t = triple
 
   let equal a b =
-    F.eq a.pre b.pre && F.eq a.post b.post && a.modifies = b.modifies
+    Expr.eq a.pre b.pre && Expr.eq a.post b.post && a.modifies = b.modifies
 
   let hash { pre; post; modifies } =
-    ((F.hash pre * 31) + F.hash post) * 31 + Hashtbl.hash modifies
+    ((Expr.hash pre * 31) + Expr.hash post) * 31 + Hashtbl.hash modifies
 end)
 
 type spec = TripleSet.t

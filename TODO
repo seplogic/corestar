@@ -1,3 +1,5 @@
+- fill in TODOs
+
 - fix bug in treatment of constructors for frame inference:
   constants (aka constructors) from the obligation should be assumed
   distinct from the other constructors that appear in the assumption

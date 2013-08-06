@@ -5,7 +5,7 @@ open Debug
 open Format
 
 module C = Core
-module F = Formula
+module Expr = Expression
 module G = Cfg
 module P = Cfg.Procedure
 
@@ -22,7 +22,7 @@ let substitute_args = substitute_list CoreOps.parameter_var
 let substitute_rets = substitute_list CoreOps.return_var
 
 let specialize_spec rets args xs =
-  let ret_terms = List.map (fun v -> F.mk_var v) rets in
+  let ret_terms = List.map (fun v -> Expr.mk_var v) rets in
   let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
@@ -355,7 +355,7 @@ end = struct
     let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
     let conf = CG.V.create
-      (G.OkConf ({ G.current_heap = pre; missing_heap = F.emp }, G.Demonic)) in
+      (G.OkConf ({ G.current_heap = pre; missing_heap = Expr.emp }, G.Demonic)) in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
     SD.add post_of procedure.P.start (CS.singleton conf);
@@ -365,7 +365,7 @@ end = struct
   module ConfBfs = Bfs.Make (CS)
 
   let make_nonempty = function
-    | [] -> [(F.emp, F.emp)]
+    | [] -> [(Expr.emp, Expr.emp)]
     | xs -> xs
 
   let abduct logic p q = failwith "TODO"
@@ -374,7 +374,7 @@ end = struct
   let frame logic p q = failwith "TODO"
 (*
     Sepprover.frame_inner logic p q
-    |> option_map (List.map (fun x -> (F.emp, x)))
+    |> option_map (List.map (fun x -> (Expr.emp, x)))
     |> option_map make_nonempty
 *)
 
@@ -607,7 +607,7 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
-  let empty_triple = { Core.pre = F.emp; post = F.emp; modifies = Some [] }
+  let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = Some [] }
 
   let spec_of post =
     let post = CoreOps.mk_assert post in
@@ -635,7 +635,7 @@ end = struct
     let abduct = frame rules in
     let is_deadend = failwith "TODO" in
 (*     let is_deadend = Sepprover.inconsistent rules in *)
-    let check_emp _ x = assert (x = F.emp); F.emp in
+    let check_emp _ x = assert (x = Expr.emp); Expr.emp in
     let execute =
       execute abduct is_deadend check_emp (spec_of post body.P.stop) in
     update execute (abstract_conf rules)
@@ -676,7 +676,7 @@ end = struct
     let process_var v acc =
       if not (is_interesting v) then acc else begin
         let w = Vars.freshen_exists v in
-        F.mk_eq (F.mk_var v, F.mk_var w) :: acc
+        Expr.mk_eq (Expr.mk_var v, Expr.mk_var w) :: acc
       end in
     failwith "TODO"
     let conjuncts = PS.VarSet.fold process_var pvars [] in
@@ -811,7 +811,7 @@ Output:
 When run without abduction:
 OK if f run on pre implies post
 When run with abduction:
-{pre’} f {post’} is computed with pre' = pre * F for some F, then
+{pre’} f {post’} is computed with pre' = pre * Expr for some Expr, then
 OK if pre’ is consistent and post’ => post
 
 For a list of specs, we filter out the triples which are OK.

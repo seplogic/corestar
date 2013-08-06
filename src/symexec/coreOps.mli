@@ -48,5 +48,5 @@ val refines_triple : triple refinement_check
 val refines_spec : spec refinement_check
 
 (** {2 Construct simple specs} *)
-val mk_assume : F.t -> spec
-val mk_assert : F.t -> spec
+val mk_assume : Expression.t -> spec
+val mk_assert : Expression.t -> spec

@@ -3,7 +3,7 @@ open Format
 
 module C = Core
 module DG = Digraph
-module F = Formula
+module Expr = Expression
 
 type cfg_vertex =
   | Abs_cfg
@@ -27,10 +27,10 @@ module CfgVHashSet = HashSet.Make (Cfg.V)
   [current_heap] is reached without fault.
   INV: [missing_heap] must not mention program variables, only logical ones
 *)
-type ok_configuration = { current_heap : F.t; missing_heap : F.t }
+type ok_configuration = { current_heap : Expr.t; missing_heap : Expr.t }
 
 let pp_ok_configuration f { current_heap; missing_heap } =
-  fprintf f "(now:%a,@ missing:%a)" F.pp current_heap F.pp missing_heap
+  fprintf f "(now:%a,@ missing:%a)" Expr.pp current_heap Expr.pp missing_heap
 
 type split_type = Angelic | Demonic
 

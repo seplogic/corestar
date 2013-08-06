@@ -15,16 +15,16 @@ open Core
 open Corestar_std
 open Format
 
-module F = Formula
+module Expr = Expression
 
 let pp_args_out = pp_list_sep "," pp_string
-let pp_args_in = pp_list_sep "," F.pp
+let pp_args_in = pp_list_sep "," Expr.pp
 
 let pp_triple f { pre; post; modifies } =
   let pm f = function
     | None -> fprintf f "*"
     | Some vs -> fprintf f "%a:=*" (pp_list_sep "," pp_string) vs in
-  fprintf f "{%a}@,[%a]@,{%a}" F.pp pre pm modifies F.pp post
+  fprintf f "{%a}@,[%a]@,{%a}" Expr.pp pre pm modifies Expr.pp post
 
 let pp_spec f ts = pp_list_sep "+" pp_triple f (TripleSet.elements ts)
 
@@ -93,5 +93,5 @@ let refines_spec logic spec1 spec2 =
     spec2
 
 let mk_assume f =
-  TripleSet.singleton { pre = F.emp; post = f; modifies = Some [] }
+  TripleSet.singleton { pre = Expr.emp; post = f; modifies = Some [] }
 let mk_assert f = TripleSet.singleton { pre = f; post = f; modifies = Some [] }

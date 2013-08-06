@@ -17,7 +17,7 @@ open Corestar_std
 open Format
 
 module C = Core
-module F = Formula
+module Expr = Expression
 
 let newVar x =
   if x.[0] = '_' then begin
@@ -168,10 +168,10 @@ lvariable_list:
 ;
 
 term:
-  | lvariable { F.mk_var $1 }
-  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
-  | L_PAREN term binop term R_PAREN { F.mk_app $3 [$2; $4] }
-  | STRING_CONSTANT { F.mk_string_const $1 }
+  | lvariable { Expr.mk_var $1 }
+  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
+  | L_PAREN term binop term R_PAREN { Expr.mk_app $3 [$2; $4] }
+  | STRING_CONSTANT { Expr.mk_string_const $1 }
 ;
 term_list_ne:
   | term {$1::[]}
@@ -185,29 +185,29 @@ term_list:
 /* Formulae */
 
 formula:
-  | /*empty*/  { F.emp }
-  | EMP  { F.emp }
-  | FALSE { F.fls }
-  | BANG identifier L_PAREN term_list R_PAREN { F.mk_app ("!"^$2) $4 }
-  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
-  | formula MULT formula { F.mk_2 "*" $1 $3 }
-  | formula OROR formula { F.mk_2 "or" $1 $3 }
-  | term NOT_EQUALS term { F.mk_2 "!=" $1 $3 }
-  | term EQUALS term { F.mk_2 "==" $1 $3 }
-  | term cmpop term { F.mk_2 $2 $1 $3 }
+  | /*empty*/  { Expr.emp }
+  | EMP  { Expr.emp }
+  | FALSE { Expr.fls }
+  | BANG identifier L_PAREN term_list R_PAREN { Expr.mk_app ("!"^$2) $4 }
+  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
+  | formula MULT formula { Expr.mk_2 "*" $1 $3 }
+  | formula OROR formula { Expr.mk_2 "or" $1 $3 }
+  | term NOT_EQUALS term { Expr.mk_2 "!=" $1 $3 }
+  | term EQUALS term { Expr.mk_2 "==" $1 $3 }
+  | term cmpop term { Expr.mk_2 $2 $1 $3 }
   | L_PAREN formula R_PAREN { $2 }
 ;
 
 spatial_at:
-  | identifier L_PAREN term_list R_PAREN { F.mk_app $1 $3 }
+  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
 ;
 spatial_list_ne:
-  | spatial_at MULT spatial_list_ne  { F.mk_2 "*" $1 $3 }
+  | spatial_at MULT spatial_list_ne  { Expr.mk_2 "*" $1 $3 }
   | spatial_at    { $1 }
 ;
 spatial_list:
   | spatial_list_ne { $1 }
-  | /*empty*/  { F.emp }
+  | /*empty*/  { Expr.emp }
 ;
 
 /* Specifications */
