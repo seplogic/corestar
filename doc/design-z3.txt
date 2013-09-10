@@ -66,7 +66,7 @@ The two main constructors are
   make_var : string → formula
 and the accompanying deconstructors are
   break_app : formula → (operator * formula list)
-  break_var : formula → srting
+  break_var : formula → string
 
 *Why:*  Of course, this could be just a (transparent) variant type.  Why go
 through the trouble to hide it behind constructors/deconstructors?  I think it's
@@ -82,7 +82,7 @@ rather than the OCaml's polymorphic comparison =.  This way, it will be easier
 to switch to a new implementation in the future.
 
 *TODO:* I'm not sure whether [operator] should be just a string, or a variant
-that identifies the operators 
+that identifies the operators.
 
 Some other helpers need to be provided.  For example, instead of
   make_app Star [a; b]
