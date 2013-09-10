@@ -133,11 +133,6 @@ identifier:
   | IDENTIFIER { $1 }
 ;
 
-identifier_op:
-  | /* empty */ {""} /* TODO(rgrig): fresh name, mentioning the location */
-  | identifier  {$1}
-;
-
 binop:
   | OP_DIV { "builtin_div" }
   | OP_MINUS { "builtin_minus" }
@@ -196,18 +191,6 @@ formula:
   | term EQUALS term { Expr.mk_2 "==" $1 $3 }
   | term cmpop term { Expr.mk_2 $2 $1 $3 }
   | L_PAREN formula R_PAREN { $2 }
-;
-
-spatial_at:
-  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
-;
-spatial_list_ne:
-  | spatial_at MULT spatial_list_ne  { Expr.mk_2 "*" $1 $3 }
-  | spatial_at    { $1 }
-;
-spatial_list:
-  | spatial_list_ne { $1 }
-  | /*empty*/  { Expr.emp }
 ;
 
 /* Specifications */
