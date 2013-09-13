@@ -1,45 +1,45 @@
-Implication: 
+Implication:
   (a + b) != (b + a)  |-  !p(d)
 ? True
 
-Implication: 
+Implication:
   (a + b) = (c + a)  |-  b = c
-? True 
+? True
 
-Implication: 
+Implication:
   (a < b) * (b < a)  |-  False
 ? True
 
 Implication:
   |- (a + b) = (b + a)
-? True 
+? True
 
-Implication: 
-  (a < b) * (b < c)  |-  (a < c) 
-? True 
+Implication:
+  (a < b) * (b < c)  |-  (a < c)
+? True
 
-Implication: 
+Implication:
   |- builtin_mult(b,a) = builtin_mult(a, b)
-? True 
+? True
 
-Implication: 
+Implication:
   |- (x + builtin_mult(k,x)) = builtin_mult((k + "1"), x)
-? True 
+? True
 
-Implication:  
+Implication:
   |- ((x + x) + builtin_mult(k,x)) = builtin_mult((k + "2"), x)
-? True 
+? True
 
 Implication:
   i=(_i_7138+"1") |- i=(_i_3524+"1")
 ? True
 
 Implication:
-  (_i_3524+"1")=_i_8098 * ("0"+"1")=_i_3524 * @parameter0:=M * 
+  (_i_3524+"1")=_i_8098 * ("0"+"1")=_i_3524 * @parameter0:=M *
     i=(_i_8098+"1") * !LE(i, M) * !LE("0", M) * !LE("0", M) * !LT("0", M)
   |- i=_i_8098 * !LE(_i_3524, M) * !LT(_i_3524, M)
 ? False
 
-Implication: 
-  !LT(a,b) |- testpred(a,b) 
+Implication:
+  !LT(a,b) |- testpred(a,b)
 ? True

@@ -13,31 +13,31 @@ Implication:
 ? True
 
 
-Implication: 
-  a != b 
+Implication:
+  a != b
   * (a=b * c!=d || a!=b * c=d)
   * (c=d * x="5" || c!=d * x="6")
   |-  x="5"
 ? True
 
 
-Implication: 
-  a != b 
+Implication:
+  a != b
   * (c=d * x="5" || c!=d * x="6")
   * (a=b * c!=d || a!=b * c=d)
   |-  x="5"
 ? True
 
-Implication: 
-  a = b 
+Implication:
+  a = b
   * (a=b * c!=d || a!=b * c=d)
   * (c=d * x="5" || c!=d * x="6")
   |-  x="6"
 ? True
 
 
-Implication: 
-  a = b 
+Implication:
+  a = b
   * (c=d * x="5" || c!=d * x="6")
   * (a=b * c!=d || a!=b * c=d)
   |-  x="6"

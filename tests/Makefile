@@ -8,9 +8,8 @@ test: $(DIRS_TEST)
 clean: $(DIRS_CLEAN)
 
 $(DIRS_TEST): %.test:
-	@echo -n "Testing $* "
+	@echo "Running $* "
 	@$(MAKE) -s -C $* test
-	@echo
 
 $(DIRS_CLEAN): %.clean:
 	$(MAKE) -C $* clean

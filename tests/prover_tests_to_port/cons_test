@@ -1,0 +1,15 @@
+Implication :
+  x != y  |-  c1(x) != c1(y)
+? True
+
+Implication :
+  c1(x) = c1(y)  |-  x = y
+? True
+
+Implication :
+    |-  c1(x) != c2(x)
+? True
+
+Implication :
+    |-  c1(x) != c3(x)
+? False

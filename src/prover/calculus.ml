@@ -11,7 +11,7 @@ type sequent =
 
 (*
 The subgoal may use conjunctions and disjunctions.  The goal and the subgoal may
-contain pattern variables (_x matches any term, ?x matches only variables).  All
+contain pattern variables (?x matches any term, _x matches only variables).  All
 pattern variables appearing in the subgoal must also appear in the goal. A rule
 is obtained from the rule schema by instantiating all pattern variables with
 some terms.

@@ -9,7 +9,10 @@ clean:
 
 $(TESTS): %.test:
 	@rm -rf $*.out && mkdir $*.out
-	@cd $*.out; OCAMLRUNPARAM=b corestar -nosmt -v -v -v ../$*.star > stdout 2> stderr; cd ..
+	@cd $*.out
+	@OCAMLRUNPARAM=b corestar -nosmt -v -v -v ../$*.star > stdout 2> stderr \
+	  || echo "  $* gives exit code $$?"
+	@cd ..
 
 .PHONY: test $(TESTS) clean
 .SILENT: test
