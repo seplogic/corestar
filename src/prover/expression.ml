@@ -1,10 +1,17 @@
 type t = Var of string | App of string * t list
+  (* TODO: explain which are valid names; empty string is not *)
 
 let mk_app op xs = App (op, xs)
 let mk_var v = Var v
 
 let eq _ _ = failwith "TODO"
-let hash _ = failwith "TODO"
+
+let hash e =
+  let eh = Hashtbl.hash "" in
+  let rec h acc = function
+    | Var s -> 31 * (31 * acc + Hashtbl.hash s) + eh
+    | App (s, xs) -> 31 * (List.fold_left h (31 * acc + Hashtbl.hash s) xs) + eh
+  in h 0 e
 
 let mk_0 op = mk_app op []
 let mk_1 op a = mk_app op [a]

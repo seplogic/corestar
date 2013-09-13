@@ -30,6 +30,10 @@ end)
 
 type spec = TripleSet.t
 
+type rules =
+  { calculus : Calculus.t
+  ; abstraction : Abstraction.t }
+
 type call =
   { call_name : string
   ; call_rets : args_out
@@ -39,7 +43,7 @@ type 'body procedure =
   { proc_name : string
   ; mutable proc_spec : spec
   ; proc_body : 'body option
-  ; proc_rules : Type.todo }
+  ; proc_rules : rules }
 
 type assignment =
   { asgn_rets : args_out
@@ -58,7 +62,7 @@ type ast_procedure = statement list procedure
 
 type 'proc question =
   { q_procs : 'proc list
-  ; q_rules : Type.todo
+  ; q_rules : rules
   ; q_infer : bool  (* [true] means do bi-abduction *)
   ; q_name : string }
 type ast_question = ast_procedure question

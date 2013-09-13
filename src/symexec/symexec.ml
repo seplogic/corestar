@@ -15,7 +15,7 @@ let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
-let substitute_list var = failwith "TODO"
+let substitute_list var _ = failwith "TODO"
   (* ListH.foldri (Sepprover.update_var_to @@ var) *)
 
 let substitute_args = substitute_list CoreOps.parameter_var
@@ -226,7 +226,7 @@ module ProcedureInterpreter : sig
     | Unknown
   val interpret
     : (string -> CallGraph.V.label)
-      -> Type.todo (* logic *)
+      -> C.rules
       -> bool
       -> CallGraph.V.label
       -> interpret_procedure_result

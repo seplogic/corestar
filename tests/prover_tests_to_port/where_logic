@@ -1,52 +1,52 @@
 
 rule vapourise_P:
-| P(_x) |- 
+| P(_x) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 
 rule vapourise_QP:
-| P(_x) * Q(_x) |- 
+| P(_x) * Q(_x) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 
 rule vapourise_R:
-| R(?x,_x) |- 
+| R(?x,_x) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 rule vapourise_RQ:
-| R(?x,_x) * Q(_x) |- 
+| R(?x,_x) * Q(_x) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 rule vapourise_RR:
-| R(?x,_x) * R(_x,?y) |- 
+| R(?x,_x) * R(_x,?y) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 rule vapourise_RT:
-| R(?x,_x) * T(_x,nil()) |- 
+| R(?x,_x) * T(_x,nil()) |-
 where
   _x notincontext
 if
-| |- 
+| |-
 
 
 abstraction pto_pto:
  NodeLL(?x,_x) * NodeLL(_x,nil()) ~~> ls(?x,nil())
-where 
+where
   _x notincontext;
   _x notin ?x
 

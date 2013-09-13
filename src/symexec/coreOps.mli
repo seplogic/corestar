@@ -23,6 +23,7 @@ val pp_triple : triple pretty_printer
 val pp_spec : spec pretty_printer
 val pp_statement : statement pretty_printer
 val pp_ast_procedure : ast_procedure pretty_printer
+val pp_rules : rules pretty_printer
 val pp_ast_question : ast_question pretty_printer
 
 

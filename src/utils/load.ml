@@ -29,7 +29,14 @@ let rec flatten ys = function
   | Leaf x :: xs -> flatten (x :: ys) xs
   | Branch zs :: xs -> flatten (flatten ys zs) xs
 
+let file_name = ref None
+
 let load ?(path = []) parse fn =
+  let parse fn =
+    file_name := Some fn;
+    let r = parse fn in
+    file_name := None;
+    r in
   let rec load ps ds fn =
     let fn =
       (try System.find_file_from_dirs ds fn

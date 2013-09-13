@@ -13,6 +13,7 @@
 
 open Debug
 open Corestar_std
+open Format
 
 let java_path_delimiter = if Sys.os_type = "Windows" then ";" else ":"
 let java_path_delimiter_re = Str.regexp (java_path_delimiter ^ "+")
@@ -40,16 +41,18 @@ let string_of_file fname =
 
 let parse_file pars lexe fname ftype =
   try
-    if log log_phase then
-      Printf.printf "Start parsing %s in %s...\n" ftype fname;
+    if log log_phase then printf "begin parsing %s from %s@\n" ftype fname;
     let ichan = open_in fname in
     let ret = pars lexe (Lexing.from_channel ichan) in
     Parsing.clear_parser ();
     close_in ichan;
-    if log log_phase then Printf.printf "Parsed %s!\n" fname;
+    if log log_phase then printf "end parsing %s from %s@\n" ftype fname;
     ret
-  with Parsing.Parse_error -> Printf.printf "Failed to parse %s\n" fname; exit 1
-  |  Failure s ->  Printf.printf "Failed to parse %s\n%s\n" fname s; exit 1
+  with
+    | Parsing.Parse_error ->
+        eprintf "@{<b>E: %s:@} parse error@." fname; exit 1
+    | Failure s ->
+        eprintf "@{<b>INTERNAL: %s:@} %s@." fname s; exit 1
 
 (*
   Check if file exists in current directory, or in list of directories supplied.

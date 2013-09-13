@@ -52,11 +52,17 @@ let pp_ast_procedure f { proc_name; proc_spec; proc_body } =
   option () (pp_body f) proc_body;
   fprintf f "@]"
 
+let pp_rules f { calculus; abstraction } =
+  fprintf f "@[%a@\n%a@]"
+    (pp_list CalculusOps.pp_rule_schema) calculus
+    (pp_list AbstractionOps.pp_rule_schema) abstraction
+
 let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
-  fprintf f "@[infer %b@@\n%a@\n%a@]"
+  fprintf f "@[<2>question %s@\ninfer %b@\n%a@\n%a@]"
+    q_name
     q_infer
     (pp_list pp_ast_procedure) q_procs
-    pp_logic q_rules
+    pp_rules q_rules
 
 let name_ret_v1 = "$ret_v1"
 let ret_v1 = Vars.concretep_str name_ret_v1
@@ -74,7 +80,7 @@ let is_global = has_prefix global_prefix
 
 let empty_ast_question =
   { q_procs = []
-  ; q_rules = failwith "TODO: empty logic"
+  ; q_rules = { calculus = []; abstraction = [] }
   ; q_infer = false
   ; q_name = "empty_question" }
 

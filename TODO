@@ -1,6 +1,8 @@
 - fill in TODOs
-  - define what a rewrite rule is (in abstraction.ml)
   - find a name for abstraction rules + calculus ("logic" is weird)
+  - make it parse tests
+  - port old tests
+  - remove the -nosmt flag, as smt is essential in this version
 
 - old todos, just for reference:
   - fix bug in treatment of constructors for frame inference:

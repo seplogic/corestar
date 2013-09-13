@@ -2,6 +2,7 @@
 *.swp
 .depend
 .install.mk
+/gmon.out
 _build
 rg.log
 tags

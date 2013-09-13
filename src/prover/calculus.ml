@@ -15,12 +15,15 @@ contain pattern variables (?x matches any term, _x matches only variables).  All
 pattern variables appearing in the subgoal must also appear in the goal. A rule
 is obtained from the rule schema by instantiating all pattern variables with
 some terms.
-NOTE: It is often the case that [goal_pattern] has the form (g * _f), and the
-[subgoal_pattern] has the form (s * _f) or ((s1 * _f) ∧ ... ∧ (sn * _f)), where
-_f is a pattern variable.
+NOTE: It is often the case that [goal_pattern] has the form (g * ?f), and the
+[subgoal_pattern] has the form (s * ?f) or ((s1 * ?f) ∧ ... ∧ (sn * ?f)), where
+?f is a pattern variable.
 TODO: Such assumptions about the shape must be captured by functions with the
 type [rule_schema -> bool].
  *)
 type rule_schema =
   { goal_pattern : sequent
   ; subgoal_pattern : sequent }
+
+type t = rule_schema list
+

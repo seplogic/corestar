@@ -25,8 +25,6 @@ let newVar x =
     if x = "" then Vars.freshe () else Vars.concretee_str x
   end else Vars.concretep_str x
 
-let file_name = ref None
-
 let pp_pos f pos =
   let line = pos.Lexing.pos_lnum in
   let column = pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1 in
@@ -35,8 +33,8 @@ let pp_pos f pos =
 let message prefix text =
   let start_pos = Parsing.symbol_start_pos () in
   let end_pos = Parsing.symbol_end_pos () in
-  let fn = from_option "<unknown file>" !file_name in
-  eprintf "@{<b>%s: %s:(%a)-(%a):@} %s"
+  let fn = from_option "<unknown file>" !Load.file_name in
+  eprintf "@{<b>%s: %s:(%a)-(%a):@} %s@\n"
     prefix fn pp_pos start_pos pp_pos end_pos text
 
 let parse_error = message "E"
@@ -256,7 +254,7 @@ procedure:
     { { C.proc_name = $2
       ; proc_spec = $4
       ; proc_body = $5
-      ; proc_rules = failwith "TODO: empty logic?" } }
+      ; proc_rules = { C.calculus = []; abstraction = [] } } }
 ;
 
 import_entry:
