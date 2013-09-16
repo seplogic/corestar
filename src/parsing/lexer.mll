@@ -49,36 +49,17 @@ let error_message e lb =
 let kwd_or_else =
   let keyword_table = Hashtbl.create 53 in
   List.iter (fun (kwd, tok) -> Hashtbl.add keyword_table kwd tok) [
-    "Abduction", ABDUCTION;
     "Emp", EMP;
     "False", FALSE;
-    "Frame", FRAME;
-    "Implication", IMPLICATION;
-    "Inconsistency", INCONSISTENCY;
-    "True", TRUE;
-    "abstraction", ABSRULE;
     "assign", ASSIGN;
-    "axioms", AXIOMS;
     "call", CALL;
-    "constructor", CONSTRUCTOR;
     "end", END;
-    "equiv", EQUIV;
     "global", GLOBAL;
     "goto", GOTO;
-    "if", IF;
     "import", IMPORT;
     "label", LABEL;
     "nop", NOP;
-    "notin", NOTIN;
-    "notincontext", NOTINCONTEXT;
-    "or", ORTEXT;
     "procedure", PROCEDURE;
-    "pureguard", PUREGUARD;
-    "rewrite", REWRITERULE;
-    "rule", RULE;
-    "where", WHERE;
-    "with", WITH;
-    "without", WITHOUT;
   ];
   fun d s ->
   try Hashtbl.find keyword_table s with Not_found -> d
@@ -122,27 +103,16 @@ rule token = parse
   | "{" { L_BRACE }
   | "}" { R_BRACE }
   | ";" { SEMICOLON }
-  | "[" { L_BRACKET }
-  | "]" { R_BRACKET }
   | "(" { L_PAREN }
   | ")" { R_PAREN }
   | ":" { COLON }
-  | "." { DOT }
-  | "'" { QUOTE }
   | ":=" { COLON_EQUALS }
   | "=" { EQUALS }
-  | "&" { AND }
-  | "|" { OR }
   | "||" { OROR }
   | "!=" { NOT_EQUALS }
   | "*" { MULT }
-  | "-*" { WAND }
-  | "=>" { IMP }
-  | "<=>" { BIMP }
   | "?" { QUESTIONMARK }
   | "!" { BANG }
-  | "|-" { VDASH }
-  | "~~>" { LEADSTO }
   | "/" { OP_DIV }
   | "-" { OP_MINUS }
   | "+" { OP_PLUS }

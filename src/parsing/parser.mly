@@ -44,16 +44,8 @@ let parse_warning = message "W"
 
 /* ============================================================= */
 /* tokens */
-%token <string> IDENTIFIER
-%token <string> STRING_CONSTANT
-%token ABDUCTION
-%token ABSRULE
-%token ABSTRACT
-%token AND
 %token ASSIGN
-%token AXIOMS
 %token BANG
-%token BIMP
 %token CALL
 %token CMP_GE
 %token CMP_GT
@@ -62,60 +54,39 @@ let parse_warning = message "W"
 %token COLON
 %token COLON_EQUALS
 %token COMMA
-%token CONSTRUCTOR
-%token DOT
 %token EMP
 %token END
 %token EOF
 %token EQUALS
-%token EQUIV
 %token FALSE
-%token FRAME
 %token GLOBAL
 %token GOTO
-%token IF
-%token IMP
-%token IMPLICATION
+%token IDENTIFIER
 %token IMPORT
-%token INCONSISTENCY
 %token LABEL
-%token LEADSTO
 %token L_BRACE
-%token L_BRACKET
 %token L_PAREN
 %token MULT
 %token NOP
-%token NOTIN
-%token NOTINCONTEXT
 %token NOT_EQUALS
 %token OP_DIV
 %token OP_MINUS
 %token OP_PLUS
-%token OR
 %token OROR
-%token ORTEXT
 %token PROCEDURE
-%token PUREGUARD
 %token QUESTIONMARK
-%token QUOTE
-%token REWRITERULE
-%token RULE
 %token R_BRACE
-%token R_BRACKET
 %token R_PAREN
 %token SEMICOLON
-%token TRUE
-%token VDASH
-%token WAND
-%token WHERE
-%token WITH
-%token WITHOUT
+%token STRING_CONSTANT
 
-/* === associativity and precedence === */
+/* types */
+%type <string> IDENTIFIER
+%type <string> STRING_CONSTANT
+
+/* associativity and precedence */
 
 %left IDENTIFIER
-%left AT_IDENTIFIER
-%left OR
 %left OROR
 %left MULT
 

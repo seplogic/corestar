@@ -1,35 +1,35 @@
-Specification A: ?
+procedure A: ?
 call B();
 call C();
 end;
 
-Specification B: ?
+procedure B: ?
 call C();
 call D();
 end;
 
-Specification C: ?
+procedure C: ?
 call B();
 call G();
 end;
 
-Specification D: ?
+procedure D: ?
 call E();
 end;
 
-Specification E: ?
+procedure E: ?
 call D();
 call F();
 end;
 
-Specification F: ?
+procedure F: ?
 call B();
 end;
 
-Specification G: ?
+procedure G: ?
 call G();
 call H();
 end;
 
-Specification H: ?
+procedure H: ?
 end;
