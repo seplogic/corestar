@@ -56,10 +56,12 @@ let kwd_or_else =
     "end", END;
     "global", GLOBAL;
     "goto", GOTO;
+    "if", IF;
     "import", IMPORT;
     "label", LABEL;
     "nop", NOP;
     "procedure", PROCEDURE;
+    "rule", RULE;
   ];
   fun d s ->
   try Hashtbl.find keyword_table s with Not_found -> d
@@ -99,27 +101,28 @@ rule token = parse
   | newline { Lexing.new_line lexbuf; token lexbuf }
   | "/*" { nest lexbuf; comment lexbuf; token lexbuf }
   | ignored_helper  { token lexbuf }
-  | "," { COMMA }
-  | "{" { L_BRACE }
-  | "}" { R_BRACE }
-  | ";" { SEMICOLON }
+  | "!" { BANG }
+  | "!=" { NOT_EQUALS }
   | "(" { L_PAREN }
   | ")" { R_PAREN }
+  | "*" { MULT }
+  | "+" { OP_PLUS }
+  | "," { COMMA }
+  | "-" { OP_MINUS }
+  | "/" { OP_DIV }
   | ":" { COLON }
   | ":=" { COLON_EQUALS }
-  | "=" { EQUALS }
-  | "||" { OROR }
-  | "!=" { NOT_EQUALS }
-  | "*" { MULT }
-  | "?" { QUESTIONMARK }
-  | "!" { BANG }
-  | "/" { OP_DIV }
-  | "-" { OP_MINUS }
-  | "+" { OP_PLUS }
-  | "<=" { CMP_LE }
+  | ";" { SEMICOLON }
   | "<" { CMP_LT }
-  | ">=" { CMP_GE }
+  | "<=" { CMP_LE }
+  | "=" { EQUALS }
   | ">" { CMP_GT }
+  | ">=" { CMP_GE }
+  | "?" { QUESTIONMARK }
+  | "{" { L_BRACE }
+  | "|-" { VDASH }
+  | "||" { OROR }
+  | "}" { R_BRACE }
   | eof { EOF }
 
   (* Both at_identifer and identifer should produce IDENTIFIER *)

@@ -31,3 +31,10 @@ val mk_int_const : string -> t
 val is_interpreted : string -> bool
 
 val pp : t pretty_printer
+
+(* Pattern variables:
+  ?x matches any expression (formula or term)
+  _x matches variables (which are terms) *)
+(* Formula variables:
+  x is a program variable
+  _x is a logical variable *)

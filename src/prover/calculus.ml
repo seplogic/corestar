@@ -10,20 +10,14 @@ type sequent =
   ; conclusion : Expr.t }
 
 (*
-The subgoal may use conjunctions and disjunctions.  The goal and the subgoal may
-contain pattern variables (?x matches any term, _x matches only variables).  All
-pattern variables appearing in the subgoal must also appear in the goal. A rule
-is obtained from the rule schema by instantiating all pattern variables with
-some terms.
-NOTE: It is often the case that [goal_pattern] has the form (g * ?f), and the
-[subgoal_pattern] has the form (s * ?f) or ((s1 * ?f) ∧ ... ∧ (sn * ?f)), where
-?f is a pattern variable.
-TODO: Such assumptions about the shape must be captured by functions with the
-type [rule_schema -> bool].
- *)
+The subgoal list represents a conjunction.  The goal often has the form (L*?l |-
+R*?r): L and R contain the interesting part, while the pattern variables ?l and
+?r capture the rest.
+*)
 type rule_schema =
-  { goal_pattern : sequent
-  ; subgoal_pattern : sequent }
+  { schema_name : string (* not essential, just for reporting problems *)
+  ; goal_pattern : sequent
+  ; subgoal_pattern : sequent list }
 
 type t = rule_schema list
 

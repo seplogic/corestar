@@ -62,6 +62,7 @@ let parse_warning = message "W"
 %token GLOBAL
 %token GOTO
 %token IDENTIFIER
+%token IF
 %token IMPORT
 %token LABEL
 %token L_BRACE
@@ -75,10 +76,12 @@ let parse_warning = message "W"
 %token OROR
 %token PROCEDURE
 %token QUESTIONMARK
+%token RULE
 %token R_BRACE
 %token R_PAREN
 %token SEMICOLON
 %token STRING_CONSTANT
+%token VDASH
 
 /* types */
 %type <string> IDENTIFIER
@@ -101,6 +104,9 @@ let parse_warning = message "W"
 identifier:
   | IDENTIFIER { $1 }
 ;
+
+qidentifier:
+  | QUESTIONMARK IDENTIFIER { "?" ^ $2 }
 
 binop:
   | OP_DIV { "builtin_div" }
@@ -125,7 +131,7 @@ identifier_list_ne:
 
 lvariable:
   | identifier { $1 }
-  | QUESTIONMARK identifier { "?" ^ $2 }
+  | qidentifier { $1 }
 ;
 lvariable_list_ne:
   |  lvariable    { [$1] }
@@ -151,8 +157,6 @@ term_list:
   | term_list_ne {$1}
 ;
 
-/* Formulae */
-
 formula:
   | /*empty*/  { Expr.emp }
   | EMP  { Expr.emp }
@@ -164,6 +168,7 @@ formula:
   | term NOT_EQUALS term { Expr.mk_2 "!=" $1 $3 }
   | term EQUALS term { Expr.mk_2 "==" $1 $3 }
   | term cmpop term { Expr.mk_2 $2 $1 $3 }
+  | qidentifier { Expr.mk_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
 ;
 
@@ -217,6 +222,37 @@ core_stmt_list:
   | /* empty */  { [] }
 ;
 
+/* Rules */
+
+calculus_rule:
+  | RULE identifier COLON sequent
+    calculus_sidecondition
+    IF sequent_list SEMICOLON
+    { { Calculus.schema_name = $2
+      ; goal_pattern = $4
+      ; subgoal_pattern = $7 } }
+;
+
+sequent:
+  | formula VDASH formula
+    { { Calculus.frame = Expr.emp
+      ; hypothesis = $1
+      ; conclusion = $3 } }
+;
+
+calculus_sidecondition:
+  | /* empty for now, TODO */ { () }
+;
+
+sequent_list:
+  | /* empty */ { [] }
+  | sequent_list_ne { $1 }
+;
+
+sequent_list_ne:
+  | sequent { [ $1 ] }
+  | sequent COMMA sequent_list_ne { $1 :: $3 }
+;
 
 /* Input files */
 
@@ -242,6 +278,7 @@ import_entry:
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
   | GLOBAL identifier_list_ne SEMICOLON { ParserAst.Global $2 }
+  | calculus_rule { ParserAst.CalculusRule $1 }
 ;
 
 entry:

@@ -1,7 +1,8 @@
 rule remove_foo:
- | foo(?v) |- foo(?w)
+  foo(?v) * ?f |- foo(?w) * ?g
 if
-  foo(?v) | |- ?v = ?w
+  foo(?v) * ?f |- foo(?v) * ?v = ?w * ?g
+;
 
 procedure Test08: {foo(bar(twelve()))}{foo(bar(_x))}
 ?
