@@ -63,6 +63,7 @@ let kwd_or_else =
     "constructor", CONSTRUCTOR;
     "end", END;
     "equiv", EQUIV;
+    "global", GLOBAL;
     "goto", GOTO;
     "if", IF;
     "import", IMPORT;

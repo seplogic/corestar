@@ -1,4 +1,4 @@
-globals x, y, z;
+global x, y, z;
 
 procedure a:
   {ls(x,_y) * ls(_y,nil())}

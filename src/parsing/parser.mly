@@ -71,7 +71,7 @@ let parse_warning = message "W"
 %token EQUIV
 %token FALSE
 %token FRAME
-%token GARBAGE
+%token GLOBAL
 %token GOTO
 %token IF
 %token IMP
@@ -146,6 +146,11 @@ cmpop:
 
 
 /* Expressions */
+
+identifier_list_ne:
+  | identifier { [ $1 ] }
+  | identifier COMMA identifier_list_ne { $1 :: $3 }
+;
 
 lvariable:
   | identifier { $1 }
@@ -263,6 +268,7 @@ import_entry:
 
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
+  | GLOBAL identifier_list_ne SEMICOLON { ParserAst.Global $2 }
 ;
 
 entry:

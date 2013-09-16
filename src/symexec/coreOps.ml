@@ -80,6 +80,7 @@ let is_global = has_prefix global_prefix
 
 let empty_ast_question =
   { q_procs = []
+  ; q_globals = []
   ; q_rules = { calculus = []; abstraction = [] }
   ; q_infer = false
   ; q_name = "empty_question" }
