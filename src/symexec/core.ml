@@ -39,9 +39,14 @@ type call =
   ; call_rets : args_out
   ; call_args : args_in }
 
+(* NOTE: Usually [proc_ok] is true, and corestar reports an error when the body
+does not refine the specs.  When [proc_ok] is false, corestar reports an error
+when the body does refine the specs.  The latter mode is used mostly for
+testing. *)
 type 'body procedure =
   { proc_name : string
   ; mutable proc_spec : spec
+  ; proc_ok : bool
   ; proc_body : 'body option
   ; proc_rules : rules }
 

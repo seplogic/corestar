@@ -250,15 +250,17 @@ core_stmt_list:
 /* Input files */
 
 body:
-  | /* empty */ { None }
-  | QUESTIONMARK core_stmt_list { Some $2 }
+  | /* empty */ { (None, true) }
+  | QUESTIONMARK core_stmt_list { (Some $2, true) }
+  | BANG core_stmt_list { (Some $2, false) }
 ;
 
 procedure:
   | PROCEDURE identifier COLON spec body
     { { C.proc_name = $2
       ; proc_spec = $4
-      ; proc_body = $5
+      ; proc_ok = snd $5
+      ; proc_body = fst $5
       ; proc_rules = { C.calculus = []; abstraction = [] } } }
 ;
 
