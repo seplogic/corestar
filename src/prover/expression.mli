@@ -10,6 +10,7 @@ val mk_var : string -> t
 
 val eq : t -> t -> bool
 val hash : t -> int
+val substitute : (string * t) list -> t -> t
 
 (* various helpers *)
 val mk_0 : string -> t

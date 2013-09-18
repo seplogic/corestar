@@ -64,9 +64,11 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
     (pp_list pp_ast_procedure) q_procs
     pp_rules q_rules
 
+(* TODO: simpler names for args/rets. *)
 let name_ret_v1 = "$ret_v1"
 let ret_v1 = Vars.concretep_str name_ret_v1
-let return_var n = Vars.concretep_str (Printf.sprintf "$ret_v%d" n)
+let return n = Printf.sprintf "$ret_v%d" n
+let return_var n = Vars.concretep_str (return n)
 let parameter n = Printf.sprintf "@parameter%d:" n
 let parameter_var n = (Vars.concretep_str (parameter n))
 

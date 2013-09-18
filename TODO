@@ -1,5 +1,6 @@
 - fill in TODOs
-  - make it parse tests
+  - pretty-print expressions
+  - hash-consing for expressions (ask Nikos T?)
   - port old tests
   - remove the -nosmt flag, as smt is essential in this version
 

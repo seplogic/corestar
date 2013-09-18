@@ -1,10 +1,12 @@
+open Corestar_std
+
 type t = Var of string | App of string * t list
   (* TODO: explain which are valid names; empty string is not *)
 
 let mk_app op xs = App (op, xs)
 let mk_var v = Var v
 
-let eq _ _ = failwith "TODO"
+let eq = (=)  (* TODO: hash-consing *)
 
 let hash e =
   let eh = Hashtbl.hash "" in
@@ -12,6 +14,13 @@ let hash e =
     | Var s -> 31 * (31 * acc + Hashtbl.hash s) + eh
     | App (s, xs) -> 31 * (List.fold_left h (31 * acc + Hashtbl.hash s) xs) + eh
   in h 0 e
+
+let substitute xys =
+  let f = ListH.lookup xys in
+  let rec r = function
+    | Var v as e -> (try f v with Not_found -> e)
+    | App (op, xs) -> App (op, List.map r xs) in
+  r
 
 let mk_0 op = mk_app op []
 let mk_1 op a = mk_app op [a]
@@ -32,4 +41,4 @@ let is_interpreted _ = failwith "TODO"
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
 
-let pp _ = failwith "TODO"
+let pp _ = failwith "TODO Expression.pp"

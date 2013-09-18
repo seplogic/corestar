@@ -138,6 +138,10 @@ module ListH : sig
   (** Like in Haskell. *)
   val span : ('a -> bool) -> 'a list -> 'a list * 'a list
 
+  (** Assumes that all ['a]s are distinct, according to (=).  The call
+  [List.map (lookup xys) xs] takes time |xys|+|xs|.*)
+  val lookup : ('a * 'b) list -> 'a -> 'b
+
   val foldli : ('b -> int -> 'a -> 'b) -> 'b -> 'a list -> 'b
   val foldri : (int -> 'a -> 'b -> 'b) -> 'a list -> 'b -> 'b
   val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list

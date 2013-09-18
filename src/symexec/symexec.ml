@@ -15,11 +15,12 @@ let bfs_limit = 1 lsl 20
 (* }}} *)
 (* helpers for substitutions *) (* {{{ *)
 
-let substitute_list var _ = failwith "TODO"
-  (* ListH.foldri (Sepprover.update_var_to @@ var) *)
+let substitute_list var ts e =
+  let p i t = (var i, t) in
+  Expr.substitute (ListH.mapi p ts) e
 
-let substitute_args = substitute_list CoreOps.parameter_var
-let substitute_rets = substitute_list CoreOps.return_var
+let substitute_args = substitute_list CoreOps.parameter
+let substitute_rets = substitute_list CoreOps.return
 
 let specialize_spec rets args xs =
   let ret_terms = List.map (fun v -> Expr.mk_var v) rets in

@@ -130,6 +130,10 @@ module ListH = struct
       | xs -> (List.rev ys, xs) in
     f []
 
+  let lookup xys =
+    let h = HashtblH.of_list xys in
+    Hashtbl.find h
+
   let foldli f z xs =
     let g (acc, i) x = (f acc i x, i + 1) in
     fst (List.fold_left g (z, 0) xs)

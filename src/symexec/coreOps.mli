@@ -30,9 +30,10 @@ val pp_ast_question : ast_question pretty_printer
 (** {2 Special variable names} *)
 val name_ret_v1 : string
 val ret_v1 : Vars.var
-val return_var : int -> Vars.var
+val return : int -> string
+val return_var : int -> Vars.var (* XXX *)
 val parameter : int -> string
-val parameter_var : int -> Vars.var
+val parameter_var : int -> Vars.var (* XXX *)
 
 val global_prefix : string
 
