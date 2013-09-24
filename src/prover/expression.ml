@@ -1,4 +1,5 @@
 open Corestar_std
+open Format
 
 type t = Var of string | App of string * t list
   (* TODO: explain which are valid names; empty string is not *)
@@ -11,8 +12,8 @@ let eq = (=)  (* TODO: hash-consing *)
 let hash e =
   let eh = Hashtbl.hash "" in
   let rec h acc = function
-    | Var s -> 31 * (31 * acc + Hashtbl.hash s) + eh
-    | App (s, xs) -> 31 * (List.fold_left h (31 * acc + Hashtbl.hash s) xs) + eh
+    | Var v -> 31 * (31 * acc + Hashtbl.hash v) + eh
+    | App (v, xs) -> 31 * (List.fold_left h (31 * acc + Hashtbl.hash v) xs) + eh
   in h 0 e
 
 let substitute xys =
@@ -41,4 +42,8 @@ let is_interpreted _ = failwith "TODO"
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
 
-let pp _ = failwith "TODO Expression.pp"
+let rec pp f =
+  let pp_rec f e = fprintf f " %a" pp e in
+  function
+    | Var v -> pp_string f v
+    | App (op, xs) -> fprintf f "(%s%a)" op (pp_list pp_rec) xs
