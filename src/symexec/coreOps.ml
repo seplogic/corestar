@@ -87,7 +87,7 @@ let empty_ast_question =
   ; q_infer = false
   ; q_name = "empty_question" }
 
-type 'a refinement_check = Type.todo -> 'a -> 'a -> bool
+type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 
 let refines_triple logic triple1 triple2 =
   failwith "TODO"

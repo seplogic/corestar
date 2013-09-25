@@ -45,7 +45,7 @@ val is_global : Vars.var -> bool
 val empty_ast_question : ast_question
 
 (** {2 Refinement on triples and specs.} *)
-type 'a refinement_check = Type.todo (* logic *) -> 'a -> 'a -> bool
+type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 val refines_triple : triple refinement_check
 val refines_spec : spec refinement_check
 
