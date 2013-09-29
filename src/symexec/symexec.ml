@@ -386,15 +386,13 @@ end = struct
           failwith "INTERNAL: calls should be removed by [inline_call_specs]"
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
-            let cp_formula f = failwith "TODO get pvars from fromula f" in
-(*               List.fold_right PS.VarSet.add (Sepprover.get_pvars f) in *)
+            let cp_formula f =
+              let vs = List.filter Expression.is_pvar (Expression.vars f) in
+              List.fold_right StringSet.add vs in
             acc |> cp_formula pre |> cp_formula post in
           C.TripleSet.fold cp_triple spec acc
     in
-    failwith "TODO: see below"
-(*
-    G.Cfg.fold_vertex cp_vertex fg PS.vs_empty
-*)
+    G.Cfg.fold_vertex cp_vertex fg StringSet.empty
 
   let kill_pvars vs f = failwith "TODO kill vs from f"
 (*     PS.VarSet.fold Sepprover.kill_var *)

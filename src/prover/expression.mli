@@ -6,10 +6,16 @@ type t
 val mk_app : string -> t list -> t
 val mk_var : string -> t
 
+(* kinds of variables *)
+
+val is_pvar : string -> bool (* program variable *)
+val is_lvar : string -> bool (* logical variable *)
+
 (* operations on formulas *)
 
 val eq : t -> t -> bool
 val hash : t -> int
+val vars : t -> string list
 val substitute : (string * t) list -> t -> t
 
 (* various helpers *)

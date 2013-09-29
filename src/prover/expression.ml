@@ -7,6 +7,12 @@ type t = Var of string | App of string * t list
 let mk_app op xs = App (op, xs)
 let mk_var v = Var v
 
+let pvar_re = Str.regexp "[a-z]"
+let lvar_re = Str.regexp "_"
+
+let is_pvar v = Str.string_match pvar_re v 0
+let is_lvar v = Str.string_match lvar_re v 0
+
 let eq = (=)  (* TODO: hash-consing *)
 
 let hash e =
@@ -15,6 +21,12 @@ let hash e =
     | Var v -> 31 * (31 * acc + Hashtbl.hash v) + eh
     | App (v, xs) -> 31 * (List.fold_left h (31 * acc + Hashtbl.hash v) xs) + eh
   in h 0 e
+
+let vars x =
+  let rec f vs = function
+    | Var v -> StringSet.add v vs
+    | App (_, xs) -> List.fold_left f vs xs in
+  StringSet.elements (f StringSet.empty x)
 
 let substitute xys =
   let f = ListH.lookup xys in
