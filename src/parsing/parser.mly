@@ -19,12 +19,6 @@ open Format
 module C = Core
 module Expr = Expression
 
-let newVar x =
-  if x.[0] = '_' then begin
-    let x = String.sub x 1 (String.length x - 1) in
-    if x = "" then Vars.freshe () else Vars.concretee_str x
-  end else Vars.concretep_str x
-
 let pp_pos f pos =
   let line = pos.Lexing.pos_lnum in
   let column = pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1 in

@@ -66,19 +66,14 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
 
 (* TODO: simpler names for args/rets. *)
 let name_ret_v1 = "$ret_v1"
-let ret_v1 = Vars.concretep_str name_ret_v1
 let return n = Printf.sprintf "$ret_v%d" n
-let return_var n = Vars.concretep_str (return n)
 let parameter n = Printf.sprintf "@parameter%d:" n
-let parameter_var n = (Vars.concretep_str (parameter n))
-
-let has_prefix p v = StringH.starts_with p (Vars.string_var v)
 
 let global_prefix = "$g"
 
-let is_parameter = has_prefix "@parameter"
-let is_return = has_prefix "$ret"
-let is_global = has_prefix global_prefix
+let is_parameter = StringH.starts_with "@parameter"
+let is_return = StringH.starts_with "$ret"
+let is_global = StringH.starts_with global_prefix
 
 let empty_ast_question =
   { q_procs = []

@@ -29,17 +29,14 @@ val pp_ast_question : ast_question pretty_printer
 
 (** {2 Special variable names} *)
 val name_ret_v1 : string
-val ret_v1 : Vars.var
 val return : int -> string
-val return_var : int -> Vars.var (* XXX *)
 val parameter : int -> string
-val parameter_var : int -> Vars.var (* XXX *)
 
 val global_prefix : string
 
-val is_parameter : Vars.var -> bool
-val is_return : Vars.var -> bool
-val is_global : Vars.var -> bool
+val is_parameter : string -> bool
+val is_return : string -> bool
+val is_global : string -> bool
 
 (** {2 Useful constants} *)
 val empty_ast_question : ast_question
