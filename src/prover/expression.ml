@@ -5,13 +5,31 @@ type t = Var of string | App of string * t list
   (* TODO: explain which are valid names; empty string is not *)
 
 let mk_app op xs = App (op, xs)
-let mk_var v = Var v
+let mk_var v =
+  assert (not (v = "")); (* otherwise, hashes are messed up *)
+  Var v
+
+(* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
+Produces '_STEM#ID' where ID is fresh for the given STEM. *)
+let freshen =
+  let counts = Hashtbl.create 0 in
+  fun v ->
+    let i = (if v.[0] = '_' then 1 else 0) in
+    let len = (try String.index v '#' with Not_found -> String.length v) - i in
+    let v = String.sub v i len in
+    let c = (try Hashtbl.find counts v with Not_found -> 0) + 1 in
+    Hashtbl.replace counts v c;
+    Printf.sprintf "_%s#%d" v c
 
 let pvar_re = Str.regexp "[a-z]"
 let lvar_re = Str.regexp "_"
+let tpat_re = Str.regexp "\\?"
+let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
 
 let is_pvar v = Str.string_match pvar_re v 0
 let is_lvar v = Str.string_match lvar_re v 0
+let is_tpat p = Str.string_match tpat_re p 0
+let is_vpat p = Str.string_match vpat_re p 0
 
 let eq = (=)  (* TODO: hash-consing *)
 
@@ -45,6 +63,7 @@ let mk_or = mk_2 "or"
 
 let mk_eq = mk_2 "=="
 
+(* TODO: don't do this! Instead, have some general mechanism for types. *)
 let mk_string_const s = mk_1 "<string>" (mk_0 s)
 let mk_int_const s = mk_1 "<int>" (mk_0 s)
 

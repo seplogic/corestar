@@ -666,22 +666,13 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
-  let extend_precondition pvars pre = failwith "TODO"
-(*
-    let is_interesting v = failwith "TODO" in
-      (CoreOps.is_parameter v || CoreOps.is_global v)
-      && (Sepprover.get_equals_pvar_free v pre = []) in
-    let process_var v acc =
-      if not (is_interesting v) then acc else begin
-        let w = Vars.freshen_exists v in
-        Expr.mk_eq (Expr.mk_var v, Expr.mk_var w) :: acc
-      end in
-    failwith "TODO"
-    let conjuncts = PS.VarSet.fold process_var pvars [] in
-    let conjuncts = Sepprover.convert (PS.mkBigStar conjuncts) in
-    let r = Sepprover.conjoin_inner pre conjuncts in
-    r
-*)
+  let extend_precondition pvars pre =
+    let is_interesting v = CoreOps.is_parameter v || CoreOps.is_global v in
+    let eq v = Expr.mk_eq (Expr.mk_var v) (Expr.mk_var (Expr.freshen v)) in
+    let vs = StringSet.elements pvars in
+    let vs = List.filter is_interesting vs in
+    let xs = pre :: List.map eq vs in
+    Expr.mk_big_star xs
 
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->

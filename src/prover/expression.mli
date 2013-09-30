@@ -5,11 +5,21 @@ type t
 (* the basic constructors *)
 val mk_app : string -> t list -> t
 val mk_var : string -> t
+val freshen : string -> string
+  (* [freshen v] is a fresh logical variable whose name is similar to [v].
+  NOTE: '#' has a special meaning! See implementation. *)
 
 (* kinds of variables *)
-
+(* Pattern variables:
+  ?x matches any expression (formula or term)
+  _x matches variables (which are terms) *)
+(* Formula variables:
+  x is a program variable
+  _x is a logical variable *)
 val is_pvar : string -> bool (* program variable *)
 val is_lvar : string -> bool (* logical variable *)
+val is_tpat : string -> bool (* pattern that matches terms *)
+val is_vpat : string -> bool (* pattern that matches variables *)
 
 (* operations on formulas *)
 
@@ -38,10 +48,3 @@ val mk_int_const : string -> t
 val is_interpreted : string -> bool
 
 val pp : t pretty_printer
-
-(* Pattern variables:
-  ?x matches any expression (formula or term)
-  _x matches variables (which are terms) *)
-(* Formula variables:
-  x is a program variable
-  _x is a logical variable *)
