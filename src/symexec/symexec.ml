@@ -623,8 +623,7 @@ end = struct
 
   let update_infer pvars rules body post =
     let abduct = abduct rules in
-    let is_deadend = failwith "TODO" in
-(*     let is_deadend = Sepprover.inconsistent rules in *)
+    let is_deadend e = Prover.is_entailment rules.C.calculus e Expr.fls in
     let make_framable = kill_with_pure_from pvars in
     let execute =
       execute abduct is_deadend make_framable (spec_of post body.P.stop) in
