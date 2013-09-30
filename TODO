@@ -3,6 +3,7 @@
   - port old tests
   - remove the -nosmt flag, as smt is essential in this version
   - add types to expressions (useful for talking to Z3)
+  - avoid using [mk_app] if there exists an alternative constructor
 
 - old todos, just for reference:
   - fix bug in treatment of constructors for frame inference:

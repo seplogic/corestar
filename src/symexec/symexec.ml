@@ -387,7 +387,7 @@ end = struct
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
             let cp_formula f =
-              let vs = List.filter Expression.is_pvar (Expression.vars f) in
+              let vs = List.filter Expr.is_pvar (Expr.vars f) in
               List.fold_right StringSet.add vs in
             acc |> cp_formula pre |> cp_formula post in
           C.TripleSet.fold cp_triple spec acc
@@ -419,20 +419,15 @@ end = struct
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
-    let vs = failwith "TODO: see below" in
-(*
     let vs = match modifies with
       (* TODO: ensure None doesn't happen (assert?poly?), and expand before *)
-      | None -> Sepprover.get_pvars post
+      | None -> List.filter Expr.is_pvar (Expr.vars post)
       | Some vs -> vs in
-    let vs = List.fold_right PS.VarSet.add vs PS.VarSet.empty in
-*)
     let afs = abduct pre_conf.G.current_heap pre in
     assert (afs <> Some []);
     let branch afs =
       let mk_post_conf (a, f) =
-        let ( * ) = failwith "TODO" in
-(*           Sepprover.conjoin_inner in *)
+        let ( * ) = Expr.mk_star in
         let conf =
           { G.missing_heap
             = pre_conf.G.missing_heap * make_framable pre_conf.G.current_heap a
@@ -690,13 +685,11 @@ end = struct
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
-            let ( * ) = failwith "TODO" in
-(*             let ( * ) = Sepprover.conjoin_inner in *)
+            let ( * ) = Expr.mk_star in
             let pre = pre * missing_heap in
             { C.pre = pre
             ; post = current_heap
-            ; modifies = failwith "TODO" } in
-(*             ; modifies = Some (PS.VarSet.elements pvars) } in *)
+            ; modifies = Some (StringSet.elements pvars) } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
