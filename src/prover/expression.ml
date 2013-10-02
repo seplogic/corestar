@@ -9,6 +9,14 @@ let mk_var v =
   assert (not (v = "")); (* otherwise, hashes are messed up *)
   Var v
 
+let bk_app = function
+  | Var _ -> invalid_arg "bk_app"
+  | App (op, xs) -> (op, xs)
+
+let bk_var = function
+  | Var v -> v
+  | App _ -> invalid_arg "bk_var"
+
 (* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
 Produces '_STEM#ID' where ID is fresh for the given STEM. *)
 let freshen =
@@ -62,6 +70,7 @@ let mk_big_star = mk_app "*"
 let mk_or = mk_2 "or"
 
 let mk_eq = mk_2 "=="
+let mk_neq = mk_2 "!="
 
 (* TODO: don't do this! Instead, have some general mechanism for types. *)
 let mk_string_const s = mk_1 "<string>" (mk_0 s)
@@ -70,6 +79,7 @@ let mk_int_const s = mk_1 "<int>" (mk_0 s)
 let is_interpreted _ = failwith "TODO"
 
 
+let nil = mk_0 "nil" 
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
 
