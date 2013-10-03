@@ -70,7 +70,7 @@ let is_lvar v = Str.string_match lvar_re v 0
 let is_tpat p = Str.string_match tpat_re p 0
 let is_vpat p = Str.string_match vpat_re p 0
 
-let eq = (=)  (* TODO: hash-consing *)
+let eq = (==)
 
 let vars x =
   let rec f vs exp = match fst exp with
