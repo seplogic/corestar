@@ -5,26 +5,26 @@ type t_orig = Var of string | App of string * exp list
 and exp = t_orig * int
   (* TODO: explain which are valid names; empty string is not *)
 
-(* x == y --> x = y *)
-(* x = y --> x == y *)
+let hash = snd
+let eq = (==)
 
 module ExpBase = Hashtbl.Make (struct
   type t = exp
-  let hash = snd
+  let hash = hash
   let equal f1 f2 = match fst f1, fst f2 with
     | Var x1, Var x2 -> x1 = x2
-    | App (op1, xs1), App (op2, xs2) -> op1 = op2 && xs1 == xs2
+    | App (op1, xs1), App (op2, xs2) ->
+        op1 = op2
+        && (try List.for_all2 eq xs1 xs2 with Invalid_argument _ -> false)
     | _ -> false
 end)
 
 let exp_base = ExpBase.create 0
 
-(* we changed type t to t_orig * int, and hash has type t -> int in the interface;
-   but hash actually computes the int part of e, so it ignores its given one *)
-let hash e =
-  let eh = Hashtbl.hash "" in
-  let f acc x = 31 * acc + (snd x) in
-  match fst e with 
+let hash_orig =
+  let eh = Hashtbl.hash "" in (* any string that is not a valid varname works *)
+  let f acc x = 31 * acc + hash x in
+  function
     | Var v -> 31 * (Hashtbl.hash v) + eh
     | App (op, xs) -> 31 * (List.fold_left f (Hashtbl.hash op) xs) + eh
 
@@ -32,15 +32,15 @@ let hash_cons f =
   try ExpBase.find exp_base f
   with Not_found -> ExpBase.add exp_base f f; f
 
-let mk_app op xs = 
-  let f = (App (op, xs)) in
-  hash_cons (f, hash (f, 666)) (* any simplifications here? *) 
+let mk_app op xs =
+  let e = App (op, xs) in
+  hash_cons (e, hash_orig e)
 let mk_var v =
   assert (not (v = "")); (* otherwise, hashes are messed up *)
-  let f = (Var v) in 
-  hash_cons (f, hash (f, 666))
+  let e = Var v in
+  hash_cons (e, hash_orig e)
 
-let bk_app f = match fst f with 
+let bk_app f = match fst f with
   | Var _ -> invalid_arg "bk_app"
   | App (op, xs) -> (op, xs)
 
@@ -70,22 +70,11 @@ let is_lvar v = Str.string_match lvar_re v 0
 let is_tpat p = Str.string_match tpat_re p 0
 let is_vpat p = Str.string_match vpat_re p 0
 
-let eq = (==)
-
 let vars x =
   let rec f vs exp = match fst exp with
     | Var v -> StringSet.add v vs
     | App (_, xs) -> List.fold_left f vs xs in
   StringSet.elements (f StringSet.empty x)
-
-(* Old code
-let substitute xys =
-  let f = ListH.lookup xys in
-  let rec r = function
-    | Var v as e -> (try f v with Not_found -> e)
-    | App (op, xs) -> App (op, List.map r xs) in
-  r
-*)
 
 let substitute xys =
   let f = ListH.lookup xys in
@@ -112,7 +101,7 @@ let mk_int_const s = mk_1 "<int>" (mk_0 s)
 let is_interpreted _ = failwith "TODO"
 
 
-let nil = mk_0 "nil" 
+let nil = mk_0 "nil"
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
 

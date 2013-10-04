@@ -1,5 +1,4 @@
 - fill in TODOs
-  - hash-consing for expressions (ask Nikos T?)
   - port old tests
   - remove the -nosmt flag, as smt is essential in this version
   - add types to expressions (useful for talking to Z3)
