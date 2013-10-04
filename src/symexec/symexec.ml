@@ -369,15 +369,11 @@ end = struct
     | [] -> [(Expr.emp, Expr.emp)]
     | xs -> xs
 
-  let abduct logic p q = failwith "TODO"
-(*     Sepprover.abduct_inner logic p q |> option_map make_nonempty *)
+  let abduct = Prover.biabduct
 
-  let frame logic p q = failwith "TODO"
-(*
-    Sepprover.frame_inner logic p q
-    |> option_map (List.map (fun x -> (Expr.emp, x)))
-    |> option_map make_nonempty
-*)
+  let frame calculus p q =
+    Prover.infer_frame calculus p q
+    |> List.map (fun x -> { Prover.antiframe = x; frame = Expr.emp })
 
   let collect_pvars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
@@ -424,9 +420,8 @@ end = struct
       | None -> List.filter Expr.is_pvar (Expr.vars post)
       | Some vs -> vs in
     let afs = abduct pre_conf.G.current_heap pre in
-    assert (afs <> Some []);
     let branch afs =
-      let mk_post_conf (a, f) =
+      let mk_post_conf { Prover.antiframe = a; frame = f } =
         let ( * ) = Expr.mk_star in
         let conf =
           { G.missing_heap
@@ -444,11 +439,11 @@ end = struct
         |> List.map mk_ok
         |> make_demonic_choice in
     let r = match afs with
-      | None ->
+      | [] ->
           if log log_exec then
             fprintf logf "(error conf)";
           CT_error
-      | Some afs -> branch afs in
+      | afs -> branch afs in
     if log log_exec then fprintf logf "@]@,@?";
     r
 
@@ -617,7 +612,7 @@ end = struct
     end
 
   let update_infer pvars rules body post =
-    let abduct = abduct rules in
+    let abduct = abduct rules.C.calculus in
     let is_deadend e = Prover.is_entailment rules.C.calculus e Expr.fls in
     let make_framable = kill_with_pure_from pvars in
     let execute =
@@ -711,7 +706,8 @@ end = struct
           fprintf logf "@[symexec checking %s@]@\n@?" procedure.C.proc_name;
         if log log_phase then
           fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
-        let process_triple_check = process_triple (update_check rules body) in
+        let process_triple_check =
+          process_triple (update_check rules.C.calculus body) in
         let ts = lol_cat (List.map process_triple_check ts) in
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
