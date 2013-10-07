@@ -51,8 +51,6 @@ let parse_file pars lexe fname ftype =
   with
     | Parsing.Parse_error ->
         eprintf "@{<b>E: %s:@} parse error@." fname; exit 1
-    | Failure s ->
-        eprintf "@{<b>INTERNAL: %s:@} %s@." fname s; exit 1
 
 (*
   Check if file exists in current directory, or in list of directories supplied.
