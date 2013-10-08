@@ -75,11 +75,22 @@ let rec size e = match fst e with
   | Var _ -> 1
   | App (_, xs) -> List.fold_left (+) 1 (List.map size xs)
 
+module ExprHashSet = HashSet.Make(
+struct
+  type t = exp
+  let hash = hash
+  let equal = eq 
+end)
+
 let vars x =
-  let rec f vs exp = match fst exp with
-    | Var v -> StringSet.add v vs
-    | App (_, xs) -> List.fold_left f vs xs in
-  StringSet.elements (f StringSet.empty x)
+  let vs = ExprHashSet.create 0 in
+  let rec f exp = match fst exp with
+    | Var _ -> ExprHashSet.add vs exp
+    | App (_, xs) -> List.iter f xs in
+  let g exp a = match fst exp with 
+    | Var v -> v::a
+    | _ -> assert false in
+  f x ; ExprHashSet.fold g vs [] 
 
 let substitute xys =
   let f = ListH.lookup xys in
