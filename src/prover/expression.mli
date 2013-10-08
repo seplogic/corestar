@@ -29,6 +29,7 @@ val is_vpat : string -> bool (* pattern that matches variables *)
 
 val eq : t -> t -> bool
 val hash : t -> int
+val size : t -> int
 val vars : t -> string list
 val substitute : (string * t) list -> t -> t
 

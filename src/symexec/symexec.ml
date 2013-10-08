@@ -390,12 +390,13 @@ end = struct
     in
     G.Cfg.fold_vertex cp_vertex fg StringSet.empty
 
-  let kill_pvars vs f = failwith "TODO kill vs from f"
+  let kill_pvars vs f = failwith "TODO Symexec.kill_pvars"
 (*     PS.VarSet.fold Sepprover.kill_var *)
 
   (* Used as the [make_framable] argument of the generic [execute]. *)
   (* Better name? *)
-  let kill_with_pure_from pvars f g = failwith "TODO"
+  let kill_with_pure_from pvars f g =
+    failwith "TODO Symexec.kill_with_pure_form"
 (*
     let f' = Sepprover.purify_inner f in
     let g' = Sepprover.conjoin_inner f' g in
@@ -487,13 +488,13 @@ end = struct
     | G.ErrorConf, G.ErrorConf -> true
     | G.ErrorConf, _ | _, G.ErrorConf -> false
     | G.OkConf (c1, _), G.OkConf (c2, _) ->
-        failwith "TODO"
+        failwith "TODO Symexec.implies_conf"
 (*
       Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
       Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
 *)
 
-  let implies_triple logic t1 t2 = failwith "TODO"
+  let implies_triple logic t1 t2 = failwith "TODO Symexec.implies_triple"
 (*
     Sepprover.implies logic t1.C.post t2.C.post &&
     Sepprover.implies logic t2.C.pre t1.C.pre
@@ -621,7 +622,7 @@ end = struct
 
   let update_check rules body post =
     let abduct = frame rules in
-    let is_deadend = failwith "TODO" in
+    let is_deadend = failwith "TODO Symexec.update_check" in
 (*     let is_deadend = Sepprover.inconsistent rules in *)
     let check_emp _ x = assert (x = Expr.emp); Expr.emp in
     let execute =
@@ -712,7 +713,7 @@ end = struct
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
-          let new_ts = failwith "TODO" in
+          let new_ts = failwith "TODO Symexec.interpret new_ts" in
 (*             List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in  *)
 	  (* Check if specifications are better. *)
           let old_ts = C.TripleSet.elements procedure.C.proc_spec in

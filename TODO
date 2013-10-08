@@ -1,6 +1,10 @@
 - fill in TODOs
+  - z3/smt2 small interface
+  - take prover (of rasmus) and make it compile
+  - add 'where' sidecondition (instantiate with matching)
+  - apply (equivalence) rewrite rules on side-conditions
+  - try jstar tests and look at the errors (NikosG: are they comming from the parser)
   - port old tests
-  - remove the -nosmt flag, as smt is essential in this version
   - add types to expressions (useful for talking to Z3)
   - avoid using [mk_app] if there exists an alternative constructor
 

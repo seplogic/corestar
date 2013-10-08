@@ -46,3 +46,7 @@ val choose_list :
 
 val combine_list :
   ('a -> 'b list * int) -> 'b list * int -> 'a list -> 'b list * int
+  (* [combine_list f ([], 0) xs] is similar to
+      let yss, ps = List.split (List.map f xs) in (List.concat yss, sum ps)
+  except that the mapping stops early if the sum of penalties exceeds
+  [max_penalty]. *)

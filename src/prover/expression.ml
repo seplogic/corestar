@@ -70,6 +70,11 @@ let is_lvar v = Str.string_match lvar_re v 0
 let is_tpat p = Str.string_match tpat_re p 0
 let is_vpat p = Str.string_match vpat_re p 0
 
+(* TODO: Memoize if profiling shows that this is slow. *)
+let rec size e = match fst e with
+  | Var _ -> 1
+  | App (_, xs) -> List.fold_left (+) 1 (List.map size xs)
+
 let vars x =
   let rec f vs exp = match fst exp with
     | Var v -> StringSet.add v vs
