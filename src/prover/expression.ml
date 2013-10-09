@@ -1,6 +1,9 @@
 open Corestar_std
 open Format
 
+type var = string
+type op = string
+
 type t_orig = Var of string | App of string * exp list
 and exp = t_orig * int
   (* TODO: explain which are valid names; empty string is not *)
@@ -47,6 +50,10 @@ let bk_app f = match fst f with
 let bk_var f = match fst f with
   | Var v -> v
   | App _ -> invalid_arg "bk_var"
+
+let cases var app e = match fst e with
+  | Var v -> var v
+  | App (op, xs) -> app op xs
 
 (* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
 Produces '_STEM#ID' where ID is fresh for the given STEM. *)
@@ -103,12 +110,27 @@ let mk_0 op = mk_app op []
 let mk_1 op a = mk_app op [a]
 let mk_2 op a b = mk_app op [a; b]
 
+(* NOTE: The main point of [on_*] functions is to avoid using strings in other
+places in the codebase, because that is bug-prone. *)
+type 'a automorphism = 'a -> 'a
+type 'a app_eval = (op -> exp list -> 'a) automorphism
+
+let on_2 op_ref f g op =
+  if op = op_ref then begin function
+    | [e1; e2] -> f e1 e2
+    | _ -> failwith "INTERNAL: == should have arity 2"
+  end else g op
+
 let mk_star = mk_2 "*"
+let on_star f g = function "*" -> f | op -> g op
 let mk_big_star = mk_app "*"
 let mk_or = mk_2 "or"
+let on_or f g = function "or" -> f | op -> g op
 
 let mk_eq = mk_2 "=="
+let on_eq f = on_2 "==" f
 let mk_neq = mk_2 "!="
+let on_neq f = on_2 "!=" f
 
 (* TODO: don't do this! Instead, have some general mechanism for types. *)
 let mk_string_const s = mk_1 "<string>" (mk_0 s)

@@ -390,18 +390,39 @@ end = struct
     in
     G.Cfg.fold_vertex cp_vertex fg StringSet.empty
 
-  let kill_pvars vs f = failwith "TODO Symexec.kill_pvars"
-(*     PS.VarSet.fold Sepprover.kill_var *)
-
-  (* Used as the [make_framable] argument of the generic [execute]. *)
-  (* Better name? *)
-  let kill_with_pure_from pvars f g =
-    failwith "TODO Symexec.kill_with_pure_form"
+  (* Process [g] such that it doesn't contain any of the variables in [pvars].
+  If a variable [v] is in [pvars], then it must be substituted by some
+  expression [e] that contains no variable from [pvars].  As a last resort, [e]
+  is set to be a fresh logical variable. But first, we check whether [f]
+  contains a conjunct [v=e], where [e] has the desired property. *)
+  let kill_pvars_with pvars f g =
+    let is_pvar e =
+      let var v = StringSet.mem v pvars in
+      Expr.cases var (fun _ _ -> false) e in
+    let rec is_pvar_free e =
+      let var v = StringSet.mem v pvars in
+      let app _ xs = List.for_all is_pvar_free xs in
+      Expr.cases var app e in
+    let rec find_bindings bs e =
+      let eq e1 e2 =
+        let b1, b2 = is_pvar e1, is_pvar e2 in
+        if b1 = b2 then bs else
+          let v, e = if b1 then e1, e2 else e2, e1 in
+          (if is_pvar_free e then (Expr.bk_var v, e) :: bs else bs) in
+      let app =
+        Expr.on_star (List.fold_left find_bindings bs)
+        (Expr.on_eq eq
+        (fun _ _ -> bs)) in
+      Expr.cases (fun _ -> bs) app e in
+    failwith "TODO Symexec.kill_pvars_with"
 (*
     let f' = Sepprover.purify_inner f in
     let g' = Sepprover.conjoin_inner f' g in
     kill_pvars pvars g'
 *)
+
+  let kill_pvars vs f = failwith "TODO Symexec.kill_pvars"
+(*     PS.VarSet.fold Sepprover.kill_var *)
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -615,7 +636,7 @@ end = struct
   let update_infer pvars rules body post =
     let abduct = abduct rules.C.calculus in
     let is_deadend e = Prover.is_entailment rules.C.calculus e Expr.fls in
-    let make_framable = kill_with_pure_from pvars in
+    let make_framable = kill_pvars_with pvars in
     let execute =
       execute abduct is_deadend make_framable (spec_of post body.P.stop) in
     update execute (abstract_conf rules)

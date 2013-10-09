@@ -1,6 +1,7 @@
 - fill in TODOs
+  - fill in TODOs in symexec
   - z3/smt2 small interface
-  - take prover (of rasmus) and make it compile
+  - code that applies user rules for prover
   - add 'where' sidecondition (instantiate with matching)
   - apply (equivalence) rewrite rules on side-conditions
   - try jstar tests and look at the errors (NikosG: are they comming from the parser)
