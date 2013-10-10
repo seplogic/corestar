@@ -118,7 +118,7 @@ type 'a app_eval = (op -> exp list -> 'a) automorphism
 let on_2 op_ref f g op =
   if op = op_ref then begin function
     | [e1; e2] -> f e1 e2
-    | _ -> failwith "INTERNAL: == should have arity 2"
+    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 2")
   end else g op
 
 let mk_star = mk_2 "*"
