@@ -99,10 +99,19 @@ let vars x =
     | _ -> assert false in
   f x ; ExprHashSet.fold g vs []
 
+module ExprHashMap = Hashtbl.Make(
+struct
+  type t = exp
+  let hash = hash
+  let equal = eq
+end)
+
 let substitute xys =
-  let f = ListH.lookup xys in
+  let m = ExprHashMap.create 0 in
+  let () = List.iter (fun (v,t) -> ExprHashMap.add m (mk_var v) t) xys in
+  let f = ExprHashMap.find m in
   let rec r exp = match fst exp with
-    | Var v -> (try f v with Not_found -> exp)
+    | Var _ -> (try f exp with Not_found -> exp)
     | App (op, xs) -> mk_app op (List.map r xs) in
   r
 
