@@ -13,11 +13,19 @@
 
 open Format
 
-module Int = struct type t = int let compare = compare end
-module StringSet = Set.Make (String)
+module Defaults = struct
+  let compare = compare
+  let equal = (=)
+  let hash = Hashtbl.hash
+end
+module Str = struct type t = string include Defaults end
+module Int = struct type t = int include Defaults end
+module StringSet = Set.Make (Str)
 module IntSet = Set.Make (Int)
-module StringMap = Map.Make (String)
+module StringMap = Map.Make (Str)
+module StringHash = Hashtbl.Make (Str)
 module IntMap = Map.Make (Int)
+module IntHash = Hashtbl.Make (Int)
 
 let ( @@ ) f g x = f (g x)
 let ( & ) f x = f x

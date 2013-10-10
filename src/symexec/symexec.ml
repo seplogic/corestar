@@ -388,41 +388,46 @@ end = struct
             acc |> cp_formula pre |> cp_formula post in
           C.TripleSet.fold cp_triple spec acc
     in
-    G.Cfg.fold_vertex cp_vertex fg StringSet.empty
+    StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
 
-  (* Process [g] such that it doesn't contain any of the variables in [pvars].
-  If a variable [v] is in [pvars], then it must be substituted by some
+  (* Process [g] such that it doesn't contain any of the variables in [vs].
+  If a variable [v] is in [vs], then it must be substituted by some
   expression [e] that contains no variable from [pvars].  As a last resort, [e]
   is set to be a fresh logical variable. But first, we check whether [f]
   contains a conjunct [v=e], where [e] has the desired property. *)
-  let kill_pvars_with pvars f g =
-    let is_pvar e =
-      let var v = StringSet.mem v pvars in
-      Expr.cases var (fun _ _ -> false) e in
+  let kill_pvars_with vs f g =
+    let h = StringHash.create (List.length vs) in
+    List.iter (fun v -> StringHash.add h v None) vs;
+    let is_pvar = StringHash.mem h in
+    let is_pvar_expr = Expr.cases is_pvar (fun _ _ -> false) in
     let rec is_pvar_free e =
-      let var v = StringSet.mem v pvars in
       let app _ xs = List.for_all is_pvar_free xs in
-      Expr.cases var app e in
-    let rec find_bindings bs e =
+      Expr.cases (not @@ is_pvar) app e in
+    let pick_better e1 e2 =
+      let size = function
+        | None -> max_int
+        | Some e -> if is_pvar_free e then Expr.size e else max_int in
+      if size e1 < size e2 then e1 else e2 in
+    let rec find_bindings e =
       let eq e1 e2 =
-        let b1, b2 = is_pvar e1, is_pvar e2 in
-        if b1 = b2 then bs else
+        let b1, b2 = is_pvar_expr e1, is_pvar_expr e2 in
+        if b1 || b2 then
           let v, e = if b1 then e1, e2 else e2, e1 in
-          (if is_pvar_free e then (Expr.bk_var v, e) :: bs else bs) in
+          let v = Expr.bk_var v in
+          let old_e = StringHash.find h v in
+          StringHash.replace h v (pick_better (Some e) old_e) in
       let app =
-        Expr.on_star (List.fold_left find_bindings bs)
-        (Expr.on_eq eq
-        (fun _ _ -> bs)) in
-      Expr.cases (fun _ -> bs) app e in
-    failwith "TODO Symexec.kill_pvars_with"
-(*
-    let f' = Sepprover.purify_inner f in
-    let g' = Sepprover.conjoin_inner f' g in
-    kill_pvars pvars g'
-*)
+        Expr.on_star (List.iter find_bindings)
+        & Expr.on_eq eq
+        & (fun _ _ -> ()) in
+      Expr.cases (fun _ -> ()) app e in
+    let extract_binding v e bs =
+      let e = match e with None -> Expr.mk_var (Expr.freshen v) | Some e -> e in
+      (v, e) :: bs in
+    let bs = StringHash.fold extract_binding h [] in
+    Expr.substitute bs g
 
-  let kill_pvars vs f = failwith "TODO Symexec.kill_pvars"
-(*     PS.VarSet.fold Sepprover.kill_var *)
+  let kill_pvars vs = kill_pvars_with vs Expr.emp
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -678,10 +683,9 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
-  let extend_precondition pvars pre =
+  let extend_precondition vs pre =
     let is_interesting v = CoreOps.is_parameter v || CoreOps.is_global v in
     let eq v = Expr.mk_eq (Expr.mk_var v) (Expr.mk_var (Expr.freshen v)) in
-    let vs = StringSet.elements pvars in
     let vs = List.filter is_interesting vs in
     let xs = pre :: List.map eq vs in
     Expr.mk_big_star xs
@@ -706,7 +710,7 @@ end = struct
             let pre = pre * missing_heap in
             { C.pre = pre
             ; post = current_heap
-            ; modifies = Some (StringSet.elements pvars) } in
+            ; modifies = Some pvars } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = C.TripleSet.elements procedure.C.proc_spec in

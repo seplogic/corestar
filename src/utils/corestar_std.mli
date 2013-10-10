@@ -87,9 +87,11 @@ module IntSet : Set.S with type elt = int
 
 (** A map from strings to something. *)
 module StringMap : Map.S with type key = string
+module StringHash : Hashtbl.S with type key = string
 
 (** A map from strings to something.  Consider using [array]. *)
 module IntMap : Map.S with type key = int
+module IntHash : Hashtbl.S with type key = int
 
 module HashtblH : sig
   (** Builds a hashtable from an association list. *)

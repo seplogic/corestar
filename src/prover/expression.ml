@@ -86,7 +86,7 @@ module ExprHashSet = HashSet.Make(
 struct
   type t = exp
   let hash = hash
-  let equal = eq 
+  let equal = eq
 end)
 
 let vars x =
@@ -94,10 +94,10 @@ let vars x =
   let rec f exp = match fst exp with
     | Var _ -> ExprHashSet.add vs exp
     | App (_, xs) -> List.iter f xs in
-  let g exp a = match fst exp with 
+  let g exp a = match fst exp with
     | Var v -> v::a
     | _ -> assert false in
-  f x ; ExprHashSet.fold g vs [] 
+  f x ; ExprHashSet.fold g vs []
 
 let substitute xys =
   let f = ListH.lookup xys in
