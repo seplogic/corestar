@@ -33,7 +33,7 @@ val is_vpat : var -> bool (* pattern that matches variables *)
 
 (* operations on formulas *)
 
-val eq : t -> t -> bool
+val equal : t -> t -> bool
 val hash : t -> int
 val size : t -> int
 val vars : t -> var list

@@ -9,7 +9,7 @@ and exp = t_orig * int
   (* TODO: explain which are valid names; empty string is not *)
 
 let hash = snd
-let eq = (==)
+let equal = (==)
 
 module ExpBase = Hashtbl.Make (struct
   type t = exp
@@ -18,7 +18,7 @@ module ExpBase = Hashtbl.Make (struct
     | Var x1, Var x2 -> x1 = x2
     | App (op1, xs1), App (op2, xs2) ->
         op1 = op2
-        && (try List.for_all2 eq xs1 xs2 with Invalid_argument _ -> false)
+        && (try List.for_all2 equal xs1 xs2 with Invalid_argument _ -> false)
     | _ -> false
 end)
 
@@ -86,7 +86,7 @@ module ExprHashSet = HashSet.Make(
 struct
   type t = exp
   let hash = hash
-  let equal = eq
+  let equal = equal
 end)
 
 let vars x =
@@ -103,7 +103,7 @@ module ExprHashMap = Hashtbl.Make(
 struct
   type t = exp
   let hash = hash
-  let equal = eq
+  let equal = equal
 end)
 
 let substitute xys =

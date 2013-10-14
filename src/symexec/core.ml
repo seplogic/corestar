@@ -22,7 +22,9 @@ module TripleSet = HashSet.Make (struct
   type t = triple
 
   let equal a b =
-    Expr.eq a.pre b.pre && Expr.eq a.post b.post && a.modifies = b.modifies
+    Expr.equal a.pre b.pre
+    && Expr.equal a.post b.post
+    && a.modifies = b.modifies
 
   let hash { pre; post; modifies } =
     ((Expr.hash pre * 31) + Expr.hash post) * 31 + Hashtbl.hash modifies

@@ -19,7 +19,7 @@ let id_rule =
   { rule_name = "identity axiom"
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; _ } ->
-      if Expr.eq hypothesis conclusion then [[]] else []) }
+      if Expr.equal hypothesis conclusion then [[]] else []) }
 
 let rules_of_calculus _ = (* XXX *)
   [ id_rule ]
@@ -70,7 +70,7 @@ let wrap_calculus f calculus =
 
 let is_entailment rules goal =
   let penalty { Calculus.hypothesis; conclusion; _ } =
-    if Expr.eq hypothesis Expr.emp && Expr.eq conclusion Expr.emp
+    if Expr.equal hypothesis Expr.emp && Expr.equal conclusion Expr.emp
     then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
@@ -78,7 +78,7 @@ let is_entailment rules goal =
 
 let infer_frame rules goal =
   let penalty { Calculus.hypothesis; conclusion; _ } =
-    if Expr.eq conclusion Expr.emp
+    if Expr.equal conclusion Expr.emp
     then Expr.size hypothesis
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
