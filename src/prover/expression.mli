@@ -5,6 +5,12 @@ type t
 (* TODO: Make these opaque? *)
 type var = string
 type op = string
+type sort = string
+
+(* sorts (aka types) *)
+val declare_sort : sort -> unit
+val declare_op : sort list -> sort -> unit
+val sort_of : t -> sort
 
 (* the basic constructors *)
 val mk_app : op -> t list -> t

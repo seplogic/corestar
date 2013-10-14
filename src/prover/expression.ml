@@ -3,6 +3,7 @@ open Format
 
 type var = string
 type op = string
+type sort = string
 
 type t_orig = Var of string | App of string * exp list
 and exp = t_orig * int
@@ -10,6 +11,10 @@ and exp = t_orig * int
 
 let hash = snd
 let equal = (==)
+
+let declare_sort _ = failwith "TODO: Expression.declare_sort"
+let declare_op _ = failwith "TODO: Expression.declare_op"
+let sort_of _ = failwith "TODO: Expression.sort_of"
 
 module ExpBase = Hashtbl.Make (struct
   type t = exp

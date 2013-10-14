@@ -4,6 +4,8 @@ open Format
 
 module Expr = Expression
 
+open Smt (* XXX *)
+
 type frame_and_antiframe =
   { frame : Expr.t
   ; antiframe : Expr.t }

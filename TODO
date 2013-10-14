@@ -1,6 +1,7 @@
 - fill in TODOs
   - fill in TODOs in symexec
-  - z3/smt2 small interface
+  - sort checking for expressions (at build time)
+  - implementation for z3/smt2 small interface
   - code that applies user rules for prover
   - add 'where' sidecondition (instantiate with matching)
   - apply (equivalence) rewrite rules on side-conditions
