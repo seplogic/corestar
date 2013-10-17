@@ -9,7 +9,7 @@ type sort = string
 
 (* sorts (aka types) *)
 val declare_sort : sort -> unit
-val declare_op : sort list -> sort -> unit
+val declare_op : op -> sort list -> sort -> unit
 val sort_of : t -> sort
 
 (* the basic constructors *)

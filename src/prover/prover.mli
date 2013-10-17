@@ -2,6 +2,8 @@ type frame_and_antiframe =
   { frame : Expression.t
   ; antiframe : Expression.t }
 
+val is_inconsistent (* The result [false] means "maybe". *)
+  : Calculus.t -> Expression.t -> bool
 val is_entailment
   : Calculus.t -> Expression.t -> Expression.t -> bool
 val infer_frame

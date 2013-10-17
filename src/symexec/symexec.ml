@@ -13,7 +13,7 @@ exception Fatal of string
 
 let bfs_limit = 1 lsl 20
 (* }}} *)
-(* helpers for substitutions *) (* {{{ *)
+(* helpers, mainly for substitutions *) (* {{{ *)
 
 let substitute_list var ts e =
   let p i t = (var i, t) in
@@ -336,7 +336,7 @@ end = struct
 
   (* Update [post_of sv]. For each pre-conf in [pvs], it executes
   symbolically the statement [sv], using the helper [update_post_confs_execute].
-  Thet it calls [abstract] on the whole set of cost-confs. The [confgraph] is
+  Then it calls [abstract] on the whole set of cost-confs. The [confgraph] is
   updated. *)
   let update_post_confs execute abstract context pvs sv =
     let posts = post_confs context sv in
@@ -373,7 +373,7 @@ end = struct
 
   let frame calculus p q =
     Prover.infer_frame calculus p q
-    |> List.map (fun x -> { Prover.antiframe = x; frame = Expr.emp })
+    |> List.map (fun x -> { Prover.frame = x; antiframe = Expr.emp })
 
   let collect_pvars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
@@ -510,21 +510,16 @@ end = struct
         | r :: _ -> add_edge c r; weakest in
     ac.ac_fold f confs (ac.ac_mk ())
 
-  let implies_conf logic v1 v2 = match CG.V.label v1, CG.V.label v2 with
+  let implies_conf calculus v1 v2 = match CG.V.label v1, CG.V.label v2 with
     | G.ErrorConf, G.ErrorConf -> true
     | G.ErrorConf, _ | _, G.ErrorConf -> false
     | G.OkConf (c1, _), G.OkConf (c2, _) ->
-        failwith "TODO Symexec.implies_conf"
-(*
-      Sepprover.implies logic c1.G.current_heap c2.G.current_heap &&
-      Sepprover.implies logic c2.G.missing_heap c1.G.missing_heap
-*)
+        Prover.is_entailment calculus c1.G.current_heap c2.G.current_heap
+        && Prover.is_entailment calculus c2.G.missing_heap c1.G.missing_heap
 
-  let implies_triple logic t1 t2 = failwith "TODO Symexec.implies_triple"
-(*
-    Sepprover.implies logic t1.C.post t2.C.post &&
-    Sepprover.implies logic t2.C.pre t1.C.pre
-*)
+  let implies_triple calculus t1 t2 =
+    Prover.is_entailment calculus t1.C.post t2.C.post
+    && Prover.is_entailment calculus t2.C.pre t1.C.pre
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -537,18 +532,18 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract_conf logic confgraph =
+  let abstract_conf calculus confgraph =
     abstract
       { ac_fold = CS.fold
       ; ac_add = (fun x xs -> CS.add xs x; xs)
       ; ac_mk = (fun () -> CS.create 0) }
-      (CG.add_edge confgraph) (implies_conf logic)
-  let abstract_triple logic =
+      (CG.add_edge confgraph) (implies_conf calculus)
+  let abstract_triple calculus =
     abstract
       { ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
-      (fun _ _ -> ()) (implies_triple logic)
+      (fun _ _ -> ()) (implies_triple calculus)
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -640,20 +635,19 @@ end = struct
 
   let update_infer pvars rules body post =
     let abduct = abduct rules.C.calculus in
-    let is_deadend e = Prover.is_entailment rules.C.calculus e Expr.fls in
+    let is_deadend e = Prover.is_inconsistent rules.C.calculus e in
     let make_framable = kill_pvars_with pvars in
     let execute =
       execute abduct is_deadend make_framable (spec_of post body.P.stop) in
-    update execute (abstract_conf rules)
+    update execute (abstract_conf rules.C.calculus)
 
   let update_check rules body post =
-    let abduct = frame rules in
-    let is_deadend = failwith "TODO Symexec.update_check" in
-(*     let is_deadend = Sepprover.inconsistent rules in *)
-    let check_emp _ x = assert (x = Expr.emp); Expr.emp in
+    let abduct = frame rules.C.calculus in
+    let is_deadend f = Prover.is_entailment rules.C.calculus f Expr.fls in
+    let check_emp _ x = assert (Expr.equal x Expr.emp); Expr.emp in
     let execute =
       execute abduct is_deadend check_emp (spec_of post body.P.stop) in
-    update execute (abstract_conf rules)
+    update execute (abstract_conf rules.C.calculus)
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
   let bin_option f x y = match x, y with
@@ -724,7 +718,7 @@ end = struct
             if log log_phase then
               fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
-            let ts = option_map (abstract_triple rules) ts in
+            let ts = option_map (abstract_triple rules.C.calculus) ts in
             let ts = option [] (fun x->x) ts in (* XXX *)
             ts
           end else ts) in
@@ -733,17 +727,19 @@ end = struct
         if log log_phase then
           fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
         let process_triple_check =
-          process_triple (update_check rules.C.calculus body) in
+          process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
         let ts = option [] (fun x->x) ts in (* XXX *)
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
-          let new_ts = failwith "TODO Symexec.interpret new_ts" in
-(*             List.filter (fun s -> not (G.P.inconsistent rules s.C.pre)) ts in  *)
+          let new_ts =
+            let f t = not (Prover.is_inconsistent rules.C.calculus t.C.pre) in
+            List.filter f ts in
 	  (* Check if specifications are better. *)
           let old_ts = C.TripleSet.elements procedure.C.proc_spec in
           let not_better nt =
-            List.exists (fun ot -> implies_triple rules ot nt) old_ts in
+            let implied_by = flip (implies_triple rules.C.calculus) in
+            List.exists (implied_by nt) old_ts in
           if List.for_all not_better new_ts then begin
             if log log_exec then begin
               fprintf logf "@[Reached fixed-point for %s@\n@]@?"

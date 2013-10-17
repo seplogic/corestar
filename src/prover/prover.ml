@@ -4,8 +4,6 @@ open Format
 
 module Expr = Expression
 
-open Smt (* XXX *)
-
 type frame_and_antiframe =
   { frame : Expr.t
   ; antiframe : Expr.t }
@@ -102,4 +100,6 @@ let biabduct rules goal =
 let is_entailment = wrap_calculus is_entailment
 let infer_frame = wrap_calculus infer_frame
 let biabduct = wrap_calculus biabduct
+
+let is_inconsistent rules e = is_entailment rules e Expression.fls
 (* }}} *)
