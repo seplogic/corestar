@@ -23,6 +23,7 @@ let pp_args_in = pp_list_sep "," Expr.pp
 let pp_triple f { pre; post; modifies } =
   let pm f = function
     | None -> fprintf f "*"
+    | Some [] -> ()
     | Some vs -> fprintf f "%a:=*" (pp_list_sep "," pp_string) vs in
   fprintf f "{%a}@,[%a]@,{%a}" Expr.pp pre pm modifies Expr.pp post
 

@@ -128,6 +128,8 @@ let mk_2 op a b = mk_app op [a; b]
 places in the codebase, because that is bug-prone. *)
 type 'a automorphism = 'a -> 'a
 type 'a app_eval = (op -> exp list -> 'a) automorphism
+type 'a app_eval_n = (exp list -> 'a) -> 'a app_eval
+type 'a app_eval_2 = (exp -> exp -> 'a) -> 'a app_eval
 
 let on_2 op_ref f g op =
   if op = op_ref then begin function
@@ -140,6 +142,7 @@ let on_star f g = function "*" -> f | op -> g op
 let mk_big_star = mk_app "*"
 let mk_or = mk_2 "or"
 let on_or f g = function "or" -> f | op -> g op
+let mk_big_or = mk_app "or"
 
 let mk_eq = mk_2 "=="
 let on_eq f = on_2 "==" f
