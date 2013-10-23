@@ -30,45 +30,6 @@ let specialize_spec rets args xs =
     ; modifies = lift_option2 (@) modifies (Some rets) } in
   xs |> C.TripleSet.elements |> List.map f |> C.TripleSet.of_list
 
-(* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
-The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
-and "not". *)
-(* NOTE: very inefficient; fix if profiler complains *)
-let normalize_state e =
-  let concatMap f xs = List.concat (List.map f xs) in
-  let module X = struct
-    type t = { on: 'a. 'a Expr.app_eval_n; mk: Expr.t list -> Expr.t }
-  end in
-  let rec assoc this =
-    let r op es = Expr.mk_app op (List.map (assoc this) es) in
-    let u x = [x] in
-    let ur op es = u (r op es) in
-    let rec split es =
-      Expr.cases (u @@ Expr.mk_var) (this.X.on (concatMap split) ur) es in
-    let remk_this es = this.X.mk (concatMap split es) in
-    Expr.cases Expr.mk_var (this.X.on remk_this r) in
-  let not_not _ = failwith "TODO" in
-  let star_below_or _ = failwith "TODO" in
-  let forbid _ = failwith "TODO" in
-  let del_id _ = failwith "TODO" in
-  let kill_unit _ = failwith "TODO" in
-  let rec fix f e1 =
-    let e2 = f e1 in
-    if Expr.equal e1 e2 then e1 else fix f e2 in
-  let fs =
-    [ assoc { X.on = Expr.on_star; mk = Expr.mk_big_star }
-    ; assoc { X.on = Expr.on_or; mk = Expr.mk_big_or }
-    ; not_not
-    ; star_below_or
-(*     ; forbid Expr.on_not Expr.on_or *)
-(*     ; forbid Expr.on_not Expr.on_star *)
-    ; del_id Expr.on_star Expr.emp
-    ; del_id Expr.on_or Expr.fls
-    ; kill_unit Expr.on_or
-    ; kill_unit Expr.on_star ] in
-  let f = List.fold_left (@@) id fs in
-  fix f
-
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)

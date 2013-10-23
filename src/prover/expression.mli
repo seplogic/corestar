@@ -32,7 +32,7 @@ val freshen : var -> var
   _x is a logical variable *)
 val is_pvar : var -> bool (* program variable *)
 val is_lvar : var -> bool (* logical variable *)
-val is_tpat : var -> bool (* pattern that matches terms *)
+val is_tpat : var -> bool (* pattern that matches terms or formulas *)
 val is_vpat : var -> bool (* pattern that matches variables *)
 
 (* operations on formulas *)
