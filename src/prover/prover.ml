@@ -64,11 +64,142 @@ let normalize e =
   let f = List.fold_left (@@) id fs in
   fix f
 
-(* Expr.t -> Expr.t -> (Expr.var, Expr.t) list list *)
-let get_matches p e =
-  let rec gm bs p e =
-    failwith "TODO" in
-  gm StringMap.empty p e
+(* find_matches and helpers *) (* {{{ *)
+let unique_extractions l =
+  let rec inner acc = function
+    | [] -> []
+    | x::xs ->
+      let rest = (List.map (fun (y, ys) -> (y, x::ys)) (inner (x::acc) xs)) in
+      if List.mem x acc then rest
+      else (x, xs)::rest in
+  inner [] l
+
+(* splits a list of equal elements *)
+let rec splits = function
+  | [] -> [([], [])]
+  | x::xs -> 
+    ([], x::xs)::(List.map (fun (yes, no) -> (x::yes, no)) (splits xs))
+
+(*
+  assumes elements of [l] to be sorted
+  (actually just that equal elements are next to each other)
+*)
+let rec unique_subsets l =
+  let rec inner acc = function
+    | [] -> splits acc
+    | x::xs ->
+      if List.mem x acc then inner (x::acc) xs
+      else
+	inner [x] xs >>= (fun (yes, no) -> splits acc |> List.map (fun (to_yes, to_no) -> (to_yes@yes, to_no@no))) in
+  inner [] l
+
+
+type bindings = Expr.t StringMap.t
+
+let try_find x m = try Some (StringMap.find x m) with Not_found -> None
+
+let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
+  let on_pvar pv = Expr.cases (on_pvar_var pv) (on_pvar_op pv) e in
+  let on_pop po ps = Expr.cases (on_pop_var po ps) (on_pop_op po ps) e in
+  Expr.cases on_pvar on_pop p
+
+(* Not needed as eq and neq are not comassoc
+   They are not, as normalize would not do the right thing on them
+let on_pair f a b = f [a; b]
+*)
+
+let on_comassoc handle_comassoc handle_skew o es =
+  Expr.on_star (handle_comassoc o)
+ (Expr.on_or (handle_comassoc o) handle_skew) o es
+(*
+ (Expr.on_eq (on_pair handle_comassoc)
+ (Expr.on_neq (on_pair handle_comassoc)
+  handle_skew))))
+*)
+
+(*
+  This normalization is needed in the matcher
+  because the matcher implicitly applies it to the pattern
+  it has to be done also to the expression in order to obtain a match
+*)
+let normalize e =
+  let unfold o = function [x] -> x | _ -> e in
+  Expr.cases (fun _ -> e) (on_comassoc unfold (fun _ _ -> e)) e
+
+type match_result =
+  | Done of bindings
+  | More of bindings * (Expr.t * Expr.t)
+
+(*
+  Expr.t -> Expr.t -> bindings list
+  Assumes that e does not contain pattern variables
+
+  input bs is one assignment, the current branch we are exploring
+  output is list of assignments, all possible extensions which leads to a match
+*)
+let rec find_matches bs (p, e) =
+  let bind pv = 
+    begin
+      match try_find pv bs with
+	| None -> [Done (StringMap.add pv e bs)]
+	| Some oe -> if e = oe then [Done bs] else []
+    end in
+  let on_pvar_var pv _ = bind pv in
+  let on_pvar_op pv _ _ = if Expr.is_tpat pv then bind pv else [] in
+  let on_pop_var _ _ _ = [] in
+  let on_pop_op po ps o es =
+    if po <> o then []
+    else
+      let handle_comassoc _ _ =
+	begin
+	  let mk_o l = Expr.mk_app o l in
+	  match ps with
+	    | [] -> [Done bs]
+	    | [x] -> List.map (fun m -> Done m) (find_matches bs (x, normalize e))
+	    | ext_p::rest_p ->
+	      begin
+		let unspecific v =
+		  let is_more (yes, no) =
+		    let to_bind = normalize (mk_o yes) in
+		    match try_find v bs with
+		      | None -> Some (More (StringMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
+		      | Some oyes ->
+			if oyes = to_bind then Some (More (bs, (mk_o rest_p, mk_o no)))
+			else None in
+		  unique_subsets es |> map_option is_more in
+		let specific () =
+		  match es with
+		    | [] -> [Done bs]
+		    | [x] -> List.map (fun m -> Done m) (find_matches bs (ext_p, x))
+		    | _ ->
+		      let ext_match (ext_e, rest_e) =
+			let mk_more m = More (m, (mk_o rest_p, mk_o rest_e)) in
+			List.map mk_more (find_matches bs (ext_p, ext_e)) in
+		      unique_extractions es >>= ext_match in		    		    
+		Expr.cases
+		  (fun v -> if Expr.is_tpat v then unspecific v else specific ())
+		  (fun _ _ -> specific ())
+		  ext_p
+	      end
+	end in
+      let handle_skew _ _ =
+	if List.length ps <> List.length es then []
+	else
+	  let todos = List.combine ps es in
+	  let process_todo acc (tp, te) =
+	    acc >>= (flip find_matches (tp, te)) in
+	  let result = List.fold_left process_todo [bs] todos in
+	  List.map (fun r -> Done r) result in
+      on_comassoc handle_comassoc handle_skew po ps in
+  let matches = cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
+  let process_match = function
+    | Done final_bs -> [final_bs]
+    | More (next_bs, next_pair) ->
+      (*      Format.printf "<processing more %d>" (List.length next_bs); *)
+      find_matches next_bs next_pair in
+  matches >>= process_match
+(* }}} *)
+
 
 let rules_of_calculus _ = (* XXX *)
   [ id_rule ]
