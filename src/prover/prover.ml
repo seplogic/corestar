@@ -2,6 +2,7 @@
 open Corestar_std
 open Debug
 open Format
+open Smt
 
 module Expr = Expression
 
