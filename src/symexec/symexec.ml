@@ -666,9 +666,9 @@ end = struct
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
 
-  let normalize f = f (* {ts=ts; form=form} =
-    let form, ts = Clogic.normalise ts form in
-    {ts=ts; form=form} *)
+  let normalize { C.pre; post; modifies } =
+    let f = Prover.normalize in
+    { C.pre = f pre; post = f post; modifies = modifies }
 
   let hashset_subset s1 s2 =
     try HashSet.iter (HashSet.find s2) s1; true with Not_found -> false
@@ -702,8 +702,8 @@ end = struct
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = Expr.mk_star in
             let pre = pre * missing_heap in
-            { C.pre = pre
-            ; post = current_heap
+            { C.pre = Prover.normalize pre
+            ; post = Prover.normalize current_heap
             ; modifies = Some pvars } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in

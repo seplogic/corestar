@@ -28,7 +28,7 @@ let id_rule =
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
 (* NOTE: very inefficient; fix if profiler complains *)
-let normalize e =
+let normalize =
   let concatMap f xs = List.concat (List.map f xs) in
   let module X = struct
     type t = { on: 'a. 'a Expr.app_eval_n; mk: Expr.t list -> Expr.t }
@@ -42,25 +42,25 @@ let normalize e =
       Expr.cases (u @@ Expr.mk_var) (this.X.on (concatMap split) ur) es in
     let remk_this es = this.X.mk (concatMap split es) in
     Expr.cases Expr.mk_var (this.X.on remk_this r) in
-  let not_not _ = failwith "TODO" in
+(*  let not_not _ = failwith "TODO" in
   let star_below_or _ = failwith "TODO" in
   let forbid _ = failwith "TODO" in
   let del_id _ = failwith "TODO" in
-  let kill_unit _ = failwith "TODO" in
+  let kill_unit _ = failwith "TODO" in *)
   let rec fix f e1 =
     let e2 = f e1 in
     if Expr.equal e1 e2 then e1 else fix f e2 in
   let fs =
     [ assoc { X.on = Expr.on_star; mk = Expr.mk_big_star }
     ; assoc { X.on = Expr.on_or; mk = Expr.mk_big_or }
-    ; not_not
+(*    ; not_not
     ; star_below_or
-(*     ; forbid Expr.on_not Expr.on_or *)
-(*     ; forbid Expr.on_not Expr.on_star *)
+    ; forbid Expr.on_not Expr.on_or
+    ; forbid Expr.on_not Expr.on_star
     ; del_id Expr.on_star Expr.emp
     ; del_id Expr.on_or Expr.fls
     ; kill_unit Expr.on_or
-    ; kill_unit Expr.on_star ] in
+    ; kill_unit Expr.on_star *) ] in
   let f = List.fold_left (@@) id fs in
   fix f
 
@@ -77,7 +77,7 @@ let unique_extractions l =
 (* splits a list of equal elements *)
 let rec splits = function
   | [] -> [([], [])]
-  | x::xs -> 
+  | x::xs ->
     ([], x::xs)::(List.map (fun (yes, no) -> (x::yes, no)) (splits xs))
 
 (*
@@ -138,7 +138,7 @@ type match_result =
   output is list of assignments, all possible extensions which leads to a match
 *)
 let rec find_matches bs (p, e) =
-  let bind pv = 
+  let bind pv =
     begin
       match try_find pv bs with
 	| None -> [Done (StringMap.add pv e bs)]
@@ -175,7 +175,7 @@ let rec find_matches bs (p, e) =
 		      let ext_match (ext_e, rest_e) =
 			let mk_more m = More (m, (mk_o rest_p, mk_o rest_e)) in
 			List.map mk_more (find_matches bs (ext_p, ext_e)) in
-		      unique_extractions es >>= ext_match in		    		    
+		      unique_extractions es >>= ext_match in
 		Expr.cases
 		  (fun v -> if Expr.is_tpat v then unspecific v else specific ())
 		  (fun _ _ -> specific ())
@@ -221,7 +221,7 @@ let rules_of_calculus c =
     let m = find_sequent_matches StringMap.empty rs.Calculus.goal_pattern s in
     List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m in
   let to_rule rs =
-    { rule_name = rs.Calculus.schema_name 
+    { rule_name = rs.Calculus.schema_name
     ; rule_apply = apply_rule_schema rs } in
   id_rule :: List.map to_rule c
 
@@ -235,8 +235,11 @@ of acceptable as a leaf, but we should keep looking for something better.
   TODO: we may want to count only once a leaf appearing twice
   TODO: we may want to partly cache the results of proving
 *)
-let rec solve rules penalty n goal =
-  (* TODO: Add normalization here. *)
+let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
+  let goal =
+    { Calculus.frame = normalize frame
+    ; hypothesis = normalize hypothesis
+    ; conclusion = normalize conclusion } in
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin

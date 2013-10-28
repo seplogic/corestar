@@ -14,3 +14,6 @@ val biabduct
 (* NOTE: For infer_frame, the empty list result [] means that no suitable
 frame was found, while the result [Expression.emp] means that the entailment
 holds as given; that is, with an empty frame. Similarly for biabduct. *)
+
+val normalize
+  : Expression.t -> Expression.t
