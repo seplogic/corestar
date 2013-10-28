@@ -122,7 +122,7 @@ let on_comassoc handle_comassoc handle_skew o es =
   because the matcher implicitly applies it to the pattern
   it has to be done also to the expression in order to obtain a match
 *)
-let normalize e =
+let normalize_comassoc e =
   let unfold o = function [x] -> x | _ -> e in
   Expr.cases (fun _ -> e) (on_comassoc unfold (fun _ _ -> e)) e
 
@@ -155,12 +155,12 @@ let rec find_matches bs (p, e) =
 	  let mk_o l = Expr.mk_app o l in
 	  match ps with
 	    | [] -> [Done bs]
-	    | [x] -> List.map (fun m -> Done m) (find_matches bs (x, normalize e))
+	    | [x] -> List.map (fun m -> Done m) (find_matches bs (x, normalize_comassoc e))
 	    | ext_p::rest_p ->
 	      begin
 		let unspecific v =
 		  let is_more (yes, no) =
-		    let to_bind = normalize (mk_o yes) in
+		    let to_bind = normalize_comassoc (mk_o yes) in
 		    match try_find v bs with
 		      | None -> Some (More (StringMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
 		      | Some oyes ->
