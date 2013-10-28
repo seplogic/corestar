@@ -198,11 +198,32 @@ let rec find_matches bs (p, e) =
       (*      Format.printf "<processing more %d>" (List.length next_bs); *)
       find_matches next_bs next_pair in
   matches >>= process_match
+
+let find_sequent_matches bs ps s =
+  let fm pat exp bs = find_matches bs (pat, exp) in
+  fm ps.Calculus.frame s.Calculus.frame bs >>=
+    fm ps.Calculus.hypothesis s.Calculus.hypothesis >>=
+    fm ps.Calculus.conclusion s.Calculus.conclusion
 (* }}} *)
 
+let rec instantiate bs p =
+  let on_var pv = match try_find pv bs with None -> Expr.mk_var pv | Some e -> e in
+  let on_op po ps = Expr.mk_app po (List.map (instantiate bs) ps) in
+  Expr.cases on_var on_op p
 
-let rules_of_calculus _ = (* XXX *)
-  [ id_rule ]
+let instantiate_sequent bs s =
+  { Calculus.frame = instantiate bs s.Calculus.frame
+  ; hypothesis = instantiate bs s.Calculus.hypothesis
+  ; conclusion = instantiate bs s.Calculus.conclusion }
+
+let rules_of_calculus c =
+  let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
+    let m = find_sequent_matches StringMap.empty rs.Calculus.goal_pattern s in
+    List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m in
+  let to_rule rs =
+    { rule_name = rs.Calculus.schema_name 
+    ; rule_apply = apply_rule_schema rs } in
+  id_rule :: List.map to_rule c
 
 (* }}} *)
 (* The main proof-search algorithm. *) (* {{{ *)
