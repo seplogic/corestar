@@ -30,6 +30,23 @@ let specialize_spec rets args xs =
     ; modifies = lift_option2 (@) modifies (Some rets) } in
   xs |> C.TripleSet.elements |> List.map f |> C.TripleSet.of_list
 
+(* Unlike the one in [Expression], this does some simplifications.
+NOTE: It does not keep arguments of * sorted. *)
+let mk_star e1 e2 =
+  let star_args e = Expr.cases
+    (fun _ -> [e])
+    (Expr.on_star (fun xs -> xs) (fun _ _ -> [e]))
+    e in
+  let xs = star_args e1 @ star_args e2 in
+  let module H = Hashtbl.Make (Expr) in
+  let h = H.create (List.length xs) in
+  List.iter (fun x -> H.add h x ()) xs;
+  H.remove h Expr.emp;
+  match H.fold (fun x () xs -> x :: xs) h [] with
+    | [] -> Expr.emp
+    | [x] -> x
+    | xs -> Expr.mk_big_star xs
+
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
@@ -449,7 +466,7 @@ end = struct
     let afs = abduct pre_conf.G.current_heap pre in
     let branch afs =
       let mk_post_conf { Prover.antiframe = a; frame = f } =
-        let ( * ) = Expr.mk_star in
+        let ( * ) = mk_star in
         let conf =
           { G.missing_heap
             = pre_conf.G.missing_heap * make_framable pre_conf.G.current_heap a
@@ -700,11 +717,9 @@ end = struct
           let update = update triple.C.post in
           let pre = extend_precondition pvars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
-            let ( * ) = Expr.mk_star in
+            let ( * ) = mk_star in
             let pre = pre * missing_heap in
-            { C.pre = Prover.normalize pre
-            ; post = Prover.normalize current_heap
-            ; modifies = Some pvars } in
+            { C.pre = pre; post = current_heap; modifies = Some pvars } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
@@ -779,7 +794,7 @@ let interpret_one_scc proc_of_name q =
     let rs = List.map interpret q.C.q_procs in
     if List.exists ((=) PI.Spec_updated) rs
     then fix ()
-    else List.for_all ((=) PI.OK) rs in
+    else List.for_all2 (fun r p -> (r = PI.OK) = p.C.proc_ok) rs q.C.q_procs in
   fix ()
 
 let interpret q =

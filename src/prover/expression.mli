@@ -63,10 +63,10 @@ val mk_neq : t -> t -> t
 val mk_string_const : string -> t
 val mk_int_const : string -> t
 
-(* [on_star f g op xs] returns either [f xs] or [g xs] depending on whether [op]
-is a star or not. Similarly for the other [on_*] functions. In other modules,
-you should prefer to use these together with [cases] instead of mentioning
-strings. *)
+(* [on_star f g op xs] returns either [f xs] or [g op xs] depending on whether
+[op] is a star or not. Similarly for the other [on_*] functions. In other
+modules, you should prefer to use these together with [cases] instead of
+mentioning strings. *)
 val cases : (var -> 'a) -> (op -> t list -> 'a) -> t -> 'a
 type 'a app_eval = (op -> t list -> 'a) -> (op -> t list -> 'a)
 type 'a app_eval_n = (t list -> 'a) -> 'a app_eval

@@ -157,10 +157,10 @@ formula:
   | FALSE { Expr.fls }
   | BANG identifier L_PAREN term_list R_PAREN { Expr.mk_app ("!"^$2) $4 }
   | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
-  | formula MULT formula { Expr.mk_2 "*" $1 $3 }
-  | formula OROR formula { Expr.mk_2 "or" $1 $3 }
-  | term NOT_EQUALS term { Expr.mk_2 "!=" $1 $3 }
-  | term EQUALS term { Expr.mk_2 "==" $1 $3 }
+  | formula MULT formula { Expr.mk_star $1 $3 }
+  | formula OROR formula { Expr.mk_or $1 $3 }
+  | term NOT_EQUALS term { Expr.mk_neq $1 $3 }
+  | term EQUALS term { Expr.mk_eq $1 $3 }
   | term cmpop term { Expr.mk_2 $2 $1 $3 }
   | qidentifier { Expr.mk_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
