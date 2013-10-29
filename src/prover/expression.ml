@@ -9,6 +9,12 @@ type t_orig = Var of string | App of string * exp list
 and exp = t_orig * int
   (* TODO: explain which are valid names; empty string is not *)
 
+let rec pp f =
+  let pp_rec f e = fprintf f " %a" pp e in
+  fun g -> match fst g with
+    | Var v -> pp_string f v
+    | App (op, xs) -> fprintf f "(%s%a)" op (pp_list pp_rec) xs
+
 let hash = snd
 let equal = (==)
 
@@ -113,7 +119,7 @@ end)
 
 let substitute xys =
   let m = ExprHashMap.create 0 in
-  let () = List.iter (fun (v,t) -> ExprHashMap.add m (mk_var v) t) xys in
+  List.iter (fun (v, t) -> ExprHashMap.add m (mk_var v) t) xys;
   let f = ExprHashMap.find m in
   let rec r exp = match fst exp with
     | Var _ -> (try f exp with Not_found -> exp)
@@ -159,11 +165,5 @@ let is_interpreted _ = failwith "TODO"
 let nil = mk_0 "nil"
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
-
-let rec pp f =
-  let pp_rec f e = fprintf f " %a" pp e in
-  fun g -> match fst g with
-    | Var v -> pp_string f v
-    | App (op, xs) -> fprintf f "(%s%a)" op (pp_list pp_rec) xs
 
 type t = exp

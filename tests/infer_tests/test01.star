@@ -7,9 +7,9 @@ end;
 // ====================
 
 procedure Test02:
-? 
-assign x := {}{field($ret_v1,"next",_x)} (); // x=malloc()
-assign x := {field($ret_v1,"next","0")}{} (); // [x]=0
+?
+assign x := {}{field($ret_v0,"next",_x)} (); // x=malloc()
+assign x := {field(x,"next",_x)}{field($ret_v0,"next","0")} (); // [x]=0
 end;
 
 // ====================

@@ -22,15 +22,16 @@ let substitute_list var ts e =
 let substitute_args = substitute_list CoreOps.parameter
 let substitute_rets = substitute_list CoreOps.return
 
+(* TODO: warn if there are special vars that remain in the result. *)
 let specialize_spec rets args xs =
-  let ret_terms = List.map (fun v -> Expr.mk_var v) rets in
+  let ret_terms = List.map Expr.mk_var rets in
   let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
     ; modifies = lift_option2 (@) modifies (Some rets) } in
   xs |> C.TripleSet.elements |> List.map f |> C.TripleSet.of_list
 
-(* Unlike the one in [Expression], this does some simplifications.
+(* Unlike [Expression.mk_star], this [mk_star] does some simplifications.
 NOTE: It does not keep arguments of * sorted. *)
 let mk_star e1 e2 =
   let star_args e = Expr.cases
@@ -43,9 +44,7 @@ let mk_star e1 e2 =
   List.iter (fun x -> H.add h x ()) xs;
   H.remove h Expr.emp;
   match H.fold (fun x () xs -> x :: xs) h [] with
-    | [] -> Expr.emp
-    | [x] -> x
-    | xs -> Expr.mk_big_star xs
+    | [] -> Expr.emp | [x] -> x | xs -> Expr.mk_big_star xs
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
