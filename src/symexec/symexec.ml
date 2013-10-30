@@ -29,7 +29,7 @@ let specialize_spec rets args xs =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
     ; modifies = lift_option2 (@) modifies (Some rets) } in
-  xs |> C.TripleSet.elements |> List.map f |> C.TripleSet.of_list
+  C.TripleSet.map f xs
 
 (* Unlike [Expression.mk_star], this [mk_star] does some simplifications.
 NOTE: It does not keep arguments of * sorted. *)

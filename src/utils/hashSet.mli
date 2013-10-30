@@ -33,5 +33,6 @@ module type S = sig
   val remove : t -> elt -> unit
   val singleton : elt -> t
   val of_list : elt list -> t
+  val map : (elt -> elt) -> t -> t
 end
 module Make : functor (E : HashedType) -> S with type elt = E.t

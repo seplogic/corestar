@@ -66,6 +66,7 @@ module type S = sig
   val remove : t -> elt -> unit
   val singleton : elt -> t
   val of_list : elt list -> t
+  val map : (elt -> elt) -> t -> t
 end
 
 module Make (E : HashedType) = struct
@@ -89,4 +90,6 @@ module Make (E : HashedType) = struct
   let elements h = fold ListH.cons h []
   let for_all = for_all_gen iter
   let exists p = not @@ for_all (not @@ p)
+
+  let map f h = h |> elements |> List.map f |> of_list
 end

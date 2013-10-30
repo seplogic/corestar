@@ -85,12 +85,9 @@ let empty_ast_question =
 
 type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 
-let refines_triple logic triple1 triple2 =
-  failwith "TODO"
-  (*
-  Sepprover.implies logic triple2.pre triple1.pre &&
-  Sepprover.implies logic triple1.post triple2.post
-  *)
+let refines_triple calculus triple1 triple2 =
+  let ( => ) = Prover.is_entailment calculus in
+  (triple2.pre => triple1.pre) && (triple1.post => triple2.post)
 
 let refines_spec logic spec1 spec2 =
   TripleSet.for_all
