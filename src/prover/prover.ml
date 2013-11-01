@@ -11,6 +11,30 @@ type frame_and_antiframe =
   { frame : Expr.t
   ; antiframe : Expr.t }
 
+(* Helper functions for prover rules. *) (* {{{ *)
+
+let smt_is_valid a =
+  Smt.push ();
+  Smt.say (Expr.mk_app "not" [a]);
+  let r = match Smt.check_sat () with Smt.Unsat -> true | _ -> false in
+  Smt.pop ();
+  r
+
+let smt_implies a b =
+  let ok_n = [ Expr.on_star; Expr.on_or; Expr.on_op "not" ] in
+  let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
+  let stop_op = [ Expr.on_string_const; Expr.on_int_const ] in
+  let rec is_ok e =
+    let f _ _ = false in
+    let f = List.fold_right ((|>) are_all_ok) ok_n f in
+    let f = List.fold_right ((|>) are_both_ok) ok_2 f in
+    let f = List.fold_right ((|>) (fun _ -> true)) stop_op f in
+    Expr.cases (fun _ -> true) f e
+  and are_all_ok es = List.for_all is_ok es
+  and are_both_ok a b = is_ok a && is_ok b in
+  are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_app "not" [a]) b)
+
+(* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
   { rule_name : string (* For debug *)
@@ -23,6 +47,12 @@ let id_rule =
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; _ } ->
       if Expr.equal hypothesis conclusion then [[]] else []) }
+
+let smt_pure_rule =
+  { rule_name = "pure entailment (by SMT)"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; _ } ->
+      if smt_implies hypothesis conclusion then [[]] else []) }
 
 (* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -223,7 +253,7 @@ let rules_of_calculus c =
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = apply_rule_schema rs } in
-  id_rule :: List.map to_rule c
+  id_rule :: smt_pure_rule :: List.map to_rule c
 
 (* }}} *)
 (* The main proof-search algorithm. *) (* {{{ *)

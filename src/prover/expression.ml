@@ -137,27 +137,38 @@ type 'a app_eval = (op -> exp list -> 'a) automorphism
 type 'a app_eval_n = (exp list -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (exp -> exp -> 'a) -> 'a app_eval
 
-let on_2 op_ref f g op =
-  if op = op_ref then begin function
+
+let on_op op_ref f g op =
+  if op = op_ref then f else g op
+
+let on_2 op_ref f =
+  let f = function
     | [e1; e2] -> f e1 e2
-    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 2")
-  end else g op
+    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 2" ) in
+  on_op op_ref f
+
+let on_const op_ref f =
+  let f = function
+    | [e] -> let s, xs = bk_app e in assert (xs = []); f s
+    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 1") in
+  on_op op_ref f
 
 let mk_star = mk_2 "*"
-let on_star f g = function "*" -> f | op -> g op
 let mk_big_star = mk_app "*"
+let on_star f = on_op "*" f
 let mk_or = mk_2 "or"
-let on_or f g = function "or" -> f | op -> g op
 let mk_big_or = mk_app "or"
+let on_or f = on_op "or" f
 
 let mk_eq = mk_2 "=="
 let on_eq f = on_2 "==" f
 let mk_neq = mk_2 "!="
 let on_neq f = on_2 "!=" f
 
-(* TODO: don't do this! Instead, have some general mechanism for types. *)
 let mk_string_const s = mk_1 "<string>" (mk_0 s)
+let on_string_const f = on_const "<string>" f
 let mk_int_const s = mk_1 "<int>" (mk_0 s)
+let on_int_const f = on_const "<int>" f
 
 let is_interpreted _ = failwith "TODO"
 

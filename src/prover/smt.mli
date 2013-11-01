@@ -9,7 +9,7 @@ exception Error of string
 type check_sat_response = Sat | Unsat | Unknown
 
 val define_fun : symbol -> (var * sort) list -> sort -> term -> unit
-val push : int -> unit
-val pop : int -> unit
+val push : unit -> unit
+val pop : unit -> unit
 val say : term -> unit (* instead of ‘assert’, which is a keyword *)
 val check_sat : unit -> check_sat_response

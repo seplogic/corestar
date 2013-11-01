@@ -69,12 +69,15 @@ modules, you should prefer to use these together with [cases] instead of
 mentioning strings. *)
 val cases : (var -> 'a) -> (op -> t list -> 'a) -> t -> 'a
 type 'a app_eval = (op -> t list -> 'a) -> (op -> t list -> 'a)
-type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
+type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
 val on_star : 'a app_eval_n
 val on_or : 'a app_eval_n
 val on_eq : 'a app_eval_2
 val on_neq : 'a app_eval_2
+val on_string_const : (string -> 'a) -> 'a app_eval
+val on_int_const : (string -> 'a) -> 'a app_eval
+val on_op : op -> 'a app_eval_n
 
 val is_interpreted : string -> bool
 
