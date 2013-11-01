@@ -5,7 +5,6 @@ type symbol = Expression.op
 type term = Expression.t
 type var = Expression.var
 
-exception Error of string
 type check_sat_response = Sat | Unsat | Unknown
 
 val define_fun : symbol -> (var * sort) list -> sort -> term -> unit

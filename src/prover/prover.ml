@@ -12,7 +12,6 @@ type frame_and_antiframe =
   ; antiframe : Expr.t }
 
 (* Helper functions for prover rules. *) (* {{{ *)
-
 let smt_is_valid a =
   Smt.push ();
   Smt.say (Expr.mk_not a);
