@@ -56,6 +56,7 @@ val mk_star : t -> t -> t
 val mk_big_star : t list -> t
 val mk_or : t -> t -> t
 val mk_big_or : t list -> t
+val mk_not : t -> t
 
 val mk_eq : t -> t -> t
 val mk_neq : t -> t -> t
@@ -69,10 +70,12 @@ modules, you should prefer to use these together with [cases] instead of
 mentioning strings. *)
 val cases : (var -> 'a) -> (op -> t list -> 'a) -> t -> 'a
 type 'a app_eval = (op -> t list -> 'a) -> (op -> t list -> 'a)
+type 'a app_eval_1 = (t -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
 type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
 val on_star : 'a app_eval_n
 val on_or : 'a app_eval_n
+val on_not : 'a app_eval_1
 val on_eq : 'a app_eval_2
 val on_neq : 'a app_eval_2
 val on_string_const : (string -> 'a) -> 'a app_eval

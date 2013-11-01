@@ -135,11 +135,18 @@ places in the codebase, because that is bug-prone. *)
 type 'a automorphism = 'a -> 'a
 type 'a app_eval = (op -> exp list -> 'a) automorphism
 type 'a app_eval_n = (exp list -> 'a) -> 'a app_eval
+type 'a app_eval_1 = (exp -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (exp -> exp -> 'a) -> 'a app_eval
 
 
 let on_op op_ref f g op =
   if op = op_ref then f else g op
+
+let on_1 op_ref f =
+  let f = function
+    | [e] -> f e
+    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 1" ) in
+  on_op op_ref f
 
 let on_2 op_ref f =
   let f = function
@@ -153,12 +160,16 @@ let on_const op_ref f =
     | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 1") in
   on_op op_ref f
 
+
 let mk_star = mk_2 "*"
 let mk_big_star = mk_app "*"
 let on_star f = on_op "*" f
 let mk_or = mk_2 "or"
 let mk_big_or = mk_app "or"
 let on_or f = on_op "or" f
+
+let mk_not = mk_1 "not"
+let on_not f = on_1 "not" f
 
 let mk_eq = mk_2 "=="
 let on_eq f = on_2 "==" f

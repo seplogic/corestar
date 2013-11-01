@@ -15,24 +15,26 @@ type frame_and_antiframe =
 
 let smt_is_valid a =
   Smt.push ();
-  Smt.say (Expr.mk_app "not" [a]);
+  Smt.say (Expr.mk_not a);
   let r = match Smt.check_sat () with Smt.Unsat -> true | _ -> false in
   Smt.pop ();
   r
 
 let smt_implies a b =
-  let ok_n = [ Expr.on_star; Expr.on_or; Expr.on_op "not" ] in
+  let ok_n = [ Expr.on_star; Expr.on_or ] in
   let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
+  let ok_1 = [ Expr.on_not ] in
   let stop_op = [ Expr.on_string_const; Expr.on_int_const ] in
   let rec is_ok e =
     let f _ _ = false in
     let f = List.fold_right ((|>) are_all_ok) ok_n f in
     let f = List.fold_right ((|>) are_both_ok) ok_2 f in
+    let f = List.fold_right ((|>) is_ok) ok_1 f in
     let f = List.fold_right ((|>) (fun _ -> true)) stop_op f in
     Expr.cases (fun _ -> true) f e
   and are_all_ok es = List.for_all is_ok es
   and are_both_ok a b = is_ok a && is_ok b in
-  are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_app "not" [a]) b)
+  are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
