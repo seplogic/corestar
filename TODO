@@ -1,4 +1,3 @@
-- fill in TODOs
 - check out what do tests do
 - scoping for variables in expression; that is, quantifiers
 - add polymorphic sorts (equality, bvadd, bvconcat, etc)
