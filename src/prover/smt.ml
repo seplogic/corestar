@@ -14,9 +14,40 @@ type var = Expr.var  (* x, y, ... *)
 
 type check_sat_response = Sat | Unsat | Unknown
 
+let interpreted =
+  [ "==", "="
+  ; "!=", "distinct"
+  ; "not", "not"
+  ; "*", "and"
+  ; "or", "or" ]
+
+let uniq_id = ref 0
+let str_map = StringHash.create 0
+let sym_map = StringHash.create 0
+let () = List.iter (uncurry (StringHash.add sym_map)) interpreted
+
+let bad_id_re = Str.regexp "[^a-zA-Z0-9]+"
+
+let sanitize pre map id =
+  try StringHash.find map id
+  with Not_found -> begin
+    let clean = Str.global_replace bad_id_re "" in
+    let r = sprintf "%s-%s-%d" pre (clean id) (incr uniq_id; !uniq_id) in
+    StringHash.add map id r; r
+  end
+
+let sanitize_sym = sanitize "sym" sym_map
+let sanitize_str = sanitize "str" str_map
 
 let z3_out, z3_in, z3_err =
   Unix.open_process_full "z3 -smt2 -in" (Unix.environment())
+
+let declared = StringHash.create 0
+
+let is_predeclared =
+  let s = List.map snd interpreted in
+  let s = List.fold_right StringSet.add s StringSet.empty in
+  flip StringSet.mem s
 
 (* Helpers to send strings to Z3. *) (* {{{ *)
 (* NOTE: Many of these function resemble pretty-printers from [Corestar_std],
@@ -26,57 +57,43 @@ whim. *)
 
 let send_string f = fprintf f "%s"
 
-let send_list pp f = List.iter (fprintf f " %a%!" pp)
+let send_list pp f = List.iter (fprintf f " %a" pp)
 
 let rec send_expr f =
-  let ps = fprintf f "%s%!" in
+  let ps = fprintf f "%s" in
   let app op = function
     | [] -> failwith (op ^ " function should have arguments (indsfisa)")
     | xs -> fprintf f "(%s%a)" op (send_list send_expr) xs in
-  Expr.cases ps
-    ( Expr.on_string_const (fprintf f "str-%s") (* TODO: really uniqify *)
+  Expr.cases
+    (ps @@ sanitize_sym)
+    ( Expr.on_string_const (ps @@ sanitize_str)
     & Expr.on_int_const ps
-    & app )
-
+    & (app @@ sanitize_sym))
 
 (* }}} *)
-let declared = ref [StringHash.create 0]
-let string_constants = ref StringSet.empty
-
-let declared_sort s =
-  let rec loop = function
-    | [] -> raise Not_found
-    | h :: hs -> (try StringHash.find h s with Not_found -> loop hs) in
-  loop !declared
-
-let declared_push () =
-  declared := StringHash.create 0 :: !declared
-
-let declared_pop () =
-  declared := List.tl !declared;
-  assert (!declared <> [])
 
 let declare s ((ps, q) as psq) =
-  let check_old () =
-    try
-      let psq_old = declared_sort s in
-      assert (psq = psq_old)
-    with Not_found -> () in
-  check_old ();
-  fprintf z3_in "(declare-fun %s (%a) %s)\n%!" s (send_list send_string) ps q;
-  StringHash.add (List.hd !declared) s psq
+  if not (is_predeclared s) then
+  try
+    let psq_old = StringHash.find declared s in
+    assert (psq = psq_old)
+  with Not_found -> begin
+    fprintf z3_in "(declare-fun %s (%a) %s)\n%!" s (send_list send_string) ps q;
+    StringHash.add declared s psq
+  end
 
 let () = (* send prelude *)
-  fprintf z3_in "(declare-sort String)\n%!";
-  fprintf z3_in "(declare-sort Ref)\n%!";
-  declare "string-literal" (["String"], "Ref")
+  fprintf z3_in "(declare-sort Ref)\n%!"
 
-(* TODO: Replace by some proper implementation. *)
-let analyze_sorts t =
+(* TODO: Replace by some proper implementation; should use [Expr.sort_of]. *)
+let analyze_sorts =
   let rec repeat x = function [] -> [] | _ :: ts -> x :: repeat x ts in
-  let var x = declare x ([], "Ref") in
-  let app op ts = declare op (repeat "Ref" ts, "Ref") in
-  failwith "CONTINUE HERE"
+  let dec ts c  = declare c (repeat "Ref" ts, "Ref") in
+  let var = dec [] @@ sanitize_sym in
+  let str = dec [] @@ sanitize_str in
+  let rec app op ts = dec ts (sanitize_sym op); List.iter visit ts
+  and visit t = Expr.cases var (Expr.on_string_const str app) t in
+  visit
 
 (* For debugging. *)
 let read_error () =
@@ -92,7 +109,9 @@ let read_error () =
   and g n c = if r () = c then f n else g n c in
   f 1
 
-let smt_listen () = fscanf z3_out " %s" (function
+let smt_listen () =
+  fprintf z3_in "%!";
+  fscanf z3_out " %s" (function
   | "sat" -> Sat
   | "unsat" -> Unsat
   | "unknown" -> Unknown
@@ -100,14 +119,18 @@ let smt_listen () = fscanf z3_out " %s" (function
   | s -> failwith ("Z3 says: " ^ s))
 
 let define_fun sm vs st tm  =
-  let send_args f = List.iter (fun (v, s) -> fprintf f "(%s %s)%!" v s) in
-  fprintf z3_in "(define-fun %s (%a) %s %a)\n%!"
+  let send_args f = List.iter (fun (v, s) -> fprintf f "(%s %s)" v s) in
+  fprintf z3_in "(define-fun %s (%a) %s %a)\n"
     sm send_args vs st send_expr tm
 
 let say e =
+  analyze_sorts e;
   fprintf z3_in "(assert %a)\n%!" send_expr e
 
 let check_sat () =
+  (* TODO: Handle (distinct ...) efficiently. *)
+  let ss = StringHash.fold (fun _ -> ListH.cons) str_map [] in
+  fprintf z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
   fprintf z3_in "(check-sat)\n%!";
   smt_listen ()
 

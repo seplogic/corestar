@@ -1,12 +1,13 @@
 open Corestar_std
 open Format
 
-type var = string
-type op = string
-type sort = string
+type symbol = string (* u, v, ... *)
+type var = symbol (* x, y, ... *)
+type op = symbol (* g, h, ... *)
+type sort = string (* t *)
 
 type t_orig = Var of string | App of string * exp list
-and exp = t_orig * int
+and exp = t_orig * int  (* e, f, ... *)
   (* TODO: explain which are valid names; empty string is not *)
 
 let rec pp f =
@@ -18,9 +19,16 @@ let rec pp f =
 let hash = snd
 let equal = (==)
 
-let declare_sort _ = failwith "TODO: Expression.declare_sort"
-let declare_op _ = failwith "TODO: Expression.declare_op"
-let sort_of _ = failwith "TODO: Expression.sort_of"
+let sorts = ref StringSet.empty
+let symbols = StringHash.create 0
+
+let declare_sort t =
+  assert (not (StringSet.mem t !sorts));
+  sorts := StringSet.add t !sorts
+
+let declare_symbol u t =
+  assert (not (StringHash.mem symbols u));
+  StringHash.add symbols u t
 
 module ExpBase = Hashtbl.Make (struct
   type t = exp
@@ -46,6 +54,7 @@ let hash_cons f =
   try ExpBase.find exp_base f
   with Not_found -> ExpBase.add exp_base f f; f
 
+(* TODO: sort checking *)
 let mk_app op xs =
   let e = App (op, xs) in
   hash_cons (e, hash_orig e)
@@ -65,6 +74,10 @@ let bk_var f = match fst f with
 let cases var app e = match fst e with
   | Var v -> var v
   | App (op, xs) -> app op xs
+
+let symbol_of = cases (fun x -> x) (fun f _ -> f)
+
+let sort_of = StringHash.find symbols @@ symbol_of
 
 (* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
 Produces '_STEM#ID' where ID is fresh for the given STEM. *)

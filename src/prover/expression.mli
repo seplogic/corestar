@@ -2,15 +2,15 @@ open Corestar_std
 
 type t
 
-(* TODO: Make these opaque? *)
-type var = string
-type op = string
+type symbol = string
+type var = symbol
+type op = symbol
 type sort = string
 
 (* sorts (aka types) *)
 val declare_sort : sort -> unit
-val declare_op : op -> sort list -> sort -> unit
-val sort_of : t -> sort
+val declare_symbol : symbol -> (sort list * sort) -> unit
+val sort_of : t -> (sort list * sort)
 
 (* the basic constructors *)
 val mk_app : op -> t list -> t
