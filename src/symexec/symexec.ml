@@ -381,10 +381,6 @@ end = struct
   module StatementBfs = Bfs.Make (SS)
   module ConfBfs = Bfs.Make (CS)
 
-  let make_nonempty = function
-    | [] -> [(Expr.emp, Expr.emp)]
-    | xs -> xs
-
   let abduct = Prover.biabduct
 
   let frame calculus p q =

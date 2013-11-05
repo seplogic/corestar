@@ -267,6 +267,7 @@ of acceptable as a leaf, but we should keep looking for something better.
   TODO: we may want to partly cache the results of proving
 *)
 let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
+  if log log_prove then fprintf logf "@[<2>";
   let goal =
     { Calculus.frame = normalize frame
     ; hypothesis = normalize hypothesis
@@ -274,7 +275,9 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin
-      let process_rule r = r.rule_apply goal in
+      let process_rule r =
+        if log log_prove then fprintf logf "apply rule %s@\n" r.rule_name;
+        r.rule_apply goal in
       let solve_subgoal = solve rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
@@ -282,10 +285,11 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
       choose_rule leaf rules
     end in
+  if log log_prove then fprintf logf "@]";
   result
 
 let solve_idfs min_depth max_depth rules penalty goal =
-  if log log_prove then fprintf logf "@,@[<2>start idfs proving";
+  if log log_prove then fprintf logf "@,@[<2>start idfs proving@\n";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
@@ -319,6 +323,7 @@ let infer_frame rules goal =
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then
+    if ss = [] then [Expr.emp] else
     let f_of_sequent { Calculus.hypothesis; _ } = hypothesis in
     List.map f_of_sequent ss
   else []
@@ -328,6 +333,7 @@ let biabduct rules goal =
     Expr.size hypothesis + Expr.size conclusion in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then
+    if ss = [] then [{ frame = Expr.emp; antiframe = Expr.emp }] else
     let af_of_sequent { Calculus.hypothesis; conclusion; _ } =
       { frame = hypothesis; antiframe = conclusion } in
     List.map af_of_sequent ss
