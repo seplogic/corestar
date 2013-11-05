@@ -20,6 +20,9 @@ let interpreted =
   ; "not", "not"
   ; "*", "and"
   ; "or", "or" ]
+let identities =
+  [ "and", "true"
+  ; "or", "false" ]
 
 let uniq_id = ref 0
 let str_map = StringHash.create 0
@@ -69,7 +72,7 @@ let send_list pp f = List.iter (fprintf f " %a" pp)
 let rec send_expr f =
   let ps = fprintf f "%s" in
   let app op = function
-    | [] -> failwith (op ^ " function should have arguments (indsfisa)")
+    | [] -> fprintf f "%s" (List.assoc op identities)
     | xs -> fprintf f "(%s%a)" op (send_list send_expr) xs in
   Expr.cases
     (ps @@ sanitize_sym)
