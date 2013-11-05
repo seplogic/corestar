@@ -42,6 +42,13 @@ let sanitize_str = sanitize "str" str_map
 let z3_out, z3_in, z3_err =
   Unix.open_process_full "z3 -smt2 -in" (Unix.environment())
 
+let trace_file = "smt_trace.txt"
+let smt_log_file = "smt_log.txt"
+
+let z3_out = if D.log D.log_use_smt_trace then open_in trace_file else z3_out
+let z3_in = if D.log D.log_use_smt_trace then open_out smt_log_file else z3_in
+let trace_file_out = if D.log D.log_record_smt_trace then open_out trace_file else stderr
+
 let declared = StringHash.create 0
 
 let is_predeclared =
@@ -107,16 +114,21 @@ let read_error () =
         | '\'' -> g n '\'' | '"' -> g n '"'
         | _ -> f n)
   and g n c = if r () = c then f n else g n c in
-  f 1
+  let s = f 1 in
+  if D.log D.log_record_smt_trace then fprintf trace_file_out "%s)" s;
+  s
 
 let smt_listen () =
   fprintf z3_in "%!";
-  fscanf z3_out " %s" (function
-  | "sat" -> Sat
-  | "unsat" -> Unsat
-  | "unknown" -> Unknown
-  | "(error" -> failwith ("Z3 error: " ^ read_error ())
-  | s -> failwith ("Z3 says: " ^ s))
+  fscanf z3_out " %s"
+    (fun s ->
+      if D.log D.log_record_smt_trace then fprintf trace_file_out " %s" s;
+      match s with
+	| "sat" -> Sat
+	| "unsat" -> Unsat
+	| "unknown" -> Unknown
+	| "(error" -> failwith ("Z3 error: " ^ read_error ())
+	| s -> failwith ("Z3 says: " ^ s))
 
 let define_fun sm vs st tm  =
   let send_args f = List.iter (fun (v, s) -> fprintf f "(%s %s)" v s) in
