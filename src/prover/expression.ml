@@ -11,10 +11,10 @@ and exp = t_orig * int  (* e, f, ... *)
   (* TODO: explain which are valid names; empty string is not *)
 
 let rec pp f =
-  let pp_rec f e = fprintf f " %a" pp e in
+  let pp_rec f e = fprintf f "@,%a" pp e in
   fun g -> match fst g with
     | Var v -> pp_string f v
-    | App (op, xs) -> fprintf f "(%s%a)" op (pp_list pp_rec) xs
+    | App (op, xs) -> fprintf f "@[<v 2>(%s%a)@]" op (pp_list pp_rec) xs
 
 let hash = snd
 let equal = (==)

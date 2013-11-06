@@ -72,10 +72,13 @@ end)
 module DotConf = DG.Dot (struct
   include DG.DotDefault (ConfigurationGraph)
   let vertex_attributes v =
-    let l x = [ `Label (Dot.escape_for_label x) ] in
+    let presentation = match V.label v with
+      | ErrorConf -> [ `Color "red"; `Shape `Ellipse; `Style [`Filled] ]
+      | OkConf _ -> [ `Shape `Box; `Style [`Rounded] ] in
+    let l x = `Label (Dot.escape_for_label x) in
     fprintf str_formatter "%a" pp_configuration (V.label v);
     let s = flush_str_formatter () in
-    l s
+    l s :: presentation
 end)
 
 let fileout file_name f =

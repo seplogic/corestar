@@ -203,12 +203,16 @@ module DotAttributes = struct
     | `Polygon of int * float
     | `Record ]
 
+  type style = [ `Rounded | `Filled ]
+
   type graph =
     [ `Center of bool ]
 
   type vertex =
     [ `Label of string
-    | `Shape of shape ]
+    | `Shape of shape
+    | `Color of string
+    | `Style of style list ]
 
   type edge =
     [ `Arrowsize of float ]
@@ -243,8 +247,17 @@ module Dot (X : DISPLAY) = struct
     | `Label s -> fprintf f "label=\"%s\"" s
     | `Shape x -> fprintf f "shape=";
         (match x with
+        | `Ellipse -> fprintf f "ellipse"
+        | `Circle -> fprintf f "circle"
         | `Box -> fprintf f "box"
         | #DotAttributes.shape -> failwith "TODO: Digraph.fprint_attribute")
+    | `Color c -> fprintf f "color=\"%s\"" c
+    | `Style ss ->
+      (let pp_style f = function
+	| `Rounded -> fprintf f "rounded"
+	| `Filled -> fprintf f "filled" in
+       fprintf f "style=\"%a\"" (pp_list_sep "," pp_style) ss
+      )
     | #DotAttributes.edge
     | #DotAttributes.graph -> failwith "TODO: Digraph.fprint_attribute"
 
