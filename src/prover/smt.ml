@@ -1,10 +1,10 @@
 (* TODO: This should be ported to Z3's OCAML API. *)
 
 open Corestar_std
+open Debug
 open Printf
 open Scanf
 
-module D = Debug
 module Expr = Expression
 
 type sort = Expr.sort  (* p, p1, p2, q, ... *)
@@ -45,12 +45,8 @@ let sanitize_str = sanitize "str" str_map
 let z3_out, z3_in, z3_err =
   Unix.open_process_full "z3 -smt2 -in" (Unix.environment())
 
-let trace_file = "smt_trace.txt"
-let smt_log_file = "smt_log.txt"
-
-let z3_out = if D.log D.log_use_smt_trace then open_in trace_file else z3_out
-let z3_in = if D.log D.log_use_smt_trace then open_out smt_log_file else z3_in
-let trace_file_out = if D.log D.log_record_smt_trace then open_out trace_file else stderr
+let z3_log =
+  if log log_smt then open_out "smt.corestar.log" else stderr
 
 let declared = StringHash.create 0
 
@@ -62,8 +58,15 @@ let is_predeclared =
 (* Helpers to send strings to Z3. *) (* {{{ *)
 (* NOTE: Many of these function resemble pretty-printers from [Corestar_std],
 but there are some differences. For example, here we must use [Printf] rather
-than [Format], because we don't wan't the latter to introduce spaces at its
+than [Format], because we don't want the latter to introduce spaces at its
 whim. *)
+
+(* NOTE: Helper functions should use [fprintf];
+toplevel sending to z3 should use [sendK]. *)
+let send0 f format = fprintf f format; if log log_smt then fprintf z3_log format
+let send1 f format x = fprintf f format x; if log log_smt then fprintf z3_log format x
+let send2 f format x y = fprintf f format x y; if log log_smt then fprintf z3_log format x y
+let send3 f format x y z = fprintf f format x y z; if log log_smt then fprintf z3_log format x y z
 
 let send_string f = fprintf f "%s"
 
@@ -88,12 +91,13 @@ let declare s ((ps, q) as psq) =
     let psq_old = StringHash.find declared s in
     assert (psq = psq_old)
   with Not_found -> begin
-    fprintf z3_in "(declare-fun %s (%a) %s)\n%!" s (send_list send_string) ps q;
+    send1 z3_in "(declare-fun %s" s;
+    send3 z3_in " (%a) %s)\n%!" (send_list send_string) ps q;
     StringHash.add declared s psq
   end
 
 let () = (* send prelude *)
-  fprintf z3_in "(declare-sort Ref)\n%!"
+  send0 z3_in "(declare-sort Ref)\n%!"
 
 (* TODO: Replace by some proper implementation; should use [Expr.sort_of]. *)
 let analyze_sorts =
@@ -108,8 +112,7 @@ let analyze_sorts =
 (* For debugging. *)
 let read_error () =
   let b = Buffer.create 0 in
-  let r () =
-    fscanf z3_out "%c" (fun c -> Buffer.add_char b c; c) in
+  let r () = fscanf z3_out "%c" (fun c -> Buffer.add_char b c; c) in
   let rec f = function
     | 0 -> Buffer.sub b 0 (Buffer.length b - 1)
     | n -> (match r () with
@@ -117,37 +120,32 @@ let read_error () =
         | '\'' -> g n '\'' | '"' -> g n '"'
         | _ -> f n)
   and g n c = if r () = c then f n else g n c in
-  let s = f 1 in
-  if D.log D.log_record_smt_trace then fprintf trace_file_out "%s)" s;
-  s
+  f 1
 
 let smt_listen () =
-  fprintf z3_in "%!";
-  fscanf z3_out " %s"
-    (fun s ->
-      if D.log D.log_record_smt_trace then fprintf trace_file_out " %s" s;
-      match s with
-	| "sat" -> Sat
-	| "unsat" -> Unsat
-	| "unknown" -> Unknown
-	| "(error" -> failwith ("Z3 error: " ^ read_error ())
-	| s -> failwith ("Z3 says: " ^ s))
+  send0 z3_in "%!";
+  fscanf z3_out " %s" (function
+    | "sat" -> Sat
+    | "unsat" -> Unsat
+    | "unknown" -> Unknown
+    | "(error" -> failwith ("Z3 error: " ^ read_error ())
+    | s -> failwith ("Z3 says: " ^ s))
 
 let define_fun sm vs st tm  =
-  let send_args f = List.iter (fun (v, s) -> fprintf f "(%s %s)" v s) in
-  fprintf z3_in "(define-fun %s (%a) %s %a)\n"
-    sm send_args vs st send_expr tm
+  let send_arg f (v, s) = fprintf f "(%s %s)" v s in
+  send3 z3_in "(define-fun %s (%a)" sm (send_list send_arg) vs;
+  send3 z3_in " %s %a)\n" st send_expr tm
 
 let say e =
   analyze_sorts e;
-  fprintf z3_in "(assert %a)\n%!" send_expr e
+  send2 z3_in "(assert %a)\n" send_expr e
 
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. *)
   let ss = StringHash.fold (fun _ -> ListH.cons) str_map [] in
-  fprintf z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
-  fprintf z3_in "(check-sat)\n%!";
+  send2 z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
+  send0 z3_in "(check-sat)\n%!";
   smt_listen ()
 
-let push () = fprintf z3_in "(push)\n%!"
-let pop () = fprintf z3_in "(pop)\n%!"
+let push () = send0 z3_in "(push)\n%!"
+let pop () = send0 z3_in "(pop)\n%!"
