@@ -68,6 +68,10 @@ let is_predeclared =
   let s = List.fold_right StringSet.add s StringSet.empty in
   flip StringSet.mem s
 
+let is_declared s =
+  is_predeclared s
+  || (try ignore (declared_sort s); true with Not_found -> false)
+
 (* Helpers to send strings to Z3. *) (* {{{ *)
 (* NOTE: Many of these function resemble pretty-printers from [Corestar_std],
 but there are some differences. For example, here we must use [Printf] rather
@@ -156,7 +160,9 @@ let say e =
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. *)
   let ss = StringHash.fold (fun _ -> ListH.cons) str_map [] in
-  send2 z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
+  let ss = List.filter is_declared ss in
+  if ss <> [] then
+    send2 z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
   send0 z3_in "(check-sat)\n%!";
   smt_listen ()
 
