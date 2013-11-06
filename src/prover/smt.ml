@@ -48,7 +48,20 @@ let z3_out, z3_in, z3_err =
 let z3_log =
   if log log_smt then open_out "smt.corestar.log" else stderr
 
-let declared = StringHash.create 0
+let declared = ref [StringHash.create 0]
+
+let declared_sort s =
+  let rec loop = function
+    | [] -> raise Not_found
+    | h :: hs -> (try StringHash.find h s with Not_found -> loop hs) in
+  loop !declared
+
+let declared_push () =
+  declared := StringHash.create 0 :: !declared
+
+let declared_pop () =
+  declared := List.tl !declared;
+  assert (!declared <> [])
 
 let is_predeclared =
   let s = List.map snd interpreted in
@@ -88,12 +101,12 @@ let rec send_expr f =
 let declare s ((ps, q) as psq) =
   if not (is_predeclared s) then
   try
-    let psq_old = StringHash.find declared s in
+    let psq_old = declared_sort s in
     assert (psq = psq_old)
   with Not_found -> begin
     send1 z3_in "(declare-fun %s" s;
     send3 z3_in " (%a) %s)\n%!" (send_list send_string) ps q;
-    StringHash.add declared s psq
+    StringHash.add (List.hd !declared) s psq
   end
 
 let () = (* send prelude *)
@@ -147,5 +160,10 @@ let check_sat () =
   send0 z3_in "(check-sat)\n%!";
   smt_listen ()
 
-let push () = send0 z3_in "(push)\n%!"
-let pop () = send0 z3_in "(pop)\n%!"
+let push () =
+  declared_push ();
+  send0 z3_in "(push)\n%!"
+
+let pop () =
+  declared_pop ();
+  send0 z3_in "(pop)\n%!"
