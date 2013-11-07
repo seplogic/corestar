@@ -1,5 +1,7 @@
-- check out what do tests do
+- add modifies for procedures and use it for [make_frameable]
 - test on problem similar to those of topstar
+- check out what do tests do
+- proper treatement of global variables
 - scoping for variables in expression; that is, quantifiers
 - add types to expressions (useful for talking to Z3)
 - add polymorphic sorts (equality, bvadd, bvconcat, etc)

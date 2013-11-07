@@ -23,6 +23,7 @@ let smt_implies a b =
   let ok_n = [ Expr.on_star; Expr.on_or ] in
   let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
   let ok_1 = [ Expr.on_not ] in
+  let ok_0 = [ Expr.emp; Expr.fls ] in
   let stop_op = [ Expr.on_string_const; Expr.on_int_const ] in
   let rec is_ok e =
     let f _ _ = false in
@@ -30,7 +31,7 @@ let smt_implies a b =
     let f = List.fold_right ((|>) are_both_ok) ok_2 f in
     let f = List.fold_right ((|>) is_ok) ok_1 f in
     let f = List.fold_right ((|>) (fun _ -> true)) stop_op f in
-    Expr.cases (fun _ -> true) f e
+    List.exists (Expr.equal e) ok_0 || Expr.cases (fun _ -> true) f e
   and are_all_ok es = List.for_all is_ok es
   and are_both_ok a b = is_ok a && is_ok b in
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
@@ -52,8 +53,9 @@ let id_rule =
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
-    (function { Calculus.hypothesis; conclusion; _ } ->
-      if smt_implies hypothesis conclusion then [[]] else []) }
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      if smt_implies hypothesis conclusion
+      then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame}]] else []) }
 
 (* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -310,7 +312,8 @@ let wrap_calculus f calculus =
 
 let is_entailment rules goal =
   let penalty { Calculus.hypothesis; conclusion; _ } =
-    if Expr.equal hypothesis Expr.emp && Expr.equal conclusion Expr.emp
+    (* TODO: Should also require that the hypothesis is pure? *)
+    if Expr.equal conclusion Expr.emp
     then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
@@ -344,5 +347,6 @@ let infer_frame = wrap_calculus infer_frame
 let biabduct = wrap_calculus biabduct
 (* NOTE: [simplify] is defined in the beginning. *)
 
-let is_inconsistent rules e = is_entailment rules e Expression.fls
+let is_inconsistent rules e =
+  is_entailment rules e Expr.fls
 (* }}} *)

@@ -14,15 +14,21 @@ type var = Expr.var  (* x, y, ... *)
 
 type check_sat_response = Sat | Unsat | Unknown
 
+(* TODO: The lhs is brittle: It must be whatever [Expression] uses internally. *)
 let interpreted =
-  [ "==", "="
-  ; "!=", "distinct"
-  ; "not", "not"
+  [ "!=", "distinct"
   ; "*", "and"
+  ; "==", "="
+  ; "emp", "true"
+  ; "fls", "false"
+  ; "not", "not"
   ; "or", "or" ]
+(* TODO: The name [identities] is bad. *)
 let identities =
   [ "and", "true"
-  ; "or", "false" ]
+  ; "false", "false"
+  ; "or", "false"
+  ; "true", "true" ]
 
 let uniq_id = ref 0
 let str_map = StringHash.create 0

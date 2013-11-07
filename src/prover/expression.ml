@@ -11,10 +11,10 @@ and exp = t_orig * int  (* e, f, ... *)
   (* TODO: explain which are valid names; empty string is not *)
 
 let rec pp f =
-  let pp_rec f e = fprintf f "@,%a" pp e in
+  let pp_rec f e = fprintf f "@ %a" pp e in
   fun g -> match fst g with
     | Var v -> pp_string f v
-    | App (op, xs) -> fprintf f "@[<v 2>(%s%a)@]" op (pp_list pp_rec) xs
+    | App (op, xs) -> fprintf f "@[<2>(%s%a)@]" op (pp_list pp_rec) xs
 
 let hash = snd
 let equal = (==)
@@ -54,11 +54,27 @@ let hash_cons f =
   try ExpBase.find exp_base f
   with Not_found -> ExpBase.add exp_base f f; f
 
+let pvar_re = Str.regexp "[a-z$@]" (* TODO: $ and @ are too complicated. *)
+let lvar_re = Str.regexp "_"
+let tpat_re = Str.regexp "\\?"
+let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
+
+let is_pvar v = Str.string_match pvar_re v 0
+let is_lvar v = Str.string_match lvar_re v 0
+let is_tpat p = Str.string_match tpat_re p 0
+let is_vpat p = Str.string_match vpat_re p 0
+
+let iob b = if b then 1 else 0
+
 (* TODO: sort checking *)
 let mk_app op xs =
   let e = App (op, xs) in
   hash_cons (e, hash_orig e)
 let mk_var v =
+  assert begin
+    let one_of xs = List.fold_left (+) 0 (List.map (iob @@ (|>) v) xs) = 1in
+    one_of [is_pvar; is_lvar] || one_of [is_tpat; is_vpat]
+  end;
   assert (not (v = "")); (* otherwise, hashes are messed up *)
   let e = Var v in
   hash_cons (e, hash_orig e)
@@ -90,16 +106,6 @@ let freshen =
     let c = (try Hashtbl.find counts v with Not_found -> 0) + 1 in
     Hashtbl.replace counts v c;
     Printf.sprintf "_%s#%d" v c
-
-let pvar_re = Str.regexp "[a-z]"
-let lvar_re = Str.regexp "_"
-let tpat_re = Str.regexp "\\?"
-let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
-
-let is_pvar v = Str.string_match pvar_re v 0
-let is_lvar v = Str.string_match lvar_re v 0
-let is_tpat p = Str.string_match tpat_re p 0
-let is_vpat p = Str.string_match vpat_re p 0
 
 (* TODO: Memoize if profiling shows that this is slow. *)
 let rec size e = match fst e with
@@ -197,7 +203,7 @@ let on_int_const f = on_const "<int>" f
 let is_interpreted _ = failwith "TODO"
 
 
-let nil = mk_0 "nil"
+let nil = mk_0 "nil"  (* TODO: Why do we have this? *)
 let emp = mk_0 "emp"
 let fls = mk_0 "fls"
 

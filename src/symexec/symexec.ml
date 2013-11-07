@@ -352,7 +352,7 @@ end = struct
 
   (* Update [post_of sv]. For each pre-conf in [pvs], it executes
   symbolically the statement [sv], using the helper [update_post_confs_execute].
-  Then it calls [abstract] on the whole set of cost-confs. The [confgraph] is
+  Then it calls [abstract] on the whole set of post-confs. The [confgraph] is
   updated. *)
   let update_post_confs execute abstract context pvs sv =
     let posts = post_confs context sv in
@@ -440,6 +440,8 @@ end = struct
     Expr.substitute bs g
 
   let kill_pvars vs = kill_pvars_with vs Expr.emp
+
+  (* XXX: must use modifies clause for [make_framable] *)
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -655,7 +657,7 @@ end = struct
 
   let update_check rules body post =
     let abduct = frame rules.C.calculus in
-    let is_deadend f = Prover.is_entailment rules.C.calculus f Expr.fls in
+    let is_deadend e = Prover.is_inconsistent rules.C.calculus e in
     let check_emp _ x = assert (Expr.equal x Expr.emp); Expr.emp in
     let execute =
       execute abduct is_deadend check_emp (spec_of post body.P.stop) in
@@ -726,7 +728,7 @@ end = struct
               process_triple (update_infer pvars rules body) in
             let ts = empty_triple :: ts in
             if log log_phase then
-              fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
+              fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option_map (abstract_triple rules.C.calculus) ts in
             let ts = option [] (fun x->x) ts in (* XXX *)
@@ -735,7 +737,7 @@ end = struct
         if log log_phase then
           fprintf logf "@[symexec checking %s@]@\n@?" procedure.C.proc_name;
         if log log_phase then
-          fprintf logf "@[<2>%d candiate triples@]@\n@?" (List.length ts);
+          fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
         let process_triple_check =
           process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
