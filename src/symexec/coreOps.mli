@@ -28,7 +28,7 @@ val pp_ast_question : ast_question pretty_printer
 
 
 (** {2 Special variable names} *)
-val name_ret_v1 : Expression.var
+val name_ret_v1 : Expression.var (* TODO: remove this *)
 val return : int -> Expression.var
 val parameter : int -> Expression.var
 

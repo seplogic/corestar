@@ -23,6 +23,8 @@ val freshen : var -> var
   (* [freshen v] is a fresh logical variable whose name is similar to [v].
   NOTE: '#' has a special meaning! See implementation. *)
 
+val fresh_pvar : string -> var
+
 (* kinds of variables *)
 (* Pattern variables:
   ?x matches any expression (formula or term)

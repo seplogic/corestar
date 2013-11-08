@@ -95,9 +95,7 @@ let symbol_of = cases (fun x -> x) (fun f _ -> f)
 
 let sort_of = StringHash.find symbols @@ symbol_of
 
-(* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
-Produces '_STEM#ID' where ID is fresh for the given STEM. *)
-let freshen =
+let fresh_pvar =
   let counts = Hashtbl.create 0 in
   fun v ->
     let i = iob (v.[0] = '_') in
@@ -105,7 +103,11 @@ let freshen =
     let v = String.sub v i len in
     let c = (try Hashtbl.find counts v with Not_found -> 0) + 1 in
     Hashtbl.replace counts v c;
-    Printf.sprintf "_%s#%d" v c
+    Printf.sprintf "%s#%d" v c
+
+(* Assumes the input is one of 'STEM', '_STEM', or '_STEM#ID'.
+Produces '_STEM#ID' where ID is fresh for the given STEM. *)
+let freshen v = Printf.sprintf "_%s" (fresh_pvar v)
 
 (* TODO: Memoize if profiling shows that this is slow. *)
 let rec size e = match fst e with
