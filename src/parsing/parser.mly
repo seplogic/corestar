@@ -169,8 +169,10 @@ formula:
 /* Specifications */
 
 triple:
-  L_BRACE formula R_BRACE L_BRACE formula R_BRACE
+  | L_BRACE formula R_BRACE L_BRACE formula R_BRACE
     { { Core.pre = $2; post = $5; modifies = None } }
+  | L_BRACE formula R_BRACE L_PAREN lvariable_list R_PAREN L_BRACE formula R_BRACE
+    { { Core.pre = $2; post = $8; modifies = Some $5 } }
 ;
 
 spec:
