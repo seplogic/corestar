@@ -25,12 +25,27 @@ module CfgVHashSet = HashSet.Make (Cfg.V)
 
 (* If [missing_heap] is star-joined to the initial heap, then
   [current_heap] is reached without fault.
-  INV: [missing_heap] must not mention program variables, only logical ones
 *)
-type ok_configuration = { current_heap : Expr.t; missing_heap : Expr.t }
+type ok_configuration =
+  { current_heap : Expr.t
+  ; missing_heap : Expr.t (* should be [Expr.emp] if doing checking *)
+  ; pvar_value : Expr.t StringMap.t }
 
-let pp_ok_configuration f { current_heap; missing_heap } =
-  fprintf f "(now:%a,@ missing:%a)" Expr.pp current_heap Expr.pp missing_heap
+let check_ok_configuration { current_heap; missing_heap; pvar_value } =
+  let rec has_only_lvars e =
+    Expr.cases Expr.is_lvar (fun _ -> List.for_all has_only_lvars) e in
+  assert (has_only_lvars current_heap);
+  assert (has_only_lvars missing_heap);
+  let f v e = assert (Expr.is_pvar v); assert (has_only_lvars e) in
+  StringMap.iter f pvar_value
+
+let pp_ok_configuration f { current_heap; missing_heap; pvar_value } =
+  let ds = StringMap.bindings pvar_value in
+  let pd f (v, e) = fprintf f "%s=%a" v Expr.pp e in
+  fprintf f "(defs:%a,@ now:%a,@ missing:%a)"
+    (pp_list_sep "*" pd) ds
+    Expr.pp current_heap
+    Expr.pp missing_heap
 
 type split_type = Angelic | Demonic
 
@@ -44,6 +59,7 @@ let pp_configuration f = function
   | ErrorConf -> fprintf f "Error"
   | OkConf (c, st) -> fprintf f "%a: %a" pp_split_type st pp_ok_configuration c
 
+(* XXX: Explain the semantics of the configuration graph. *)
 module ConfigurationGraph =
   DG.Make (struct type t = configuration end) (DG.UnlabeledEdge)
 module CVHashtbl = Hashtbl.Make (ConfigurationGraph.V)

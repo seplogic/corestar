@@ -54,7 +54,7 @@ let hash_cons f =
   try ExpBase.find exp_base f
   with Not_found -> ExpBase.add exp_base f f; f
 
-let pvar_re = Str.regexp "[a-z$@]" (* TODO: $ and @ are too complicated. *)
+let pvar_re = Str.regexp "[a-zA-Z$@]" (* TODO: I'd prefer just [a-z]. *)
 let lvar_re = Str.regexp "_"
 let tpat_re = Str.regexp "\\?"
 let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
@@ -100,7 +100,7 @@ Produces '_STEM#ID' where ID is fresh for the given STEM. *)
 let freshen =
   let counts = Hashtbl.create 0 in
   fun v ->
-    let i = (if v.[0] = '_' then 1 else 0) in
+    let i = iob (v.[0] = '_') in
     let len = (try String.index v '#' with Not_found -> String.length v) - i in
     let v = String.sub v i len in
     let c = (try Hashtbl.find counts v with Not_found -> 0) + 1 in
