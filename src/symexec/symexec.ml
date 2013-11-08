@@ -402,6 +402,24 @@ end = struct
     in
     StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
 
+  let collect_modified_vars fg =
+    let cp_vertex v acc = match G.Cfg.V.label v with
+      | G.Abs_cfg | G.Nop_cfg -> acc
+      | G.Call_cfg { C.call_rets; call_name; call_args } ->
+          failwith "INTERNAL: calls should be removed by [inline_call_specs]"
+      | G.Spec_cfg spec ->
+          let cp_triple { Core.pre; post; modifies } acc =
+	    (match modifies with
+	      | None -> (* Anything could be modified, collect all pvars *)
+		let cp_formula f =
+		  let vs = List.filter Expr.is_pvar (Expr.vars f) in
+		  List.fold_right StringSet.add vs in
+		acc |> cp_formula pre |> cp_formula post
+	      | Some vs -> acc |> List.fold_right StringSet.add vs) in
+          C.TripleSet.fold cp_triple spec acc
+    in
+    StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
+
   (* Process [g] such that it doesn't contain any of the variables in [vs].
   If a variable [v] is in [vs], then it must be substituted by some
   expression [e] that contains no variable from [pvars].  As a last resort, [e]
@@ -457,7 +475,6 @@ end = struct
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
     let vs = match modifies with
-      (* TODO: ensure None doesn't happen (assert?poly?), and expand before *)
       | None -> List.filter Expr.is_pvar (Expr.vars post)
       | Some vs -> vs in
     let afs = abduct pre_conf.G.current_heap pre in
@@ -707,16 +724,16 @@ end = struct
         if log log_phase then
           fprintf logf "@[Interpreting procedure body: %s@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
-        let pvars = collect_pvars body.P.cfg in (* XXX: Use modifies clauses! *)
+        let mod_vars = collect_modified_vars body.P.cfg in (* XXX: Use modifies clauses! *)
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_triple triple;
           let update = update triple.C.post in
-          let pre = extend_precondition pvars triple.C.pre in
+          let pre = extend_precondition mod_vars triple.C.pre in
           let triple_of_conf { G.current_heap; missing_heap } =
             let ( * ) = mk_star in
             let pre = pre * missing_heap in
-            { C.pre = pre; post = current_heap; modifies = Some pvars } in
+            { C.pre = pre; post = current_heap; modifies = Some mod_vars } in
           let cs = interpret_flowgraph procedure.C.proc_name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
@@ -725,7 +742,7 @@ end = struct
             if log log_phase then
               fprintf logf "@[symexec inferring %s@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
-              process_triple (update_infer pvars rules body) in
+              process_triple (update_infer mod_vars rules body) in (* RLP: is mod_vars ok here? *)
             let ts = empty_triple :: ts in
             if log log_phase then
               fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
