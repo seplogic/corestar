@@ -376,13 +376,13 @@ end = struct
     let post_of = SD.create 1 in
     let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
-    let conf = (* TODO: check_ok_conf *)
-      CG.V.create
-        ( G.OkConf
-          ( { G.current_heap = pre_formula
-            ; missing_heap = Expr.emp
-            ; pvar_value = pre_defs }
-          , G.Demonic ) ) in
+    let conf =
+      let ok_conf =
+        { G.current_heap = pre_formula
+        ; missing_heap = Expr.emp
+        ; pvar_value = pre_defs } in
+(*   XXX    G.check_ok_configuration ok_conf; *)
+      CG.V.create (G.OkConf (ok_conf, G.Demonic)) in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
     SD.add post_of procedure.P.start (CS.singleton conf);
@@ -484,7 +484,6 @@ end = struct
   variable solution. *)
   exception Done
   let update_defs pre_defs vs post =
-    assert (List.for_all (flip StringMap.mem pre_defs) vs);
     let is_v =
       flip StringSet.mem (List.fold_right StringSet.add vs StringSet.empty) in
     let is_ve = Expr.cases is_v (fun _ _ -> false) in
@@ -525,6 +524,10 @@ end = struct
     List.iter mk_fresh vs;
     !post_defs
 
+  let eqs_of_bindings ds =
+      let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+      ds |> List.map mk_eq |> mk_big_star
+
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
   sufficient to demonically split on the frames Fk, and then angelically on the
@@ -543,9 +546,7 @@ end = struct
       | None -> List.filter Expr.is_pvar (Expr.vars post)
       | Some vs -> vs in
     let pre_defs = pre_conf.G.pvar_value in
-    let def_eqs =
-      let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-      pre_defs |> StringMap.bindings |> List.map mk_eq |> mk_big_star in
+    let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
     let afs = abduct (pre_conf.G.current_heap * def_eqs) pre in
     let branch afs =
       let mk_post_conf { Prover.antiframe = a; frame = f } =
@@ -553,10 +554,11 @@ end = struct
         let f = substitute_defs pre_defs f in
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
-        let conf = (* TODO: check_ok_conf *)
+        let conf =
           { G.current_heap = post * f
           ; missing_heap = pre_conf.G.missing_heap * a
           ; pvar_value = post_defs } in
+(*  XXX       G.check_ok_configuration conf; *)
         if log log_exec then
           fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
         conf in
@@ -621,8 +623,21 @@ end = struct
         && Prover.is_entailment calculus c2.G.missing_heap c1.G.missing_heap
 
   let implies_triple calculus t1 t2 =
-    Prover.is_entailment calculus t1.C.post t2.C.post
-    && Prover.is_entailment calculus t2.C.pre t1.C.pre
+    let all =
+      let (+) = Expr.mk_2 "foo" in
+      t1.C.pre + t1.C.post + t2.C.pre + t2.C.post in
+    let pvars = List.filter Expr.is_pvar (Expr.vars all) in
+    let d1s = update_defs StringMap.empty pvars t1.C.pre in
+    let d2s = update_defs StringMap.empty pvars t2.C.pre in
+    let mk_eq v =
+      let l1 = StringMap.find v d1s in
+      let l2 = StringMap.find v d2s in
+      Expr.mk_eq l1 l2 in
+    let eqs = List.map mk_eq pvars in
+    let eqs = mk_big_star eqs in
+    let ( * ) = mk_star in
+    Prover.is_entailment calculus (t1.C.post * eqs) (t2.C.post * eqs)
+    && Prover.is_entailment calculus (t2.C.pre * eqs) (t1.C.pre * eqs)
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -796,30 +811,25 @@ end = struct
         let body = inline_call_specs proc_of_name body in
         let mvars = collect_modified_vars body.P.cfg in
         let pvars = collect_pvars body.P.cfg in
-        let ivars = List.map Expr.freshen pvars in
-        let pivars = List.combine pvars ivars in
-        let pre_defs =
-          let f (v, w) = StringMap.add v (Expr.mk_var w) in
-          List.fold_right f pivars StringMap.empty in
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_triple triple;
+          let pre_defs = update_defs StringMap.empty pvars triple.C.pre in
           let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let ( * ) = mk_star in
-            let pre_subst = List.combine ivars (List.map Expr.mk_var pvars) in
             let post_subst =
               let f v e xs = (e, Expr.mk_var v) :: xs in
               StringMap.fold f pvar_value [] in
-            let missing_heap = Expr.substitute pre_subst missing_heap in
+            let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
             let current_heap = Expr.substitute_gen post_subst current_heap in
             (* TODO: what if lvars remain after the above substitutions? *)
-            { C.pre = triple.C.pre * missing_heap
+            { C.pre = triple.C.pre * missing_heap * pre_eqs
             ; post = current_heap
             ; modifies = Some mvars } in
           let cs =
             let name = procedure.C.proc_name in
-            let pre = (triple.C.pre, pre_defs) in
+            let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
           option_map (List.map triple_of_conf) cs in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
