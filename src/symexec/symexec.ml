@@ -32,18 +32,21 @@ let specialize_spec rets args xs =
   C.TripleSet.map f xs
 
 (* Unlike their counterparts in the module [Expression], the following two
-functions do some simplifications. Beware: the arguments' order ir not
+functions do some simplifications. Beware: the arguments' order is not
 maintained. *)
 let mk_big_star es =
   let star_args e = Expr.cases
-    (fun _ -> [e])
+    undefined (* We don't (yet) have boolean variables *)
     (Expr.on_star (fun xs -> xs) (fun _ _ -> [e]))
     e in
+  let is_true e =
+    Expr.equal e Expr.emp
+    || Expr.cases undefined (Expr.on_eq Expr.equal (fun _ _ -> false)) e in
   let xs = es >>= star_args in
+  let xs = List.filter (not @@ is_true) xs in
   let module H = Hashtbl.Make (Expr) in
   let h = H.create (List.length xs) in
-  List.iter (fun x -> H.add h x ()) xs;
-  H.remove h Expr.emp;
+  List.iter (fun x -> H.replace h x ()) xs;
   match H.fold (fun x () xs -> x :: xs) h [] with
     | [] -> Expr.emp | [x] -> x | xs -> Expr.mk_big_star xs
 let mk_star e1 e2 = mk_big_star [e1; e2]
@@ -373,7 +376,7 @@ end = struct
     let post_of = SD.create 1 in
     let pre_of = SD.create 1 in
     let statement_of = CD.create 1 in
-    let conf =
+    let conf = (* TODO: check_ok_conf *)
       CG.V.create
         ( G.OkConf
           ( { G.current_heap = pre_formula
@@ -550,7 +553,7 @@ end = struct
         let f = substitute_defs pre_defs f in
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
-        let conf =
+        let conf = (* TODO: check_ok_conf *)
           { G.current_heap = post * f
           ; missing_heap = pre_conf.G.missing_heap * a
           ; pvar_value = post_defs } in
@@ -805,11 +808,13 @@ end = struct
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let ( * ) = mk_star in
             let pre_subst = List.combine ivars (List.map Expr.mk_var pvars) in
-            let m = Expr.substitute pre_subst missing_heap in
-            (* XXX: init->var substitutions in missing_heap? *)
-            (* XXX: lvar->var in current_heap/post?? *)
-            (* XXX: what if lvars remain after the above substitutions? *)
-            { C.pre = triple.C.pre * m
+            let post_subst =
+              let f v e xs = (e, Expr.mk_var v) :: xs in
+              StringMap.fold f pvar_value [] in
+            let missing_heap = Expr.substitute pre_subst missing_heap in
+            let current_heap = Expr.substitute_gen post_subst current_heap in
+            (* TODO: what if lvars remain after the above substitutions? *)
+            { C.pre = triple.C.pre * missing_heap
             ; post = current_heap
             ; modifies = Some mvars } in
           let cs =
@@ -850,7 +855,10 @@ end = struct
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
-          if List.for_all not_better new_ts then begin
+          Smt.log_comment "before";
+          let finished = List.for_all not_better new_ts in
+          Smt.log_comment "after";
+          if finished then begin
             if log log_exec then begin
               fprintf logf "@[Reached fixed-point for %s@\n@]@?"
                 procedure.C.proc_name

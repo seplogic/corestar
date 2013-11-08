@@ -12,3 +12,6 @@ val push : unit -> unit
 val pop : unit -> unit
 val say : term -> unit (* instead of ‘assert’, which is a keyword *)
 val check_sat : unit -> check_sat_response
+
+(* For debug. *)
+val log_comment : string -> unit

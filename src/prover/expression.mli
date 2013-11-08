@@ -41,6 +41,7 @@ val equal : t -> t -> bool
 val hash : t -> int
 val size : t -> int
 val vars : t -> var list
+val substitute_gen : (t * t) list -> t -> t
 val substitute : (var * t) list -> t -> t
 
 (* various helpers *)

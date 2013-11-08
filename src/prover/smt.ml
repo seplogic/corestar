@@ -54,6 +54,8 @@ let z3_out, z3_in, z3_err =
 let z3_log =
   if log log_smt then open_out "smt.corestar.log" else stderr
 
+let log_comment = fprintf z3_log "; %s\n"
+
 let declared = ref [StringHash.create 0]
 
 let declared_sort s =

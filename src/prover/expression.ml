@@ -136,14 +136,17 @@ struct
   let equal = equal
 end)
 
-let substitute xys =
+let substitute_gen xys =
   let m = ExprHashMap.create 0 in
-  List.iter (fun (v, t) -> ExprHashMap.add m (mk_var v) t) xys;
-  let f = ExprHashMap.find m in
-  let rec r exp = match fst exp with
-    | Var _ -> (try f exp with Not_found -> exp)
-    | App (op, xs) -> mk_app op (List.map r xs) in
+  List.iter (uncurry (ExprHashMap.add m)) xys;
+  let rec r e =
+    try ExprHashMap.find m e
+    with Not_found ->
+      cases (fun _ -> e) (fun op -> mk_app op @@ List.map r) e in
   r
+
+let substitute =
+  substitute_gen @@ List.map (fun (x, y) -> (mk_var x, y))
 
 let mk_0 op = mk_app op []
 let mk_1 op a = mk_app op [a]
