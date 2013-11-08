@@ -1,6 +1,6 @@
 procedure Test01:
 ?
-assign  := {field(x,"next",_x)}{field(x,"next",NULL)} (); // [x]=NULL;
+assign  := {field(x,"next",_x)}{field(x,"next",nil())} (); // [x]=NULL;
 assign  := {field(x,"next",_x)}{} (); // free(x)
 end;
 

@@ -1,4 +1,5 @@
-- add modifies for procedures and use it for [make_frameable]
+- split on || in postcondition makes corestar forget
+  a bit too much how to compute a pvar in term of the initial state
 - test on problem similar to those of topstar
 - check out what do tests do
 - proper treatement of global variables

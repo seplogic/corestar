@@ -815,17 +815,29 @@ end = struct
           if log log_phase then
             fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_triple triple;
           let pre_defs = update_defs StringMap.empty pvars triple.C.pre in
+          let is_init_value =
+            let module H = Hashtbl.Make (Expr) in
+            let init = H.create 0 in
+            StringMap.iter (fun _ v -> H.replace init v ()) pre_defs;
+            H.mem init in
           let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let ( * ) = mk_star in
+            let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
+            let post_eqs =
+              let rec is_init e =
+                is_init_value e ||
+                Expr.cases (fun _ -> false) (fun _ -> List.for_all is_init) e in
+              let bs = StringMap.bindings pvar_value in
+              let bs = List.filter (is_init @@ snd) bs in
+              eqs_of_bindings bs in
             let post_subst =
               let f v e xs = (e, Expr.mk_var v) :: xs in
               StringMap.fold f pvar_value [] in
-            let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
             let current_heap = Expr.substitute_gen post_subst current_heap in
             (* TODO: what if lvars remain after the above substitutions? *)
             { C.pre = triple.C.pre * missing_heap * pre_eqs
-            ; post = current_heap
+            ; post = current_heap * post_eqs
             ; modifies = Some mvars } in
           let cs =
             let name = procedure.C.proc_name in
