@@ -77,12 +77,12 @@ module Procedure = MakeProcedure (Cfg)
 module DotCfg = DG.Dot (struct
   include DG.DotDefault (Cfg)
   let vertex_attributes v =
-    let l x = [ `Label (Dot.escape_for_label x) ] in
+    let l x = `Label (Dot.escape_for_label x) in
     match V.label v with
-    | Abs_cfg -> l "ABS"
-    | Call_cfg c -> l c.C.call_name
-    | Nop_cfg -> l "NOP"
-    | Spec_cfg s -> l (string_of CoreOps.pp_spec s)
+    | Abs_cfg -> [ l "ABS";  `Color "lightblue"; `Shape `Ellipse; `Style [`Filled] ]
+    | Call_cfg c -> [ l c.C.call_name; `Shape `Box ]
+    | Nop_cfg -> [ l "NOP"; `Shape `Ellipse ]
+    | Spec_cfg s -> [ l (string_of CoreOps.pp_spec s); `Shape `Box; `Style [`Rounded] ]
 end)
 
 module DotConf = DG.Dot (struct
