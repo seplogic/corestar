@@ -168,11 +168,14 @@ formula:
 
 /* Specifications */
 
+modifies:
+  | /* empty */ { [] }
+  | L_PAREN lvariable_list R_PAREN { $2 }
+;
+
 triple:
-  | L_BRACE formula R_BRACE L_BRACE formula R_BRACE
-    { { Core.pre = $2; post = $5; modifies = None } }
-  | L_BRACE formula R_BRACE L_PAREN lvariable_list R_PAREN L_BRACE formula R_BRACE
-    { { Core.pre = $2; post = $8; modifies = Some $5 } }
+  | L_BRACE formula R_BRACE modifies L_BRACE formula R_BRACE
+    { { Core.pre = $2; modifies = $4; post = $6 } }
 ;
 
 spec:
@@ -183,7 +186,7 @@ spec:
 
 /* Core statements */
 
-core_assn_args:
+assgn_lhs:
   | lvariable_list COLON_EQUALS { $1 }
   | /* empty */  { [] }
 ;
@@ -206,7 +209,7 @@ call_stmt: /* split in cases to avoid parsing conflict */
 core_stmt:
   | END  { C.End }
   | NOP  { C.Nop_stmt_core }
-  | ASSIGN core_assn_args spec core_args_in
+  | ASSIGN assgn_lhs spec core_args_in
     { C.Assignment_core { C.asgn_rets = $2; asgn_args = $4; asgn_spec = $3 } }
   | CALL call_stmt { C.Call_core $2 }
   | GOTO label_list { C.Goto_stmt_core $2 }

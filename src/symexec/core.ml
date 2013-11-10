@@ -16,7 +16,7 @@ module Expr = Expression
 type args_out = string list
 type args_in = Expr.t list
 
-type triple = { pre : Expr.t; post : Expr.t; modifies : args_out option }
+type triple = { pre : Expr.t; post : Expr.t; modifies : args_out }
 
 module TripleSet = HashSet.Make (struct
   type t = triple

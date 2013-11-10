@@ -28,7 +28,7 @@ let specialize_spec rets args xs =
   let f { Core.pre; post; modifies } =
     { Core.pre = substitute_args args pre
     ; post = substitute_args args (substitute_rets ret_terms post)
-    ; modifies = lift_option2 (@) modifies (Some rets) } in
+    ; modifies = rets @ modifies } in
   C.TripleSet.map f xs
 
 (* Unlike their counterparts in the module [Expression], the following two
@@ -415,19 +415,11 @@ end = struct
   let collect_modified_vars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
       | G.Abs_cfg | G.Nop_cfg -> acc
-      | G.Call_cfg { C.call_rets; call_name; call_args } ->
+      | G.Call_cfg _ ->
           failwith "INTERNAL: calls should be removed by [inline_call_specs]"
       | G.Spec_cfg spec ->
-          let cp_triple { Core.pre; post; modifies } acc =
-	    (match modifies with
-	      | None -> (* Anything could be modified, collect all pvars *)
-		let cp_formula f =
-		  let vs = List.filter Expr.is_pvar (Expr.vars f) in
-		  List.fold_right StringSet.add vs in
-		acc |> cp_formula pre |> cp_formula post
-	      | Some vs -> acc |> List.fold_right StringSet.add vs) in
-          C.TripleSet.fold cp_triple spec acc
-    in
+          let cm_triple t = List.fold_right StringSet.add t.C.modifies in
+          C.TripleSet.fold cm_triple spec acc in
     StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
 
   (* Process [g] such that it doesn't contain any of the variables in [vs].
@@ -542,9 +534,7 @@ end = struct
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
-    let vs = match modifies with
-      | None -> List.filter Expr.is_pvar (Expr.vars post)
-      | Some vs -> vs in
+    let vs = modifies in
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
     let afs = abduct (pre_conf.G.current_heap * def_eqs) pre in
@@ -736,7 +726,7 @@ end = struct
       Some (get_new_specs context procedure.P.stop)
     end
 
-  let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = Some [] }
+  let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = [] }
 
   let spec_of post =
     let post = CoreOps.mk_assert post in
@@ -838,7 +828,7 @@ end = struct
             (* TODO: what if lvars remain after the above substitutions? *)
             { C.pre = triple.C.pre * missing_heap * pre_eqs
             ; post = current_heap * post_eqs
-            ; modifies = Some mvars } in
+            ; modifies = mvars } in
           let cs =
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
@@ -895,11 +885,17 @@ end = struct
              end;
 	     Spec_updated)
 	end
-	else begin
-          let new_specs = C.TripleSet.of_list ts in
-	  if C.TripleSet.length new_specs = C.TripleSet.length procedure.C.proc_spec
-          then OK
-	  else NOK
+	else begin (* checking, not inferring *)
+          let new_specs = C.TripleSet.of_list ts in (* TODO: Is this needed? *)
+          let len = C.TripleSet.length in
+          let modifies_ok t =
+            let ms =
+              List.fold_right StringSet.add t.C.modifies StringSet.empty in
+            List.for_all (flip StringSet.mem ms) mvars in
+          let ok = len new_specs = len procedure.C.proc_spec in
+          let ok = ok
+            && C.TripleSet.for_all modifies_ok procedure.C.proc_spec in
+          if ok then OK else NOK
 	end
 end
 (* }}} *)
