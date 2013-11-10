@@ -962,11 +962,10 @@ For a list of functions, all functions have to be OK.
 *)
 let verify q =
   if log log_exec then
-    fprintf logf "@[start verification with abduction=%b@]@,@?" q.C.q_infer;
-  fprintf logf "@[%a@]@?" CoreOps.pp_ast_question q;
+    fprintf logf "@[<2>got question@\n%a@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
-  if log log_exec then fprintf logf "@]@?";
+  if log log_exec then fprintf logf "@]@\n@?";
   r
 (* }}} *)

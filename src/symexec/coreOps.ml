@@ -42,7 +42,7 @@ let pp_statement f = function
       fprintf f "goto %a;" (pp_list_sep "," pp_string) ls
   | End -> fprintf f "end;"
 
-let pp_logic _ _ = failwith "TODO"
+let pp_logic _ _ = failwith "TODO (a8d7bnw2w)"
 
 let pp_ast_procedure f { proc_name; proc_spec; proc_body } =
   let pp_body f body =
@@ -66,7 +66,6 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
     pp_rules q_rules
 
 (* TODO: simpler names for args/rets. *)
-let name_ret_v1 = "$ret_v1"
 let return n = Printf.sprintf "$ret_v%d" n
 let parameter n = Printf.sprintf "@parameter%d:" n
 
