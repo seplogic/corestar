@@ -36,6 +36,57 @@ let smt_implies a b =
   and are_both_ok a b = is_ok a && is_ok b in
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
+(* slightly optimized version of Expr.mk_big_star *)
+(* should use the one in symexec? *)
+let mk_big_star es =
+  match List.filter ((<>) Expr.emp) es with
+  | [] -> Expr.emp
+  | [x] -> x
+  | l -> Expr.mk_big_star l
+
+(*
+  Splits [e] into [e1], [e2], where [e] = [e1] /\ [e2] and [e1] is pure
+*)
+let extract_pure_part e =
+  let pures = [ Expr.emp; Expr.fls ] in
+  let rec extract e =
+    let extract_all = e, Expr.emp in
+    let extract_all_1 _ = extract_all in
+    let extract_all_2 _ _ = extract_all in
+    if List.exists (Expr.equal e) pures then e, Expr.emp
+    else Expr.cases (fun _ -> extract_all)
+      (Expr.on_star extract_conjuncts
+       & Expr.on_eq extract_all_2
+       & Expr.on_neq extract_all_2
+       & Expr.on_string_const extract_all_1
+       & Expr.on_int_const extract_all_1
+       & (fun _ _ -> Expr.emp, e)) e
+  and extract_conjuncts es =
+    let ps, ss = List.split (List.map extract es) in
+    mk_big_star ps, mk_big_star ss in
+  extract e
+
+let find_lvar_pvar_subs =
+  let on_var_eq_var f g e =
+    let not_on _ _ = g e in
+    Expr.cases
+      (fun _ -> g e)
+      (Expr.on_eq
+        (fun e1 e2 ->
+	  Expr.cases
+	    (fun v1 -> Expr.cases (fun v2 -> f v1 v2) not_on e2)
+	    not_on e1)
+	not_on) e in
+  let add_if_good l =
+    on_var_eq_var 
+      (fun a b ->
+	if Expr.is_lvar a && Expr.is_pvar b then (a, Expr.mk_var b)::l
+	else if Expr.is_pvar a && Expr.is_lvar b then (b, Expr.mk_var a)::l
+	else l)
+      (fun _ -> l) in
+  let get_subs = List.fold_left add_if_good [] in
+  Expr.cases (fun _ -> []) (Expr.on_star get_subs (fun _ _ -> []))
+
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
@@ -56,6 +107,23 @@ let smt_pure_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       if smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame}]] else []) }
+
+let spatial_id_rule =
+  { rule_name = "spatial parts match"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
+      let conc_pure, conc_spatial = extract_pure_part conclusion in
+      if log log_prove then fprintf logf "hp: %a@,sp: %a@,cp: %a@,cs: %a" Expr.pp hyp_pure Expr.pp hyp_spatial Expr.pp conc_pure Expr.pp conc_spatial;
+      if Expr.equal hyp_spatial conc_spatial
+      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]] else []) }
+
+let inline_pvars_rule =
+  { rule_name = "substitution (of logical vars with program vars)"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let subs = find_lvar_pvar_subs hypothesis in
+      [[{ Calculus.hypothesis = Expr.substitute subs hypothesis; conclusion; frame}]]) }
 
 (* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -256,7 +324,7 @@ let rules_of_calculus c =
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = apply_rule_schema rs } in
-  id_rule :: smt_pure_rule :: List.map to_rule c
+  id_rule :: smt_pure_rule :: inline_pvars_rule :: spatial_id_rule :: List.map to_rule c
 
 (* }}} *)
 (* The main proof-search algorithm. *) (* {{{ *)
@@ -274,6 +342,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
     { Calculus.frame = normalize frame
     ; hypothesis = normalize hypothesis
     ; conclusion = normalize conclusion } in
+  if log log_prove then fprintf logf "goal: %a@," CalculusOps.pp_sequent goal;
   let leaf = ([goal], penalty goal) in
   let result =
     if n = 0 then leaf else begin

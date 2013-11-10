@@ -561,9 +561,9 @@ end = struct
         |> List.map mk_ok
         |> make_demonic_choice in
     let r = match afs with
-      | [] ->
+      | [] -> (* abduct failed, see prover.mli *)
           if log log_exec then
-            fprintf logf "(error conf)";
+            fprintf logf "(error conf)@?";
           CT_error
       | afs -> branch afs in
     if log log_exec then fprintf logf "@]@,@?";
