@@ -108,16 +108,6 @@ let smt_pure_rule =
       if smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame}]] else []) }
 
-let spatial_id_rule =
-  { rule_name = "spatial parts match"
-  ; rule_apply =
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
-      let conc_pure, conc_spatial = extract_pure_part conclusion in
-      if log log_prove then fprintf logf "hp: %a@,sp: %a@,cp: %a@,cs: %a" Expr.pp hyp_pure Expr.pp hyp_spatial Expr.pp conc_pure Expr.pp conc_spatial;
-      if Expr.equal hyp_spatial conc_spatial
-      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]] else []) }
-
 let inline_pvars_rule =
   { rule_name = "substitution (of logical vars with program vars)"
   ; rule_apply =
@@ -205,7 +195,7 @@ let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
   Expr.cases on_pvar on_pop p
 
 (* Not needed as eq and neq are not comassoc
-   They are not, as normalize would not do the right thing on them
+   They are not, as normalize_comassoc would not do the right thing on them
 let on_pair f a b = f [a; b]
 *)
 
@@ -237,16 +227,18 @@ type match_result =
 
   input bs is one assignment, the current branch we are exploring
   output is list of assignments, all possible extensions which leads to a match
+
+  Parameterized by [can_match] : var -> exp -> bool
+  TODO: needs also an [is_free] : var -> bool, signifying which variables should be instantiated
 *)
-let rec find_matches bs (p, e) =
+let rec find_matches can_match bs (p, e) =
   let bind pv =
     begin
       match try_find pv bs with
 	| None -> [Done (StringMap.add pv e bs)]
 	| Some oe -> if e = oe then [Done bs] else []
     end in
-  let on_pvar_var pv _ = bind pv in
-  let on_pvar_op pv _ _ = if Expr.is_tpat pv then bind pv else [] in
+  let on_pvar pv e = if can_match pv e then bind pv else [] in
   let on_pop_var _ _ _ = [] in
   let on_pop_op po ps o es =
     if po <> o then []
@@ -256,7 +248,7 @@ let rec find_matches bs (p, e) =
 	  let mk_o l = Expr.mk_app o l in
 	  match ps with
 	    | [] -> [Done bs]
-	    | [x] -> List.map (fun m -> Done m) (find_matches bs (x, normalize_comassoc e))
+	    | [x] -> List.map (fun m -> Done m) (find_matches can_match bs (x, normalize_comassoc e))
 	    | ext_p::rest_p ->
 	      begin
 		let unspecific v =
@@ -271,11 +263,11 @@ let rec find_matches bs (p, e) =
 		let specific () =
 		  match es with
 		    | [] -> [Done bs]
-		    | [x] -> List.map (fun m -> Done m) (find_matches bs (ext_p, x))
+		    | [x] -> List.map (fun m -> Done m) (find_matches can_match bs (ext_p, x))
 		    | _ ->
 		      let ext_match (ext_e, rest_e) =
 			let mk_more m = More (m, (mk_o rest_p, mk_o rest_e)) in
-			List.map mk_more (find_matches bs (ext_p, ext_e)) in
+			List.map mk_more (find_matches can_match bs (ext_p, ext_e)) in
 		      unique_extractions es >>= ext_match in
 		Expr.cases
 		  (fun v -> if Expr.is_tpat v then unspecific v else specific ())
@@ -283,25 +275,53 @@ let rec find_matches bs (p, e) =
 		  ext_p
 	      end
 	end in
-      let handle_skew _ _ =
+      let handle_skew so _ =
 	if List.length ps <> List.length es then []
 	else
 	  let todos = List.combine ps es in
 	  let process_todo acc (tp, te) =
-	    acc >>= (flip find_matches (tp, te)) in
+	    acc >>= (flip (find_matches can_match) (tp, te)) in
 	  let result = List.fold_left process_todo [bs] todos in
 	  List.map (fun r -> Done r) result in
       on_comassoc handle_comassoc handle_skew po ps in
-  let matches = cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
+  let matches =
+    Expr.cases (fun pv -> on_pvar pv e) (fun po ps -> Expr.cases (on_pop_var po ps) (on_pop_op po ps) e) p in
   let process_match = function
     | Done final_bs -> [final_bs]
     | More (next_bs, next_pair) ->
       (*      Format.printf "<processing more %d>" (List.length next_bs); *)
-      find_matches next_bs next_pair in
+      find_matches can_match next_bs next_pair in
   matches >>= process_match
 
+(* interpret free variables as existential variables *)
+let find_existential_matches =
+  find_matches (fun pv e -> if Expr.is_lvar pv then true else Expr.cases ((=) pv) (fun _ _ -> false) e)
+
+let spatial_id_rule =
+  { rule_name = "spatial parts match"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
+      let conc_pure, conc_spatial = extract_pure_part conclusion in
+      if log log_prove then fprintf logf "hp: %a@,hs: %a@,cp: %a@,cs: %a"
+	Expr.pp hyp_pure Expr.pp hyp_spatial Expr.pp conc_pure Expr.pp conc_spatial;
+      if Expr.equal hyp_spatial conc_spatial (* should really be handled by matching *)
+      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]] else
+      let matches = find_existential_matches StringMap.empty (conc_spatial, hyp_spatial) in
+      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+      let mk_goal m =
+	let b = StringMap.bindings m in
+	let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+	[ { Calculus.hypothesis = mk_big_star (hyp_pure :: List.map mk_eq b)
+	  ; conclusion = conc_pure
+	  ; frame } ] in
+      List.map mk_goal matches) }
+
+let find_pattern_matches =
+  find_matches (fun v -> let b = Expr.is_tpat v in Expr.cases (fun _ -> true) (fun _ _ -> b))
+
 let find_sequent_matches bs ps s =
-  let fm pat exp bs = find_matches bs (pat, exp) in
+  let fm pat exp bs = find_pattern_matches bs (pat, exp) in
   fm ps.Calculus.frame s.Calculus.frame bs >>=
     fm ps.Calculus.hypothesis s.Calculus.hypothesis >>=
     fm ps.Calculus.conclusion s.Calculus.conclusion
