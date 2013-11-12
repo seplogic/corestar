@@ -36,8 +36,8 @@ let early_exit_fold_list exitable plus acc l =
   early_exit_fold exitable plus_head ((=) []) List.tl acc l
 
 
-let min_penalty = 20
-let max_penalty = 100
+let min_penalty = 5
+let max_penalty = 20
 
 let exitable_choice (_, penalty) = penalty <= min_penalty
 

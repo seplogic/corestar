@@ -26,9 +26,7 @@ let interpreted =
 (* TODO: The name [identities] is bad. *)
 let identities =
   [ "and", "true"
-  ; "false", "false"
-  ; "or", "false"
-  ; "true", "true" ]
+  ; "or", "false" ]
 
 let uniq_id = ref 0
 let str_map = StringHash.create 0
@@ -97,10 +95,14 @@ let send_string f = fprintf f "%s"
 
 let send_list pp f = List.iter (fprintf f " %a" pp)
 
+let find_op op =
+ try List.assoc op identities
+ with Not_found -> op
+
 let rec send_expr f =
   let ps = fprintf f "%s" in
   let app op = function
-    | [] -> fprintf f "%s" (List.assoc op identities)
+    | [] -> fprintf f "%s" (find_op op)
     | xs -> fprintf f "(%s%a)" op (send_list send_expr) xs in
   Expr.cases
     (ps @@ sanitize_sym)

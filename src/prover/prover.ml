@@ -28,18 +28,22 @@ let smt_implies a b =
   let rec is_ok e =
     let f _ _ = false in
     let f = List.fold_right ((|>) are_all_ok) ok_n f in
-    let f = List.fold_right ((|>) are_both_ok) ok_2 f in
+    let f = List.fold_right ((|>) (fun _ _ -> true)) ok_2 f in
     let f = List.fold_right ((|>) is_ok) ok_1 f in
     let f = List.fold_right ((|>) (fun _ -> true)) stop_op f in
     List.exists (Expr.equal e) ok_0 || Expr.cases (fun _ -> true) f e
   and are_all_ok es = List.for_all is_ok es
   and are_both_ok a b = is_ok a && is_ok b in
+  if log log_prove then fprintf logf "%a pure: %b;@,%a pure: %b" Expr.pp a (is_ok a) Expr.pp b (is_ok b);
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
 (* slightly optimized version of Expr.mk_big_star *)
 (* should use the one in symexec? *)
 let mk_big_star es =
-  match List.filter ((<>) Expr.emp) es with
+  let trivial e =
+    e = Expr.emp ||
+    Expr.cases (fun _ -> false) (Expr.on_eq Expr.equal (fun _ _ -> false)) e in
+  match List.filter (not @@ trivial) es with
   | [] -> Expr.emp
   | [x] -> x
   | l -> Expr.mk_big_star l
@@ -363,7 +367,8 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
     ; hypothesis = normalize hypothesis
     ; conclusion = normalize conclusion } in
   if log log_prove then fprintf logf "goal: %a@," CalculusOps.pp_sequent goal;
-  let leaf = ([goal], penalty goal) in
+  let leaf = ([goal], penalty n goal) in
+  if log log_prove then fprintf logf "Current goal has penalty %d at level %d@\n" (penalty n goal) n;
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
@@ -400,7 +405,7 @@ let wrap_calculus f calculus =
     f rules { Calculus.hypothesis; conclusion; frame = Expr.emp }
 
 let is_entailment rules goal =
-  let penalty { Calculus.hypothesis; conclusion; _ } =
+  let penalty _ { Calculus.hypothesis; conclusion; _ } =
     (* TODO: Should also require that the hypothesis is pure? *)
     if Expr.equal conclusion Expr.emp
     then 0
@@ -409,9 +414,9 @@ let is_entailment rules goal =
   p = 0
 
 let infer_frame rules goal =
-  let penalty { Calculus.hypothesis; conclusion; _ } =
+  let penalty n { Calculus.hypothesis; conclusion; _ } =
     if Expr.equal conclusion Expr.emp
-    then Expr.size hypothesis
+    then (n + 1) * (Expr.size hypothesis)
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then
@@ -421,8 +426,8 @@ let infer_frame rules goal =
   else []
 
 let biabduct rules goal =
-  let penalty { Calculus.hypothesis; conclusion; _ } =
-    Expr.size hypothesis + Expr.size conclusion in
+  let penalty n { Calculus.hypothesis; conclusion; _ } =
+    (n + 1) * (Expr.size hypothesis + Expr.size conclusion) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then
     if ss = [] then [{ frame = Expr.emp; antiframe = Expr.emp }] else
