@@ -34,6 +34,9 @@ let specialize_spec rets args xs =
 let mk_big_star = Prover.mk_big_star
 let mk_star = Prover.mk_star
 
+let mk_big_star = Prover.normalize @@ Expr.mk_big_star
+let mk_star a b = Prover.normalize (Expr.mk_star a b)
+
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
@@ -749,7 +752,7 @@ end = struct
     let call_to_spec v = match G.Cfg.V.label v with
       | G.Call_cfg { C.call_name; call_rets; call_args } ->
           let p = proc_of_name call_name in
-          let spec = specialize_spec call_rets call_args  p.C.proc_spec in
+          let spec = specialize_spec call_rets (List.rev call_args)  p.C.proc_spec in (* TODO: find the source of List.rev *)
           G.Cfg.V.create (G.Spec_cfg spec)
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }

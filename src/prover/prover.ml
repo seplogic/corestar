@@ -34,7 +34,6 @@ let smt_implies a b =
     List.exists (Expr.equal e) ok_0 || Expr.cases (fun _ -> true) f e
   and are_all_ok es = List.for_all is_ok es
   and are_both_ok a b = is_ok a && is_ok b in
-  if log log_prove then fprintf logf "%a pure: %b;@,%a pure: %b" Expr.pp a (is_ok a) Expr.pp b (is_ok b);
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
 let c0 x = x
