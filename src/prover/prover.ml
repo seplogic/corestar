@@ -43,7 +43,8 @@ let mk_big_star es =
   let trivial e =
     e = Expr.emp ||
     Expr.cases (fun _ -> false) (Expr.on_eq Expr.equal (fun _ _ -> false)) e in
-  match List.filter (not @@ trivial) es with
+  let unfold e = Expr.cases (fun _ -> [e]) (Expr.on_star id (fun _ _ -> [e])) e in
+  match List.filter (not @@ trivial) (es >>= unfold) with
   | [] -> Expr.emp
   | [x] -> x
   | l -> Expr.mk_big_star l
@@ -117,7 +118,10 @@ let inline_pvars_rule =
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs hypothesis in
-      [[{ Calculus.hypothesis = Expr.substitute subs hypothesis; conclusion; frame}]]) }
+      let sub_hyp = Expr.substitute subs hypothesis in
+      let mk_eq (a, b) = Expr.mk_eq (Expr.mk_var a) b in
+      let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
+      [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
 
 (* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
