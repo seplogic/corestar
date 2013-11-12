@@ -45,6 +45,7 @@ let sanitize pre map id =
 
 let sanitize_sym = sanitize "sym" sym_map
 let sanitize_str = sanitize "str" str_map
+let sanitize_int = sanitize "int" str_map (* TODO: handle integers properly *)
 
 let z3_out, z3_in, z3_err =
   Unix.open_process_full "z3 -smt2 -in" (Unix.environment())
@@ -107,7 +108,7 @@ let rec send_expr f =
   Expr.cases
     (ps @@ sanitize_sym)
     ( Expr.on_string_const (ps @@ sanitize_str)
-    & Expr.on_int_const ps
+    & Expr.on_int_const (ps @@ sanitize_int)
     & (app @@ sanitize_sym))
 
 (* }}} *)
@@ -132,8 +133,12 @@ let analyze_sorts =
   let dec ts c  = declare c (repeat "Ref" ts, "Ref") in
   let var = dec [] @@ sanitize_sym in
   let str = dec [] @@ sanitize_str in
+  let int = dec [] @@ sanitize_int in
   let rec app op ts = dec ts (sanitize_sym op); List.iter visit ts
-  and visit t = Expr.cases var (Expr.on_string_const str app) t in
+  and visit t = Expr.cases var
+    ( Expr.on_string_const str
+    & Expr.on_int_const int
+    & app) t in
   visit
 
 (* For debugging. *)

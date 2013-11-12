@@ -38,8 +38,8 @@ let pp_statement f = function
       fprintf f "@[<2>call @[%a@]@,:=@[%s@[(%a)@]@];@]"
         pp_args_out call_rets call_name pp_args_in call_args
   | Goto_stmt_core ls ->
-      fprintf f "goto %a;" (pp_list_sep "," pp_string) ls
-  | End -> fprintf f "end;"
+      fprintf f "@[goto %a;@]" (pp_list_sep "," pp_string) ls
+  | End -> fprintf f "@[end;@]"
 
 let pp_logic _ _ = failwith "TODO (a8d7bnw2w)"
 

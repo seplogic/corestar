@@ -44,6 +44,9 @@ val memo2 : ('a -> 'b -> 'c) -> ('a -> 'b -> 'c)
 
 val cross_product : ('a list) -> ('b list) -> (('a * 'b) list)
 
+(* [[1;2];[3;4;5]] becomes [[1;3];[1;4];[1;5];[2;3];[2;4];[2;5]] *)
+val product : 'a list list -> 'a list list
+
 val fresh_int : unit -> unit -> int
   (** [fresh_int ()] is a generator for the sequence 0, 1, 2, ... *)
 

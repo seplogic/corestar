@@ -123,45 +123,63 @@ let inline_pvars_rule =
       let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
       [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
 
-(* A root-leaf path of an expression must match ("or"?; "star"?; "not"?; OTHER).
+(* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
 (* NOTE: very inefficient; fix if profiler complains *)
-let normalize =
+(* TODO: perhaps remove repeated pure arguments of star. *)
+(* TODO: perhaps simplify equalities like x==x *)
+let normalize e =
   let concatMap f xs = List.concat (List.map f xs) in
-  let module X = struct
+  let module X = struct (* [assoc], below, uses impredicative polymorphism *)
     type t = { on: 'a. 'a Expr.app_eval_n; mk: Expr.t list -> Expr.t }
   end in
-  let rec assoc this =
-    (* TODO: add sorting *)
-    let r op es = Expr.mk_app op (List.map (assoc this) es) in
-    let u x = [x] in
-    let ur op es = u (r op es) in
-    let rec split es =
-      Expr.cases (u @@ Expr.mk_var) (this.X.on (concatMap split) ur) es in
-    let remk_this es = this.X.mk (concatMap split es) in
-    Expr.cases Expr.mk_var (this.X.on remk_this r) in
-(*  let not_not _ = failwith "TODO" in
-  let star_below_or _ = failwith "TODO" in
-  let forbid _ = failwith "TODO" in
-  let del_id _ = failwith "TODO" in
-  let kill_unit _ = failwith "TODO" in *)
+  let c0 x = x in let c1 x _ = x in let c2 x _ _ = x in
+  let rec split on e =
+    Expr.cases (c1 [e]) (on (concatMap (split on)) & c2 [e]) e in
+  let recurse f op es = Expr.mk_app op (List.map f es) in
+  let rec assoc this e =
+    let remk_this es = (* splits and recurses *)
+      this.X.mk (concatMap (List.map (assoc this) @@ split this.X.on) es) in
+    Expr.cases (c1 e) (this.X.on remk_this & recurse (assoc this)) e in
+  let rec not_not e =
+    let e = Expr.cases (c1 e) (recurse not_not) e in
+    let negate e =
+      let ne = Expr.mk_not e in
+      Expr.cases (c1 ne) (Expr.on_not c0 & c2 ne) e in
+    Expr.cases (c1 e) (Expr.on_not negate & c2 e) e in
+  let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) )*)
+    let ess = List.map (split Expr.on_or) (split Expr.on_star e) in
+    let fss = Misc.product ess in
+    let mk_or, mk_star =
+      let f z mk es = match List.filter (not @@ Expr.equal z) es with
+        | [] -> z
+        | [e] -> e
+        | es -> mk es in
+      (f Expr.fls Expr.mk_big_or, f Expr.emp Expr.mk_big_star) in
+    let r f = if Expr.equal f e then f else star_below_or f in
+    let fs = List.map (r @@ mk_star) fss in
+    mk_or fs in
+  let rec forbid_not on e = (* assert that "not" doesn't appear on top of [on] *)
+    let chk1 e =
+      Expr.cases (c1 ()) (on (fun _ -> assert false) & c2 ()) e;
+      ignore (forbid_not on e) in
+    let chk = ignore @@ forbid_not on in
+    Expr.cases (c1 ()) (Expr.on_not chk1 & fun _ -> List.iter chk) e; e in
   let rec fix f e1 =
     let e2 = f e1 in
     if Expr.equal e1 e2 then e1 else fix f e2 in
   let fs =
     [ assoc { X.on = Expr.on_star; mk = Expr.mk_big_star }
     ; assoc { X.on = Expr.on_or; mk = Expr.mk_big_or }
-(*    ; not_not
+    ; not_not
     ; star_below_or
-    ; forbid Expr.on_not Expr.on_or
-    ; forbid Expr.on_not Expr.on_star
-    ; del_id Expr.on_star Expr.emp
-    ; del_id Expr.on_or Expr.fls
-    ; kill_unit Expr.on_or
-    ; kill_unit Expr.on_star *) ] in
+    ; forbid_not Expr.on_or
+    ; forbid_not Expr.on_star ] in
   let f = List.fold_left (@@) id fs in
-  fix f
+  let r = fix f e in
+  printf "@[<2>before@ %a@]@\n@[after@ %a@]@\n" Expr.pp e Expr.pp r;
+  r
 
 (* find_matches and helpers *) (* {{{ *)
 let unique_extractions l =

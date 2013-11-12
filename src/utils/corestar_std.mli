@@ -76,6 +76,9 @@ val undefined : 'a -> 'b
 (** Like in Haskell. *)
 val id : 'a -> 'a
 
+(** Like in Haskell. *)
+val const : 'a -> 'b -> 'a
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 

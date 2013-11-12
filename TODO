@@ -1,7 +1,7 @@
-- split on || in postcondition makes corestar forget
-  a bit too much how to compute a pvar in term of the initial state
 - test on problem similar to those of topstar
 - check out what do tests do
+- split on || in postcondition makes corestar forget
+  a bit too much how to compute a pvar in term of the initial state
 - proper treatement of global variables
 - scoping for variables in expression; that is, quantifiers
 - add types to expressions (useful for talking to Z3)
