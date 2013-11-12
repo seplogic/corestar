@@ -31,26 +31,8 @@ let specialize_spec rets args xs =
     ; modifies = rets @ modifies } in
   C.TripleSet.map f xs
 
-(* We use star to represent conjunction of pure formulas. When the arguments of
-star are pure, certain optimizations are possible; for example, no repetition is
-needed. *)
-let mk_big_and es =
-  (* TODO: Assert that the arguments are pure. *)
-  let star_args e = Expr.cases
-    undefined (* We don't (yet) have boolean variables *)
-    (Expr.on_star (fun xs -> xs) (fun _ _ -> [e]))
-    e in
-  let is_true e =
-    Expr.equal e Expr.emp
-    || Expr.cases undefined (Expr.on_eq Expr.equal (fun _ _ -> false)) e in
-  let xs = es >>= star_args in
-  let xs = List.filter (not @@ is_true) xs in
-  let module H = Hashtbl.Make (Expr) in
-  let h = H.create (List.length xs) in
-  List.iter (fun x -> H.replace h x ()) xs;
-  match H.fold (fun x () xs -> x :: xs) h [] with
-    | [] -> Expr.emp | [x] -> x | xs -> Expr.mk_big_star xs
-let mk_and e1 e2 = mk_big_and [e1; e2]
+let mk_big_star = Prover.mk_big_star
+let mk_star = Prover.mk_star
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
@@ -519,7 +501,7 @@ end = struct
 
   let eqs_of_bindings ds =
       let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-      ds |> List.map mk_eq |> mk_big_and
+      ds |> List.map mk_eq |> mk_big_star
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -537,7 +519,7 @@ end = struct
     let vs = modifies in
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
-    let afs = abduct (mk_and pre_conf.G.current_heap def_eqs) pre in
+    let afs = abduct (mk_star pre_conf.G.current_heap def_eqs) pre in
     let branch afs =
       let mk_post_conf { Prover.antiframe = a; frame = f } =
         let post_defs = update_defs pre_defs vs post in
@@ -545,8 +527,8 @@ end = struct
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
         let conf =
-          { G.current_heap = Expr.mk_star post f
-          ; missing_heap = Expr.mk_star pre_conf.G.missing_heap a
+          { G.current_heap = mk_star post f
+          ; missing_heap = mk_star pre_conf.G.missing_heap a
           ; pvar_value = post_defs } in
 (*  XXX       G.check_ok_configuration conf; *)
         if log log_exec then
@@ -624,9 +606,10 @@ end = struct
       let l2 = StringMap.find v d2s in
       Expr.mk_eq l1 l2 in
     let eqs = List.map mk_eq pvars in
-    let eqs = mk_big_and eqs in
-    Prover.is_entailment calculus (mk_and t1.C.post eqs) (mk_and t2.C.post eqs)
-    && Prover.is_entailment calculus (mk_and t2.C.pre eqs) (mk_and t1.C.pre eqs)
+    let eqs = mk_big_star eqs in
+    let ( * ) = mk_star in
+    Prover.is_entailment calculus (t1.C.post * eqs) (t2.C.post * eqs)
+    && Prover.is_entailment calculus (t2.C.pre * eqs) (t1.C.pre * eqs)
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -817,8 +800,8 @@ end = struct
               StringMap.fold f pvar_value [] in
             let current_heap = Expr.substitute_gen post_subst current_heap in
             (* TODO: what if lvars remain after the above substitutions? *)
-            { C.pre = Expr.mk_big_star [triple.C.pre; missing_heap; pre_eqs]
-            ; post = Expr.mk_star current_heap post_eqs
+            { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
+            ; post = mk_star current_heap post_eqs
             ; modifies = mvars } in
           let cs =
             let name = procedure.C.proc_name in

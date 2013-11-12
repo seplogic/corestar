@@ -15,5 +15,9 @@ val biabduct
 frame was found, while the result [Expression.emp] means that the entailment
 holds as given; that is, with an empty frame. Similarly for biabduct. *)
 
+val mk_big_star
+  : Expression.t list -> Expression.t
+val mk_star
+  : Expression.t -> Expression.t -> Expression.t
 val normalize
   : Expression.t -> Expression.t

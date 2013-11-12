@@ -37,39 +37,57 @@ let smt_implies a b =
   if log log_prove then fprintf logf "%a pure: %b;@,%a pure: %b" Expr.pp a (is_ok a) Expr.pp b (is_ok b);
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
-(* slightly optimized version of Expr.mk_big_star *)
-(* should use the one in symexec? *)
-let mk_big_star es =
-  let trivial e =
-    e = Expr.emp ||
-    Expr.cases (fun _ -> false) (Expr.on_eq Expr.equal (fun _ _ -> false)) e in
-  let unfold e = Expr.cases (fun _ -> [e]) (Expr.on_star id (fun _ _ -> [e])) e in
-  match List.filter (not @@ trivial) (es >>= unfold) with
-  | [] -> Expr.emp
-  | [x] -> x
-  | l -> Expr.mk_big_star l
+let c0 x = x
+let c1 x _ = x
+let c2 x _ _ = x
+let concatMap f xs = List.concat (List.map f xs)
 
-(*
-  Splits [e] into [e1], [e2], where [e] = [e1] /\ [e2] and [e1] is pure
-*)
+let is_pure e =
+  Expr.equal Expr.emp e
+  || Expr.equal Expr.fls e
+  || Expr.cases
+    (fun _ -> assert false)
+    ( Expr.on_eq (c2 true)
+    & Expr.on_neq (c2 true)
+    & c2 false)
+    e
+
+let is_true e =
+  Expr.equal Expr.emp e
+  || Expr.cases (c1 false) (Expr.on_eq Expr.equal & c2 false) e
+
+let rec unfold on e =
+  Expr.cases (c1 [e]) (on (concatMap (unfold on)) & c2 [e]) e
+
+(* Removes zero and remover repetitions of pure parts. *)
+let ac_simplify_split is_zero on es =
+  let xs = es >>= unfold on in
+  let xs = List.filter (not @@ is_zero) xs in
+  let xs, ys = List.partition is_pure xs in
+  let module H = Hashtbl.Make (Expr) in
+  let h = H.create (List.length xs) in
+  List.iter (fun x -> H.replace h x ()) xs;
+  (H.fold (fun x () xs -> x :: xs) h [], ys)
+
+let ac_simplify is_zero on es =
+  let xs, ys = ac_simplify_split is_zero on es in ys @ xs
+
+let ac_make zero mk =
+  function [] -> zero | [e] -> e | es -> mk es
+
 let extract_pure_part e =
-  let pures = [ Expr.emp; Expr.fls ] in
-  let rec extract e =
-    let extract_all = e, Expr.emp in
-    let extract_all_1 _ = extract_all in
-    let extract_all_2 _ _ = extract_all in
-    if List.exists (Expr.equal e) pures then e, Expr.emp
-    else Expr.cases (fun _ -> extract_all)
-      (Expr.on_star extract_conjuncts
-       & Expr.on_eq extract_all_2
-       & Expr.on_neq extract_all_2
-       & Expr.on_string_const extract_all_1
-       & Expr.on_int_const extract_all_1
-       & (fun _ _ -> Expr.emp, e)) e
-  and extract_conjuncts es =
-    let ps, ss = List.split (List.map extract es) in
-    mk_big_star ps, mk_big_star ss in
-  extract e
+  let mk = ac_make Expr.emp Expr.mk_big_star in
+  let xs, ys = ac_simplify_split is_true Expr.on_star [e] in
+  (mk xs, mk ys)
+
+let mk_big_star =
+  ac_make Expr.emp Expr.mk_big_star @@ ac_simplify is_true Expr.on_star
+
+let mk_big_or =
+  let is_false = Expr.equal Expr.fls in
+  ac_make Expr.fls Expr.mk_big_or @@ ac_simplify is_false Expr.on_or
+
+let mk_star e1 e2 = mk_big_star [e1; e2]
 
 let find_lvar_pvar_subs =
   let on_var_eq_var f g e =
@@ -126,60 +144,32 @@ let inline_pvars_rule =
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
-(* NOTE: very inefficient; fix if profiler complains *)
-(* TODO: perhaps remove repeated pure arguments of star. *)
-(* TODO: perhaps simplify equalities like x==x *)
-let normalize e =
-  let concatMap f xs = List.concat (List.map f xs) in
-  let module X = struct (* [assoc], below, uses impredicative polymorphism *)
-    type t = { on: 'a. 'a Expr.app_eval_n; mk: Expr.t list -> Expr.t }
-  end in
-  let c0 x = x in let c1 x _ = x in let c2 x _ _ = x in
-  let rec split on e =
-    Expr.cases (c1 [e]) (on (concatMap (split on)) & c2 [e]) e in
+let normalize =
   let recurse f op es = Expr.mk_app op (List.map f es) in
-  let rec assoc this e =
-    let remk_this es = (* splits and recurses *)
-      this.X.mk (concatMap (List.map (assoc this) @@ split this.X.on) es) in
-    Expr.cases (c1 e) (this.X.on remk_this & recurse (assoc this)) e in
   let rec not_not e =
     let e = Expr.cases (c1 e) (recurse not_not) e in
     let negate e =
       let ne = Expr.mk_not e in
       Expr.cases (c1 ne) (Expr.on_not c0 & c2 ne) e in
     Expr.cases (c1 e) (Expr.on_not negate & c2 e) e in
-  let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) )*)
-    let ess = List.map (split Expr.on_or) (split Expr.on_star e) in
+  let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) *)
+    let ess = List.map (unfold Expr.on_or) (unfold Expr.on_star e) in
     let fss = Misc.product ess in
-    let mk_or, mk_star =
-      let f z mk es = match List.filter (not @@ Expr.equal z) es with
-        | [] -> z
-        | [e] -> e
-        | es -> mk es in
-      (f Expr.fls Expr.mk_big_or, f Expr.emp Expr.mk_big_star) in
     let r f = if Expr.equal f e then f else star_below_or f in
-    let fs = List.map (r @@ mk_star) fss in
-    mk_or fs in
+    let fs = List.map (r @@ mk_big_star) fss in
+    mk_big_or fs in
   let rec forbid_not on e = (* assert that "not" doesn't appear on top of [on] *)
     let chk1 e =
       Expr.cases (c1 ()) (on (fun _ -> assert false) & c2 ()) e;
       ignore (forbid_not on e) in
     let chk = ignore @@ forbid_not on in
     Expr.cases (c1 ()) (Expr.on_not chk1 & fun _ -> List.iter chk) e; e in
-  let rec fix f e1 =
-    let e2 = f e1 in
-    if Expr.equal e1 e2 then e1 else fix f e2 in
   let fs =
-    [ assoc { X.on = Expr.on_star; mk = Expr.mk_big_star }
-    ; assoc { X.on = Expr.on_or; mk = Expr.mk_big_or }
-    ; not_not
+    [ not_not
     ; star_below_or
     ; forbid_not Expr.on_or
     ; forbid_not Expr.on_star ] in
-  let f = List.fold_left (@@) id fs in
-  let r = fix f e in
-  printf "@[<2>before@ %a@]@\n@[after@ %a@]@\n" Expr.pp e Expr.pp r;
-  r
+  List.fold_left (@@) id fs
 
 (* find_matches and helpers *) (* {{{ *)
 let unique_extractions l =
@@ -241,7 +231,7 @@ let on_comassoc handle_comassoc handle_skew o es =
 *)
 let normalize_comassoc e =
   let unfold o = function [x] -> x | _ -> e in
-  Expr.cases (fun _ -> e) (on_comassoc unfold (fun _ _ -> e)) e
+  Expr.cases (c1 e) (on_comassoc unfold (c2 e)) e
 
 type match_result =
   | Done of bindings
