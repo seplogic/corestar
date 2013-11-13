@@ -70,8 +70,10 @@ val mk_int_const : string -> t
 (* [on_star f g op xs] returns either [f xs] or [g op xs] depending on whether
 [op] is a star or not. Similarly for the other [on_*] functions. In other
 modules, you should prefer to use these together with [cases] instead of
-mentioning strings. *)
+mentioning strings. ([match_] is the same as [cases], except for argument
+order.)  *)
 val cases : (var -> 'a) -> (op -> t list -> 'a) -> t -> 'a
+val match_ : t -> (var -> 'a) -> (op -> t list -> 'a) -> 'a
 type 'a app_eval = (op -> t list -> 'a) -> (op -> t list -> 'a)
 type 'a app_eval_1 = (t -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
@@ -84,6 +86,9 @@ val on_neq : 'a app_eval_2
 val on_string_const : (string -> 'a) -> 'a app_eval
 val on_int_const : (string -> 'a) -> 'a app_eval
 val on_op : op -> 'a app_eval_n
+
+(* Example: let rec f e = cases (fun _->false) (recurse f) *)
+val recurse : (t -> t) -> (op -> t list -> t)
 
 val is_interpreted : string -> bool
 

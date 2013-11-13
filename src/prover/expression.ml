@@ -91,6 +91,10 @@ let cases var app e = match fst e with
   | Var v -> var v
   | App (op, xs) -> app op xs
 
+let match_ e var app = cases var app e
+
+let recurse f op es = mk_app op (List.map f es)
+
 let symbol_of = cases (fun x -> x) (fun f _ -> f)
 
 let sort_of = StringHash.find symbols @@ symbol_of

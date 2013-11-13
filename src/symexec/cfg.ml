@@ -59,7 +59,10 @@ let pp_configuration f = function
   | ErrorConf -> fprintf f "Error"
   | OkConf (c, st) -> fprintf f "%a: %a" pp_split_type st pp_ok_configuration c
 
-(* XXX: Explain the semantics of the configuration graph. *)
+(* TODO: Explain the semantics of the configuration graph.
+The basic idea is that lvars are like free variables in logic: you first
+instantiate them with some constant accross the whole confgraph, and no matter
+which constants you picked, the result accurately describes the program. *)
 module ConfigurationGraph =
   DG.Make (struct type t = configuration end) (DG.UnlabeledEdge)
 module CVHashtbl = Hashtbl.Make (ConfigurationGraph.V)

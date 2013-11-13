@@ -144,9 +144,8 @@ let inline_pvars_rule =
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
 let normalize =
-  let recurse f op es = Expr.mk_app op (List.map f es) in
   let rec not_not e =
-    let e = Expr.cases (c1 e) (recurse not_not) e in
+    let e = Expr.cases (c1 e) (Expr.recurse not_not) e in
     let negate e =
       let ne = Expr.mk_not e in
       Expr.cases (c1 ne) (Expr.on_not c0 & c2 ne) e in

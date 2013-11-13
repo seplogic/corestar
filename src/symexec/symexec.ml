@@ -34,8 +34,16 @@ let specialize_spec rets args xs =
 let mk_big_star = Prover.mk_big_star
 let mk_star = Prover.mk_star
 
-let mk_big_star = Prover.normalize @@ Expr.mk_big_star
-let mk_star a b = Prover.normalize (Expr.mk_star a b)
+let freshen_triple { C.pre; post; modifies } =
+  let h = StringHash.create 0 in
+  let rec freshen_expr e =
+    let var v = if not (Expr.is_lvar v) then Expr.mk_var v else begin
+      try StringHash.find h v
+      with Not_found ->
+        (let w = Expr.mk_var (Expr.freshen v) in StringHash.add h v w; w)
+    end in
+    Expr.cases var (Expr.recurse freshen_expr) e in
+  { C.pre = freshen_expr pre; post = freshen_expr post; modifies }
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
@@ -511,14 +519,12 @@ end = struct
   sufficient to demonically split on the frames Fk, and then angelically on the
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
-  let execute_one_triple
-      abduct is_deadend
-      pre_conf ({ Core.pre; post; modifies } as triple)
-  =
+  let execute_one_triple abduct is_deadend pre_conf triple =
     if log log_exec then
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
+    let { C.pre; post; modifies } = freshen_triple triple in
     let vs = modifies in
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
