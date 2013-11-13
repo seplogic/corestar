@@ -23,3 +23,11 @@ procedure step_a:
 
 procedure check_a:
   { $g_state != "c" } () { $g_state != "c" }
+
+procedure Test11b:
+?
+  call step_b();
+end;
+
+procedure step_b:
+  { $g_state = "b" } () { $g_state = "b" }
