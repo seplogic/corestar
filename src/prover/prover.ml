@@ -326,8 +326,8 @@ let spatial_id_rule =
       let mk_goal m =
 	let b = StringMap.bindings m in
 	let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-	[ { Calculus.hypothesis = mk_big_star (hyp_pure :: List.map mk_eq b)
-	  ; conclusion = conc_pure
+	[ { Calculus.hypothesis = hyp_pure
+	  ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
 	  ; frame } ] in
       List.map mk_goal matches) }
 
