@@ -123,6 +123,12 @@ let find_lvar_pvar_subs =
   let get_subs = List.fold_left add_if_good [] in
   Expr.cases (fun _ -> []) (Expr.on_star get_subs (fun _ _ -> []))
 
+let afs_of_sequents = function
+  | [] -> [{ frame = Expr.emp; antiframe = Expr.emp }]
+  | ss ->
+      let f { Calculus.hypothesis; conclusion; _ } =
+        { frame = hypothesis; antiframe = conclusion } in
+      List.map f ss
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
@@ -431,33 +437,27 @@ let wrap_calculus f calculus =
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     (* TODO: Should also require that the hypothesis is pure? *)
-    if is_instantiation conclusion then 0
+    if is_instantiation conclusion
+    then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
 
+
+
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
-    if Expr.equal conclusion Expr.emp
+    if is_instantiation conclusion
     then (n + 1) * (Expr.size hypothesis)
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
-  if p < Backtrack.max_penalty then
-    if ss = [] then [Expr.emp] else
-    let f_of_sequent { Calculus.hypothesis; _ } = hypothesis in
-    List.map f_of_sequent ss
-  else []
+  if p < Backtrack.max_penalty then afs_of_sequents ss else []
 
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     (n + 1) * (Expr.size hypothesis + Expr.size conclusion) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
-  if p < Backtrack.max_penalty then
-    if ss = [] then [{ frame = Expr.emp; antiframe = Expr.emp }] else
-    let af_of_sequent { Calculus.hypothesis; conclusion; _ } =
-      { frame = hypothesis; antiframe = conclusion } in
-    List.map af_of_sequent ss
-  else []
+  if p < Backtrack.max_penalty then afs_of_sequents ss else []
 
 let is_entailment = wrap_calculus is_entailment
 let infer_frame = wrap_calculus infer_frame

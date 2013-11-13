@@ -6,8 +6,8 @@ val is_inconsistent (* The result [false] means "maybe". *)
   : Calculus.t -> Expression.t -> bool
 val is_entailment
   : Calculus.t -> Expression.t -> Expression.t -> bool
-val infer_frame
-  : Calculus.t -> Expression.t -> Expression.t -> Expression.t list
+val infer_frame (* returned antiframes have the form _x1=E1 * _x2=E2 * ... *)
+  : Calculus.t -> Expression.t -> Expression.t -> frame_and_antiframe list
 val biabduct
   : Calculus.t -> Expression.t -> Expression.t -> frame_and_antiframe list
 

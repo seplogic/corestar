@@ -386,10 +386,7 @@ end = struct
   module ConfBfs = Bfs.Make (CS)
 
   let abduct = Prover.biabduct
-
-  let frame calculus p q =
-    Prover.infer_frame calculus p q
-    |> List.map (fun x -> { Prover.frame = x; antiframe = Expr.emp })
+  let frame = Prover.infer_frame
 
   let collect_pvars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
@@ -524,7 +521,7 @@ end = struct
       fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
-    let { C.pre; post; modifies } = freshen_triple triple in
+    let { C.pre; post; modifies } = triple in
     let vs = modifies in
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
@@ -739,7 +736,7 @@ end = struct
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
     else begin match G.Cfg.V.label statement with
       | G.Abs_cfg | G.Nop_cfg -> nop
-      | G.Spec_cfg s -> s
+      | G.Spec_cfg s -> C.TripleSet.map freshen_triple s
       | G.Call_cfg { C.call_rets; call_name; call_args } ->
           assert false (* should have called [inline_call_specs] before *)
     end

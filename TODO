@@ -1,5 +1,7 @@
 - source of List.rev
-- better inconsistency check, with smt restricted to pure hypothesis
+- do some sensible checking for the "instantiations" claimed while checking
+- add prover rule that drops spatial part in hypothesis if conclusion is pure
+  (should also lead to a better inconsistency check)
 - test on problem similar to those of topstar
 - check out what do tests do
 - split on || in postcondition makes corestar forget
