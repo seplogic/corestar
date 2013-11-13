@@ -375,7 +375,7 @@ end = struct
         { G.current_heap = pre_formula
         ; missing_heap = Expr.emp
         ; pvar_value = pre_defs } in
-(*   XXX    G.check_ok_configuration ok_conf; *)
+      (*   TODO:   G.check_ok_configuration ok_conf; *)
       CG.V.create (G.OkConf (ok_conf, G.Demonic)) in
     CG.add_vertex confgraph conf;
     CD.add statement_of conf procedure.P.start;
@@ -539,12 +539,15 @@ end = struct
           { G.current_heap = mk_star post f
           ; missing_heap = mk_star pre_conf.G.missing_heap a
           ; pvar_value = post_defs } in
-(*  XXX       G.check_ok_configuration conf; *)
+(*  TODO       G.check_ok_configuration conf; *)
         if log log_exec then
           fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
         conf in
       let mk_ok conf = CT_ok conf in
-      let keep_conf { G.missing_heap; current_heap } =
+      let keep_conf { G.missing_heap; current_heap; pvar_value } =
+        let current_heap =
+          mk_star
+            current_heap (eqs_of_bindings (StringMap.bindings pvar_value)) in
         not (is_deadend missing_heap) && not (is_deadend current_heap) in
       afs
         |> List.map mk_post_conf
@@ -570,6 +573,7 @@ end = struct
       |> List.map (execute_one_triple pre_conf)
       |> make_angelic_choice
 
+  (* [abstract], below, needs impredicative polymorphism. *)
   type ('x, 'xs) abs_collection =
     { ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
     ; ac_add : 'x -> 'xs -> 'xs
@@ -599,10 +603,18 @@ end = struct
   let implies_conf calculus v1 v2 = match CG.V.label v1, CG.V.label v2 with
     | G.ErrorConf, G.ErrorConf -> true
     | G.ErrorConf, _ | _, G.ErrorConf -> false
-    | G.OkConf (c1, _), G.OkConf (c2, _) ->
-        Prover.is_entailment calculus c1.G.current_heap c2.G.current_heap
-        && Prover.is_entailment calculus c2.G.missing_heap c1.G.missing_heap
+    | G.OkConf ( { G.current_heap = c1; missing_heap = m1; pvar_value = b1 }, _)
+    , G.OkConf ( { G.current_heap = c2; missing_heap = m2; pvar_value = b2 }, _)
+      ->
+        let eqs b = eqs_of_bindings (StringMap.bindings b) in
+        let c1 = mk_star c1 (eqs b1) in
+        let c2 = mk_star c2 (eqs b2) in
+        Prover.is_entailment calculus c1 c2
+        && Prover.is_entailment calculus m2 m1
 
+  (* NOTE: The equalities trick accounts for alpha renaming. It must *not* be
+  used for configurations, because the scope of lvars in confgraphs is the whole
+  confgraph. In contrast, the scope of lvars in triples is the triple. *)
   let implies_triple calculus t1 t2 =
     let all =
       let (+) = Expr.mk_2 "foo" in
@@ -829,7 +841,7 @@ end = struct
               fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option_map (abstract_triple rules.C.calculus) ts in
-            let ts = option [] (fun x->x) ts in (* XXX *)
+            let ts = option [] id ts in
             ts
           end else ts) in
         if log log_phase then
@@ -839,7 +851,7 @@ end = struct
         let process_triple_check =
           process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
-        let ts = option [] (fun x->x) ts in (* XXX *)
+        let ts = option [] id ts in
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
           let new_ts =
@@ -850,9 +862,7 @@ end = struct
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
-          Smt.log_comment "before";
           let finished = List.for_all not_better new_ts in
-          Smt.log_comment "after";
           if finished then begin
             if log log_exec then begin
               fprintf logf "@[Reached fixed-point for %s@\n@]@?"

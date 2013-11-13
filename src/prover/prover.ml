@@ -12,6 +12,13 @@ type frame_and_antiframe =
   ; antiframe : Expr.t }
 
 (* Helper functions for prover rules. *) (* {{{ *)
+
+(* TODO: Move in [Corestar_std]? *)
+let c0 x = x
+let c1 x _ = x
+let c2 x _ _ = x
+let concatMap f xs = List.concat (List.map f xs)
+
 let smt_is_valid a =
   Smt.push ();
   Smt.say (Expr.mk_not a);
@@ -28,18 +35,25 @@ let smt_implies a b =
   let rec is_ok e =
     let f _ _ = false in
     let f = List.fold_right ((|>) are_all_ok) ok_n f in
-    let f = List.fold_right ((|>) (fun _ _ -> true)) ok_2 f in
+    let f = List.fold_right ((|>) (c2 true)) ok_2 f in
     let f = List.fold_right ((|>) is_ok) ok_1 f in
-    let f = List.fold_right ((|>) (fun _ -> true)) stop_op f in
-    List.exists (Expr.equal e) ok_0 || Expr.cases (fun _ -> true) f e
+    let f = List.fold_right ((|>) (c1 true)) stop_op f in
+    List.exists (Expr.equal e) ok_0 || Expr.cases (c1 true) f e
   and are_all_ok es = List.for_all is_ok es
   and are_both_ok a b = is_ok a && is_ok b in
   are_both_ok a b && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
 
-let c0 x = x
-let c1 x _ = x
-let c2 x _ _ = x
-let concatMap f xs = List.concat (List.map f xs)
+(* True iff _x1=e1 * _x2=e2 * ... *)
+let rec is_instantiation e =
+(*   printf "oops@\n@?"; *)
+  let is_lvar = Expr.cases Expr.is_lvar (c2 false) in
+  let chk_eq f1 f2 = is_lvar f1 || is_lvar f2 in
+  Expr.equal Expr.emp e
+  || Expr.match_ e
+    undefined (* shouldn't be called on terms *)
+    ( Expr.on_star (List.for_all is_instantiation)
+    & Expr.on_eq chk_eq
+    & c2 false)
 
 let is_pure e =
   Expr.equal Expr.emp e
@@ -417,8 +431,7 @@ let wrap_calculus f calculus =
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     (* TODO: Should also require that the hypothesis is pure? *)
-    if Expr.equal conclusion Expr.emp
-    then 0
+    if is_instantiation conclusion then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
