@@ -42,10 +42,6 @@ let is_deeply_pure e =
   and are_all_ok es = List.for_all is_ok es in
   is_ok e
 
-let smt_implies a b =
-  is_deeply_pure a && is_deeply_pure b
-  && smt_is_valid (Expr.mk_or (Expr.mk_not a) b)
-
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
 (*   printf "oops@\n@?"; *)
@@ -58,7 +54,7 @@ let rec is_instantiation e =
     & Expr.on_eq chk_eq
     & c2 false)
 
-(* TODO: why is this more restirctive than the check in smt_implies? *)
+(* TODO: why is this more restrictive than the check in smt_implies? *)
 let is_pure e =
   Expr.equal Expr.emp e
   || Expr.equal Expr.fls e
@@ -133,6 +129,13 @@ let afs_of_sequents = function
       let f { Calculus.hypothesis; conclusion; _ } =
         { frame = hypothesis; antiframe = conclusion } in
       List.map f ss
+
+let smt_implies a b =
+  if is_deeply_pure b then
+    let a_pure, _ = extract_pure_part a in
+    smt_is_valid (Expr.mk_or (Expr.mk_not a_pure) b)
+  else false
+
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
@@ -355,15 +358,6 @@ let spatial_id_rule =
 	  ; frame } ] in
       List.map mk_goal matches) }
 
-let conc_pure_rule =
-  { rule_name = "conclusion is pure; drop spatial part form hypothesis"
-  ; rule_apply =
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      if is_deeply_pure conclusion then 
-      let hyp_pure, _ = extract_pure_part hypothesis in
-	[[ { Calculus.hypothesis = hyp_pure; conclusion; frame } ]]
-      else []) }
-
 let find_pattern_matches =
   find_matches (fun v -> let b = Expr.is_tpat v in Expr.cases (fun _ -> true) (fun _ _ -> b))
 
@@ -393,7 +387,6 @@ let rules_of_calculus c =
     ; rule_apply = apply_rule_schema rs } in
   id_rule
   :: smt_pure_rule
-  :: conc_pure_rule
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c
