@@ -148,11 +148,10 @@ module ListH = struct
     let g (acc, i) x = (f acc i x, i + 1) in
     fst (List.fold_left g (z, 0) xs)
   
-  (* TODO: hm.. *)
-  let foldri f xs z = failwith "TODO"
-(*    let g x (i, acc) = (i + 1, f i x acc) in
-    snd (List.fold_right g xs (0, z))
-*)
+  let foldri f xs z =
+    let g x (i, acc) = (i - 1, f i x acc) in
+    snd (List.fold_right g xs (List.length xs - 1, z))
+
   let mapi f xs =
     let g ys i x = f i x :: ys in
     foldli g [] xs
