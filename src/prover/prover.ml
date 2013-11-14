@@ -452,14 +452,17 @@ let is_entailment rules goal =
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
-    then (n + 1) * (Expr.size hypothesis)
+    then
+      let _, hyp_spatial = extract_pure_part hypothesis in
+      (n + 1) * (Expr.size hyp_spatial)
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
-    (n + 1) * (Expr.size hypothesis + Expr.size conclusion) in
+    let _, hyp_spatial = extract_pure_part hypothesis in
+    (n + 1) * (Expr.size hyp_spatial + Expr.size conclusion) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 
