@@ -43,7 +43,7 @@ let pp_ok_configuration f { current_heap; missing_heap; pvar_value } =
   let ds = StringMap.bindings pvar_value in
   let pd f (v, e) = fprintf f "%s=%a" v Expr.pp e in
   fprintf f "(defs:%a,@ now:%a,@ missing:%a)"
-    (pp_list_sep "*" pd) ds
+    (pp_list_sep " * " pd) ds
     Expr.pp current_heap
     Expr.pp missing_heap
 
@@ -85,7 +85,12 @@ module DotCfg = DG.Dot (struct
     | Abs_cfg -> [ l "ABS";  `Color "lightblue"; `Shape `Ellipse; `Style [`Filled] ]
     | Call_cfg c -> [ l c.C.call_name; `Shape `Box ]
     | Nop_cfg -> [ l "NOP"; `Shape `Ellipse ]
-    | Spec_cfg s -> [ l (string_of CoreOps.pp_spec s); `Shape `Box; `Style [`Rounded] ]
+    | Spec_cfg s ->
+        let m = get_margin () in
+        set_margin 40;
+        let lbl = string_of CoreOps.pp_spec s in
+        set_margin m;
+        [ l lbl; `Shape `Box; `Style [`Rounded] ]
 end)
 
 module DotConf = DG.Dot (struct

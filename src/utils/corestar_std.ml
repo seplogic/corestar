@@ -174,8 +174,8 @@ let pp_list pp f = List.iter (pp f)
 let pp_list_sep sep pp f = function
   | [] -> ()
   | x :: xs ->
-      let pp_sep f x = fprintf f "%s%a" sep pp x in
-      fprintf f "%a@,%a" pp x (pp_list pp_sep) xs
+      let pp_sep f x = fprintf f "@,%s%a" sep pp x in
+      fprintf f "%a%a" pp x (pp_list pp_sep) xs
 
 let string_of pp x =
   let b = Buffer.create 1 in
