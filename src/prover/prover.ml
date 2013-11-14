@@ -112,11 +112,17 @@ let find_lvar_pvar_subs =
   let get_subs = List.fold_left add_if_good [] in
   Expr.cases (fun _ -> []) (Expr.on_star get_subs (fun _ _ -> []))
 
+(* Handles ss=[],
+and caries over the pure parts of the antiframe into the frame. *)
 let afs_of_sequents = function
   | [] -> [{ frame = Expr.emp; antiframe = Expr.emp }]
   | ss ->
       let f { Calculus.hypothesis; conclusion; _ } =
-        { frame = hypothesis; antiframe = conclusion } in
+        let frame = hypothesis in
+        let antiframe = conclusion in
+        let pa, _ = extract_pure_part antiframe in
+        let frame = mk_star frame pa in
+        { frame; antiframe } in
       List.map f ss
 
 let smt_implies a b =
