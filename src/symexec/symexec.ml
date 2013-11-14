@@ -418,46 +418,6 @@ end = struct
           C.TripleSet.fold cm_triple spec acc in
     StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
 
-  (* Process [g] such that it doesn't contain any of the variables in [vs].
-  If a variable [v] is in [vs], then it must be substituted by some
-  expression [e] that contains no variable from [pvars].  As a last resort, [e]
-  is set to be a fresh logical variable. But first, we check whether [f]
-  contains a conjunct [v=e], where [e] has the desired property. *)
-  let kill_pvars_with vs f g =
-    let h = StringHash.create (List.length vs) in
-    List.iter (fun v -> StringHash.add h v None) vs;
-    let is_pvar = StringHash.mem h in
-    let is_pvar_expr = Expr.cases is_pvar (fun _ _ -> false) in
-    let rec is_pvar_free e =
-      let app _ xs = List.for_all is_pvar_free xs in
-      Expr.cases (not @@ is_pvar) app e in
-    let pick_better e1 e2 =
-      let size = function
-        | None -> max_int
-        | Some e -> if is_pvar_free e then Expr.size e else max_int in
-      if size e1 < size e2 then e1 else e2 in
-    let rec find_bindings e =
-      let eq e1 e2 =
-        let b1, b2 = is_pvar_expr e1, is_pvar_expr e2 in
-        if b1 || b2 then
-          let v, e = if b1 then e1, e2 else e2, e1 in
-          let v = Expr.bk_var v in
-          let old_e = StringHash.find h v in
-          StringHash.replace h v (pick_better (Some e) old_e) in
-      let app =
-        Expr.on_star (List.iter find_bindings)
-        & Expr.on_eq eq
-        & (fun _ _ -> ()) in
-      Expr.cases (fun _ -> ()) app e in
-    find_bindings f;
-    let extract_binding v e bs =
-      let e = match e with None -> Expr.mk_var (Expr.freshen v) | Some e -> e in
-      (v, e) :: bs in
-    let bs = StringHash.fold extract_binding h [] in
-    Expr.substitute bs g
-
-  let kill_pvars vs = kill_pvars_with vs Expr.emp
-
   (* TODO: More efficient? *)
   let substitute_defs ds =
     Expr.substitute (StringMap.bindings ds)
@@ -614,25 +574,13 @@ end = struct
         Prover.is_entailment calculus c1 c2
         && Prover.is_entailment calculus m2 m1
 
-  (* NOTE: The equalities trick accounts for alpha renaming. It must *not* be
-  used for configurations, because the scope of lvars in confgraphs is the whole
-  confgraph. In contrast, the scope of lvars in triples is the triple. *)
   let implies_triple calculus t1 t2 =
-    let all =
-      let (+) = Expr.mk_2 "foo" in
-      t1.C.pre + t1.C.post + t2.C.pre + t2.C.post in
-    let pvars = List.filter Expr.is_pvar (Expr.vars all) in
-    let d1s = update_defs StringMap.empty pvars t1.C.pre in
-    let d2s = update_defs StringMap.empty pvars t2.C.pre in
-    let mk_eq v =
-      let l1 = StringMap.find v d1s in
-      let l2 = StringMap.find v d2s in
-      Expr.mk_eq l1 l2 in
-    let eqs = List.map mk_eq pvars in
-    let eqs = mk_big_star eqs in
-    let ( * ) = mk_star in
-    Prover.is_entailment calculus (t1.C.post * eqs) (t2.C.post * eqs)
-    && Prover.is_entailment calculus (t2.C.pre * eqs) (t1.C.pre * eqs)
+    let t2m = List.fold_right StringSet.add t2.C.modifies StringSet.empty in
+    let prove = Prover.infer_frame calculus in
+    let check_af { Prover.frame; _ } =
+      prove (mk_star frame t1.C.post) t2.C.post <> [] in
+    List.for_all (flip StringSet.mem t2m) t1.C.modifies
+    && List.exists check_af (prove t2.C.pre t1.C.pre)
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
@@ -645,18 +593,26 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract_conf calculus confgraph =
-    abstract
+  let abstract_conf calculus confgraph cs =
+    let ds = abstract
       { ac_fold = CS.fold
       ; ac_add = (fun x xs -> CS.add xs x; xs)
       ; ac_mk = (fun () -> CS.create 0) }
-      (CG.add_edge confgraph) (implies_conf calculus)
-  let abstract_triple calculus =
-    abstract
+      (CG.add_edge confgraph) (implies_conf calculus) cs in
+    printf "@[<2>abstract_conf@ @[{%a}@,→@{%a}]@]@\n"
+      (pp_list_sep "+" G.pp_configuration) (List.map CG.V.label (CS.elements cs))
+      (pp_list_sep "+" G.pp_configuration) (List.map CG.V.label (CS.elements ds));
+    ds
+  let abstract_triple calculus ts =
+    let ss = abstract
       { ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
-      (fun _ _ -> ()) (implies_triple calculus)
+      (fun _ _ -> ()) (implies_triple calculus) ts in
+    printf "@[abstract_triple@ @[(%a)@,→(%a)@]@]@\n"
+      (pp_list_sep "+" CoreOps.pp_triple) ts
+      (pp_list_sep "+" CoreOps.pp_triple) ss;
+    ss
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -665,7 +621,7 @@ end = struct
     | G.OkConf (_, G.Angelic) ->
         (* TODO(rgrig): simplify? *)
         let cnt = CG.fold_succ (fun _ -> succ) context.confgraph v 0 in
-        CD.add ne_succ_cnt v cnt 
+        CD.add ne_succ_cnt v cnt
     | _ -> ()
 
   let pec_process context ne_succ_cnt q =

@@ -131,6 +131,55 @@ let smt_implies a b =
     smt_is_valid (Expr.mk_or (Expr.mk_not a_pure) b)
   else false
 
+(* HACK: Simplified version of [Symexec.update_defs], used for
+[guess_instance] below. See that guy's comment. *)
+let get_defs vs =
+  let is_v =
+    flip StringSet.mem (List.fold_right StringSet.add vs StringSet.empty) in
+  let is_ve = Expr.cases is_v (c2 false) in
+  let rec is_v_free e =
+    Expr.match_ e (not @@ is_v) (c1 (List.for_all is_v_free)) in
+  let rec f acc =
+    let eq acc a b =
+      let va, vb = is_ve a, is_ve b in
+      if va || vb then begin
+        let v, e = if va then Expr.bk_var a, b else Expr.bk_var b, a in
+        if is_v_free e then StringMap.add v e acc else acc
+      end else acc in
+    Expr.cases undefined
+      ( Expr.on_eq (eq acc)
+      & Expr.on_star (List.fold_left f acc)
+      & (c2 acc) ) in
+  f StringMap.empty
+
+(* TODO: This is a complete hack. Should be replaced by something else,
+for example a search based on models returned by Z3. Also, it repeats code in
+[Symexec]. *)
+let guess_instance vs e f =
+  let eds = get_defs vs e in
+  let fds = get_defs vs f in
+  let mk_eq x =
+    try
+      let v = StringMap.find x eds in
+      let w = StringMap.find x fds in
+      [Expr.mk_eq v w]
+    with Not_found -> [] in
+  let eqs = vs >>= mk_eq in
+  mk_big_star eqs
+
+let smt_abduce e f =
+  let get_pvars acc e =
+    let vs = List.filter Expr.is_pvar (Expr.vars e) in
+    List.fold_right StringSet.add vs acc in
+  if is_pure f then begin
+    let e, _ = extract_pure_part e in
+    let pvars = get_pvars (get_pvars StringSet.empty e) f in
+    let eqs = guess_instance (StringSet.elements pvars) e f in
+    if smt_is_valid (Expr.mk_or (Expr.mk_not (Expr.mk_star e eqs)) f)
+    then (printf "@[<2>smt abduced@ %a@]@\n" Expr.pp eqs; Some eqs)
+    else None
+  end else None
+
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
@@ -149,9 +198,11 @@ let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
-      if smt_implies hypothesis conclusion
-      then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame}]] else []) }
+      (match smt_abduce hypothesis conclusion with
+      | None -> []
+      | Some conclusion -> [[{ Calculus.hypothesis; conclusion; frame }]])) }
 
+(* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
   { rule_name = "substitution (of logical vars with program vars)"
   ; rule_apply =
@@ -331,7 +382,7 @@ let rec find_matches can_match bs (p, e) =
 
 (* interpret free variables as existential variables *)
 let find_existential_matches =
-  find_matches (fun pv e -> if Expr.is_lvar pv then true else Expr.cases ((=) pv) (fun _ _ -> false) e)
+  find_matches (fun pv e -> Expr.is_lvar pv || Expr.cases ((=) pv) (c2 false) e)
 
 let spatial_id_rule =
   { rule_name = "spatial parts match"
@@ -354,7 +405,7 @@ let spatial_id_rule =
       List.map mk_goal matches) }
 
 let find_pattern_matches =
-  find_matches (fun v -> let b = Expr.is_tpat v in Expr.cases (fun _ -> true) (fun _ _ -> b))
+  find_matches (fun v -> Expr.cases (c1 true) (c2 (Expr.is_tpat v)))
 
 let find_sequent_matches bs ps s =
   let fm pat exp bs = find_pattern_matches bs (pat, exp) in

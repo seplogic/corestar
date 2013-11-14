@@ -1,3 +1,5 @@
+open Corestar_std
+
 type frame_and_antiframe =
   { frame : Expression.t
   ; antiframe : Expression.t }
@@ -21,3 +23,4 @@ val mk_star
   : Expression.t -> Expression.t -> Expression.t
 val normalize
   : Expression.t -> Expression.t
+

@@ -82,7 +82,7 @@ let log_mm = 1 lsl 7
 let log_cc = 1 lsl 8
 let log_smt = 1 lsl 9
 
-let log_active = log_phase lor log_exec lor log_smt
+let log_active = log_phase lor log_exec lor log_smt lor log_prove
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0

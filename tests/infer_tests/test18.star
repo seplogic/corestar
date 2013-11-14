@@ -1,4 +1,4 @@
-// Tests for instantiating logical vaiables.
+// Tests for instantiating logical variables.
 
 procedure Test18a:
   { $g_x = _x } ($g_x) { $g_x != _x }
