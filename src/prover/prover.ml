@@ -26,7 +26,7 @@ let smt_is_valid a =
   Smt.pop ();
   r
 
-let is_deeply_pure e =
+let is_pure e =
   let ok_n = [ Expr.on_star; Expr.on_or ] in
   let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
   let ok_1 = [ Expr.on_not ] in
@@ -54,17 +54,6 @@ let rec is_instantiation e =
     & Expr.on_eq chk_eq
     & c2 false)
 
-(* TODO: why is this more restrictive than the check in smt_implies? *)
-let is_pure e =
-  Expr.equal Expr.emp e
-  || Expr.equal Expr.fls e
-  || Expr.cases
-    (fun _ -> assert false)
-    ( Expr.on_eq (c2 true)
-    & Expr.on_neq (c2 true)
-    & c2 false)
-    e
-
 let is_true e =
   Expr.equal Expr.emp e
   || Expr.cases (c1 false) (Expr.on_eq Expr.equal & c2 false) e
@@ -72,7 +61,7 @@ let is_true e =
 let rec unfold on e =
   Expr.cases (c1 [e]) (on (concatMap (unfold on)) & c2 [e]) e
 
-(* Removes zero and remover repetitions of pure parts. *)
+(* Removes zero, and removes repetitions of pure parts. *)
 let ac_simplify_split is_zero on es =
   let xs = es >>= unfold on in
   let xs = List.filter (not @@ is_zero) xs in
@@ -131,7 +120,7 @@ let afs_of_sequents = function
       List.map f ss
 
 let smt_implies a b =
-  if is_deeply_pure b then
+  if is_pure b then
     let a_pure, _ = extract_pure_part a in
     smt_is_valid (Expr.mk_or (Expr.mk_not a_pure) b)
   else false
@@ -453,8 +442,6 @@ let is_entailment rules goal =
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
-
-
 
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =

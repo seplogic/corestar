@@ -1,5 +1,6 @@
 - source of List.rev
 - do some sensible checking for the "instantiations" claimed while checking
+  (this is a soundness problem!)
 - add prover rule that drops spatial part in hypothesis if conclusion is pure
   (should also lead to a better inconsistency check)
 - test on problem similar to those of topstar

@@ -45,6 +45,11 @@ let freshen_triple { C.pre; post; modifies } =
     Expr.cases var (Expr.recurse freshen_expr) e in
   { C.pre = freshen_expr pre; post = freshen_expr post; modifies }
 
+let simplify_triple { C.pre; post; modifies } =
+  let pre = Prover.normalize pre in
+  let post = Prover.normalize post in
+  { C.pre; post; modifies }
+
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
@@ -818,9 +823,10 @@ end = struct
               StringMap.fold f pvar_value [] in
             let current_heap = Expr.substitute_gen post_subst current_heap in
             (* TODO: what if lvars remain after the above substitutions? *)
-            { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
-            ; post = mk_star current_heap post_eqs
-            ; modifies = mvars } in
+            simplify_triple
+              { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
+              ; post = mk_star current_heap post_eqs
+              ; modifies = mvars } in
           let cs =
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
