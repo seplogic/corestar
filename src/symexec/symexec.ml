@@ -593,26 +593,18 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract_conf calculus confgraph cs =
-    let ds = abstract
+  let abstract_conf calculus confgraph =
+    abstract
       { ac_fold = CS.fold
       ; ac_add = (fun x xs -> CS.add xs x; xs)
       ; ac_mk = (fun () -> CS.create 0) }
-      (CG.add_edge confgraph) (implies_conf calculus) cs in
-    printf "@[<2>abstract_conf@ @[{%a}@,→@{%a}]@]@\n"
-      (pp_list_sep "+" G.pp_configuration) (List.map CG.V.label (CS.elements cs))
-      (pp_list_sep "+" G.pp_configuration) (List.map CG.V.label (CS.elements ds));
-    ds
-  let abstract_triple calculus ts =
-    let ss = abstract
+      (CG.add_edge confgraph) (implies_conf calculus)
+  let abstract_triple calculus =
+    abstract
       { ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
-      (fun _ _ -> ()) (implies_triple calculus) ts in
-    printf "@[abstract_triple@ @[(%a)@,→(%a)@]@]@\n"
-      (pp_list_sep "+" CoreOps.pp_triple) ts
-      (pp_list_sep "+" CoreOps.pp_triple) ss;
-    ss
+      (fun _ _ -> ()) (implies_triple calculus)
 
   (* helpers for [prune_error_confs] {{{ *)
 
