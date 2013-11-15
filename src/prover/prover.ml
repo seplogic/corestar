@@ -315,7 +315,7 @@ type match_result =
   input bs is one assignment, the current branch we are exploring
   output is list of assignments, all possible extensions which leads to a match
 
-  Parameterized by [can_match] : var -> exp -> bool
+  Parameterized by [can_match] : var -> bool
   TODO: needs also an [is_free] : var -> bool, signifying which variables should be instantiated
 *)
 let rec find_matches can_match bs (p, e) =
@@ -357,7 +357,7 @@ let rec find_matches can_match bs (p, e) =
 			List.map mk_more (find_matches can_match bs (ext_p, ext_e)) in
 		      unique_extractions es >>= ext_match in
 		Expr.cases
-		  (fun v -> if Expr.is_tpat v then unspecific v else specific ())
+		  (fun v -> if Expr.is_tpat v then unspecific v else specific ()) (* TODO: is_tpat is only occasionally right *)
 		  (fun _ _ -> specific ())
 		  ext_p
 	      end
@@ -404,6 +404,44 @@ let spatial_id_rule =
 	  ; frame } ] in
       List.map mk_goal matches) }
 
+let match_rule =
+  { rule_name = "matching free variables"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let matches = find_existential_matches StringMap.empty (conclusion, hypothesis) in
+      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+      let mk_goal m =
+	let b = StringMap.bindings m in
+	let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+	[ { Calculus.hypothesis = hypothesis
+	  ; conclusion = mk_big_star (List.map mk_eq b)
+	  ; frame } ] in
+      List.map mk_goal matches) }
+
+(* This rule is not in the list yet *)
+let match_subformula_rule =
+  { rule_name = "matching subformula"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let lo_name = "_leftover" in
+      let leftover = Expr.mk_var lo_name in
+      printf "leftover is lvar: %b" (Expr.is_lvar lo_name);
+      let enhanced_conc = mk_star leftover conclusion in
+      let matches = find_existential_matches StringMap.empty (enhanced_conc, hypothesis) in
+      if log log_prove then fprintf logf "@,trying to match %a and % a@," Expr.pp enhanced_conc Expr.pp hypothesis;
+      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+      let mk_goal m =
+	let leftover_match = StringMap.find lo_name m in
+	if is_pure leftover_match then
+	  let m = StringMap.remove lo_name m in
+          let b = StringMap.bindings m in
+	  let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+	  [ [ { Calculus.hypothesis = hypothesis
+	    ; conclusion = mk_big_star (List.map mk_eq b)
+	    ; frame } ] ]
+	else [] in
+      matches >>= mk_goal) }
+
 let find_pattern_matches =
   find_matches (fun v -> Expr.cases (c1 true) (c2 (Expr.is_tpat v)))
 
@@ -433,6 +471,8 @@ let rules_of_calculus c =
     ; rule_apply = apply_rule_schema rs } in
   id_rule
   :: smt_pure_rule
+  :: match_rule
+  :: match_subformula_rule
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c

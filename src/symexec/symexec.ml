@@ -574,13 +574,17 @@ end = struct
         Prover.is_entailment calculus c1 c2
         && Prover.is_entailment calculus m2 m1
 
+  (* TODO(rlp): should check that frame on t2.post is pure? *)
   let implies_triple calculus t1 t2 =
     let t2m = List.fold_right StringSet.add t2.C.modifies StringSet.empty in
     let prove = Prover.infer_frame calculus in
     let check_af { Prover.frame; _ } =
       prove (mk_star frame t1.C.post) t2.C.post <> [] in
+    let r =
     List.for_all (flip StringSet.mem t2m) t1.C.modifies
-    && List.exists check_af (prove t2.C.pre t1.C.pre)
+    && List.exists check_af (prove t2.C.pre t1.C.pre) in
+    if log log_exec then fprintf logf "Implies triple: %b@\n%a =?=> %a@\n" r CoreOps.pp_triple t1 CoreOps.pp_triple t2;
+    r
 
   (* The notation "weakest" and "implies" refer only to the current heap.
      For ok_configurations (M1, H1) and (M2, H2), we observe that
