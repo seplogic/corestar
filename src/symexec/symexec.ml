@@ -45,10 +45,62 @@ let freshen_triple { C.pre; post; modifies } =
     Expr.cases var (Expr.recurse freshen_expr) e in
   { C.pre = freshen_expr pre; post = freshen_expr post; modifies }
 
-let simplify_triple { C.pre; post; modifies } =
+let c2 x _ _ = x
+let simplify_triple ({ C.pre; post; modifies } as t1) =
+  let module H = Hashtbl.Make (Expr) in
+  let rec get_eqs is_ok e =
+    let eq a b = if is_ok a || is_ok b then [(a, b)] else [] in
+    let star es = es >>= get_eqs is_ok in
+    Expr.cases undefined (Expr.on_eq eq & Expr.on_star star & c2 []) e in
+  let rec get_lvars e =
+    let var v = if Expr.is_lvar v then [Expr.mk_var v] else [] in
+    Expr.cases var (fun _ es -> es >>= get_lvars) e in
+  let is_ve p e = Expr.cases p (c2 false) e in
+  let is_lvar = is_ve Expr.is_lvar in
+  let is_pvar = is_ve Expr.is_pvar in
+  let is_var e = is_lvar e || is_pvar e in
+  let get_reps e =
+    let h = H.create 0 in
+    let eqs = get_eqs is_var e in
+    let rec find e =
+      let f = (try H.find h e with Not_found -> e) in
+      let f = if Expr.equal e f then e else find f in
+      H.replace h e f; f in
+    let union (a, b) =
+      let a, b = find a, find b in
+      let a, b = if is_pvar a && not (is_pvar b) then b, a else a, b in
+      H.replace h a b in
+    List.iter union eqs;
+    h in
+  let pre_reps, post_reps = get_reps pre, get_reps post in
+  let common xs ys =
+    let h = H.create 0 in
+    let add_rep x = (try H.add h (H.find pre_reps x) () with Not_found -> ()) in
+    List.iter add_rep xs;
+    let f zs y =
+      try
+        let yy = H.find pre_reps y in
+        if H.mem h yy then (H.remove h yy; y :: zs) else zs
+      with Not_found -> zs in
+    List.fold_left f [] ys in
+  let ls = common (get_lvars pre) (get_lvars post) in
+  let mk_subst rep =
+    H.fold (fun e f ss -> if is_lvar e then (e, f) :: ss else ss) rep [] in
+  let pre_subst, post_subst = mk_subst pre_reps, mk_subst post_reps in
+  let pre = Expr.substitute_gen pre_subst pre in
+  let post = Expr.substitute_gen post_subst post in
+  let lvar_eqs rep =
+    let f v = (try [Expr.mk_eq v (H.find rep v)] with Not_found -> []) in
+    ls >>= f in
+  let pre = mk_big_star (pre :: lvar_eqs pre_reps) in
+  let post = mk_big_star (post :: lvar_eqs post_reps) in
   let pre = Prover.normalize pre in
   let post = Prover.normalize post in
-  { C.pre; post; modifies }
+  let t2 = { C.pre; post; modifies } in
+  (* DBG printf "@[<2>simplify_triple@ @[(%a)→(%a)@]@]@\n"
+    CoreOps.pp_triple t1
+    CoreOps.pp_triple t2; *)
+  t2
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
