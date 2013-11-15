@@ -93,3 +93,7 @@ val recurse : (t -> t) -> (op -> t list -> t)
 val is_interpreted : string -> bool
 
 val pp : t pretty_printer
+
+
+(* HACK *)
+val stem : var -> var

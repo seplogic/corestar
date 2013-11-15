@@ -99,12 +99,15 @@ let symbol_of = cases (fun x -> x) (fun f _ -> f)
 
 let sort_of = StringHash.find symbols @@ symbol_of
 
+let stem v =
+  let i = iob (v.[0] = '_') in
+  let len = (try String.index v '#' with Not_found -> String.length v) - i in
+  String.sub v i len
+
 let fresh_pvar =
   let counts = Hashtbl.create 0 in
   fun v ->
-    let i = iob (v.[0] = '_') in
-    let len = (try String.index v '#' with Not_found -> String.length v) - i in
-    let v = String.sub v i len in
+    let v = stem v in
     let c = (try Hashtbl.find counts v with Not_found -> 0) + 1 in
     Hashtbl.replace counts v c;
     Printf.sprintf "%s#%d" v c

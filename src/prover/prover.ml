@@ -167,17 +167,101 @@ let guess_instance vs e f =
   let eqs = vs >>= mk_eq in
   mk_big_star eqs
 
-let smt_abduce e f =
-  let get_pvars acc e =
-    let vs = List.filter Expr.is_pvar (Expr.vars e) in
-    List.fold_right StringSet.add vs acc in
-  if is_pure f then begin
-    let e, _ = extract_pure_part e in
-    let pvars = get_pvars (get_pvars StringSet.empty e) f in
-    let eqs = guess_instance (StringSet.elements pvars) e f in
-    if smt_is_valid (Expr.mk_or (Expr.mk_not (Expr.mk_star e eqs)) f)
-    then (printf "@[<2>smt abduced@ %a@]@\n" Expr.pp eqs; Some eqs)
-    else None
+let rec all_pairs = function
+  | [] -> []
+  | x :: xs -> List.map (fun y -> (x,y)) xs @ all_pairs xs
+
+let get_lvars acc e =
+  let vs = List.filter Expr.is_lvar (Expr.vars e) in
+  List.fold_right StringSet.add vs acc
+
+let smt_implies e f = smt_is_valid (Expr.mk_or (Expr.mk_not e) f)
+
+let shuffle ls = ls (* XXX *)
+
+(* HACK. To fix. *)
+let smt_abduce hypothesis conclusion =
+  let module H = Hashtbl.Make (Expr) in
+  let module SH = StringHash in
+  let module IH = IntHash in
+  if is_pure conclusion then begin
+    let pure_hypothesis, _ = extract_pure_part hypothesis in
+    let is_neq (a, b) =
+      smt_implies pure_hypothesis (Expr.mk_neq a b)
+      || smt_implies
+          (mk_big_star [pure_hypothesis; conclusion; Expr.mk_eq a b])
+          Expr.fls in
+    let rec minimize eqs =
+(*       printf "@[@<2>minimize@ %a@]@\n" (pp_list_sep " * " Expr.pp) eqs; *)
+      if smt_implies (mk_big_star (pure_hypothesis :: eqs)) conclusion
+      then begin
+        let rec f xs y zs = match minimize (xs @ zs) with
+          | Some _ as r  -> r
+          | None -> (match zs with
+            | [] -> Some (Expr.mk_big_star eqs)
+            | z :: zs -> f (y :: xs) z zs) in
+        (match eqs with [] -> Some Expr.emp | x :: xs -> f [] x xs)
+      end else None in
+    let ls =
+      get_lvars (get_lvars StringSet.empty pure_hypothesis) conclusion in
+    let ls = List.map Expr.mk_var (StringSet.elements ls) in
+(*    printf "@[oh-no! %d lvars@ @[%a@]@]@\n"
+      (List.length ls) (pp_list_sep " " Expr.pp) ls; *)
+    assert (List.length ls < 100);
+    let lls = all_pairs ls in
+    let neqs = List.filter is_neq lls in
+    let neq_G = H.create 0 in
+    List.iter (fun v -> H.replace neq_G v []) ls;
+    let set_neq (a, b) =
+      let f a b = H.replace neq_G a (b :: H.find neq_G a) in
+      f a b; f b a in
+    List.iter set_neq neqs;
+    let by_stem = SH.create 0 in
+    let get_stem = Expr.stem @@ Expr.bk_var in
+    let set_stem v =
+      let stem = get_stem v in
+      SH.replace by_stem stem (try SH.find by_stem stem with Not_found -> []) in
+    List.iter set_stem ls;
+    let rec find_start limit = if limit > 0 then begin
+      let color = H.create 0 in
+      let color_by_stem = SH.create 0 in
+      let give_color v =
+        let vstem_col_cnt =
+          let stem = get_stem v in
+          let r = (try SH.find color_by_stem stem with Not_found -> IH.create 0) in
+          SH.replace color_by_stem stem r; r in
+        let neighbor_colors = IH.create 0 in
+        List.iter
+          (fun w ->
+            (try IH.replace neighbor_colors (H.find color w) ()
+            with Not_found -> ()))
+          (H.find neq_G v);
+        let pick_color c cnt (best_color, best_cnt) =
+          if cnt > best_cnt && not (IH.mem neighbor_colors c)
+          then (c, cnt) else (best_color, best_cnt) in
+        let rec pick_color_fallback c =
+          if not (IH.mem neighbor_colors c)
+          then c else pick_color_fallback (c + 1) in
+        let best_color, best_cnt = IH.fold pick_color vstem_col_cnt (-1, 0) in
+        let best_color =
+          if best_color < 0 then pick_color_fallback 0 else best_color in
+        IH.replace vstem_col_cnt best_color
+          ((try IH.find vstem_col_cnt best_color with Not_found -> 0) + 1);
+        H.replace color v best_color in
+      List.iter give_color (shuffle ls);
+      let add_eq acc (a, b) =
+        if H.find color a = H.find color b
+        then (Expr.mk_eq a b) :: acc else acc in
+      let eqs = List.fold_left add_eq [] lls in (* XXX: do linear sz *)
+      (match minimize eqs with
+      | None -> find_start (limit - 1)
+      | Some _ as r -> r)
+    end else None in
+    let r = find_start 1 in
+    (match r with
+    | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
+    | None -> ());
+    r
   end else None
 
 (* }}} *)
@@ -471,11 +555,12 @@ let rules_of_calculus c =
     ; rule_apply = apply_rule_schema rs } in
   id_rule
   :: smt_pure_rule
-  :: match_rule
+(*   :: match_rule *)
 (*  :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c
+
 
 (* }}} *)
 (* The main proof-search algorithm. *) (* {{{ *)
@@ -553,7 +638,8 @@ let infer_frame rules goal =
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     let _, hyp_spatial = extract_pure_part hypothesis in
-    (n + 1) * (Expr.size hyp_spatial + Expr.size conclusion) in
+    let _, con_spatial = extract_pure_part conclusion in
+    (n + 1) * (Expr.size hyp_spatial + Expr.size con_spatial) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 
