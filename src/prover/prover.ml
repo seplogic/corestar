@@ -472,7 +472,7 @@ let rules_of_calculus c =
   id_rule
   :: smt_pure_rule
   :: match_rule
-  :: match_subformula_rule
+(*  :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c
