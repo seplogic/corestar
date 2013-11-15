@@ -23,4 +23,5 @@ val mk_star
   : Expression.t -> Expression.t -> Expression.t
 val normalize
   : Expression.t -> Expression.t
-
+val is_pure (* Approx: if true, then yes; if false, then maybe pure. *)
+  : Expression.t -> bool
