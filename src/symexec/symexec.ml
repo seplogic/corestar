@@ -11,7 +11,7 @@ module P = Cfg.Procedure
 
 exception Fatal of string
 
-let bfs_limit = 1 lsl 7
+let bfs_limit = 1 lsl 4
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
 
@@ -48,6 +48,14 @@ let freshen_triple { C.pre; post; modifies } =
 let c2 x _ _ = x
 let simplify_triple ({ C.pre; post; modifies } as t1) =
   let module H = Hashtbl.Make (Expr) in
+
+  let dbg_eq f (a, b) =
+    fprintf f "@[%a=%a@]" Expr.pp a Expr.pp b in
+  let dbg_eqs f eqs =
+    fprintf f "@[<2>(eqs@ @[%a@])@]" (pp_list_sep " * " dbg_eq) eqs in
+(*  let dbg_reps f rs =
+    dbg_eqs f (H.fold (fun e f eqs -> (e, f) :: eqs) rs []) in
+*)
   let rec get_eqs is_ok e =
     let eq a b = if is_ok a || is_ok b then [(a, b)] else [] in
     let star es = es >>= get_eqs is_ok in
@@ -68,14 +76,19 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
       H.replace h e f; f in
     let union (a, b) =
       let a, b = find a, find b in
-      let a, b = if is_pvar a && not (is_pvar b) then b, a else a, b in
+      let a, b =
+        if is_lvar b || not (is_var b || is_lvar a) then b, a else a, b in
+(*       let a, b = if is_pvar a && not (is_pvar b) then b, a else a, b in *)
       H.replace h a b in
     List.iter union eqs;
+    let es = H.fold (fun k _ ks -> k :: ks) h [] in
+    List.iter (ignore @@ find) es;
     h in
   let pre_reps, post_reps = get_reps pre, get_reps post in
   let common xs ys =
     let h = H.create 0 in
-    let add_rep x = (try H.add h (H.find pre_reps x) () with Not_found -> ()) in
+    let add_rep x =
+      (try H.replace h (H.find pre_reps x) () with Not_found -> ()) in
     List.iter add_rep xs;
     let f zs y =
       try
@@ -97,9 +110,15 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
   let pre = Prover.normalize pre in
   let post = Prover.normalize post in
   let t2 = { C.pre; post; modifies } in
-  (* DBG printf "@[<2>simplify_triple@ @[(%a)→(%a)@]@]@\n"
+  printf "@[<2>(simplify_triple@ @[(%a)→(%a)@]@\npre_subst@ %a\
+      @\npost_subst@ %a@\ncommon_pre@ %a@\ncommon_post@ %a@])@\n"
     CoreOps.pp_triple t1
-    CoreOps.pp_triple t2; *)
+    CoreOps.pp_triple t2
+    dbg_eqs pre_subst
+    dbg_eqs post_subst
+    (pp_list_sep " * " Expr.pp) (lvar_eqs pre_reps)
+    (pp_list_sep " * " Expr.pp) (lvar_eqs post_reps)
+    ;
   t2
 
 (* }}} *)
@@ -730,7 +749,8 @@ end = struct
         bfs (budget - 1)
       end in
     if bfs bfs_limit = 0 then begin
-      if log log_exec then fprintf logf "@[interpret_flowgraph limit reached@]@?";
+      if log log_exec then
+        fprintf logf "@[interpret_flowgraph limit reached@]@\n";
       None
     end
     else begin
@@ -817,17 +837,20 @@ end = struct
             H.mem init in
           let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
+            let visible_defs =
+              let p v _ = CoreOps.is_global v || CoreOps.is_return v in
+              StringMap.filter p pvar_value in
             let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
             let post_eqs =
               let rec is_init e =
                 is_init_value e ||
                 Expr.cases (fun _ -> false) (fun _ -> List.for_all is_init) e in
-              let bs = StringMap.bindings pvar_value in
+              let bs = StringMap.bindings visible_defs in
               let bs = List.filter (is_init @@ snd) bs in
               eqs_of_bindings bs in
             let post_subst =
               let f v e xs = (e, Expr.mk_var v) :: xs in
-              StringMap.fold f pvar_value [] in
+              StringMap.fold f visible_defs [] in
             let current_heap = Expr.substitute_gen post_subst current_heap in
             (* TODO: what if lvars remain after the above substitutions? *)
             simplify_triple

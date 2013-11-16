@@ -2,7 +2,7 @@
 
 procedure f:
 ?
-assign  := {}{$ret_v1=@parameter1: * field(@parameter0:,"next",@parameter1:)} ();
+assign $ret_v0 := {}{field($ret_v0,"next",@parameter0:)} ();
 end;
 
 procedure Test04:

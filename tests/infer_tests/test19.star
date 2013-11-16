@@ -11,11 +11,11 @@ procedure enqueue:
 
 procedure step:
   { $g_size = "1" * $g_loc_0 != "1" * $g_state = "Start" }
-  ($g_size, $_gstate)
+  ($g_size, $g_state)
   { $g_size = "0" * $g_state = "Start" }
 
   { $g_size = "1" * $g_loc_0 = "1" * $g_state = "Start" }
-  ($g_size, $_gstate)
+  ($g_size, $g_state)
   { $g_size = "0" * $g_state = "Error" }
 
 procedure emit:
