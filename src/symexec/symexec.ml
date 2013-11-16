@@ -310,6 +310,9 @@ let output_sccs cs =
 
 (* }}} *)
 (* symbolic execution for one procedure {{{ *)
+(* Fixed point calculation will stop when this number of triples is reached *)
+let max_triples = 20 (* the step function in TopStar can have a large number of triples, so this should not be too low *)
+  
 module ProcedureInterpreter : sig
   type interpret_procedure_result =
     | NOK
@@ -895,7 +898,8 @@ end = struct
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
-          let finished = List.for_all not_better new_ts in
+	  let fixpoint_timeout = List.length new_ts >= max_triples in
+          let finished = fixpoint_timeout || List.for_all not_better new_ts in
           if finished then begin
             if log log_exec then begin
               fprintf logf "@[Reached fixed-point for %s@\n@]@?"
@@ -929,6 +933,9 @@ end
 let with_procs q ps = { q with C.q_procs = ps }
 let map_procs f q = with_procs q (List.map f q.C.q_procs)
 
+(* use -1 for a really long timeout *)
+let fix_timeout = 5
+
 (* Assumes that components come in reversed topological order. *)
 let interpret_one_scc proc_of_name q =
   if log log_phase then begin
@@ -937,12 +944,13 @@ let interpret_one_scc proc_of_name q =
   end;
   let module PI = ProcedureInterpreter in
   let interpret = PI.interpret proc_of_name q.C.q_rules q.C.q_infer in
-  let rec fix () =
+  let rec fix limit =
+    printf "@\nfix limit: %d@\n" limit;
     let rs = List.map interpret q.C.q_procs in
-    if List.exists ((=) PI.Spec_updated) rs
-    then fix ()
+    if limit <> 0 && List.exists ((=) PI.Spec_updated) rs
+    then fix (limit-1)
     else List.for_all2 (fun r p -> (r = PI.OK) = p.C.proc_ok) rs q.C.q_procs in
-  fix ()
+  fix fix_timeout
 
 let interpret q =
   if log log_phase then

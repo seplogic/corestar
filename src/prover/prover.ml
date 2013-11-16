@@ -481,17 +481,20 @@ type match_result =
   input bs is one assignment, the current branch we are exploring
   output is list of assignments, all possible extensions which leads to a match
 
-  Parameterized by [can_match] : var -> bool
-  TODO: needs also an [is_free] : var -> bool, signifying which variables should be instantiated
+  Parameterized by [is_free] : var -> bool, signifying which variables should be instantiated
+  and [can_be_op] : var -> bool, signifying which variables can be instantiated not just with variables
 *)
-let rec find_matches can_match bs (p, e) =
+
+let rec find_matches is_free can_be_op bs (p, e) =
+  let also_match = find_matches is_free can_be_op in
   let bind pv =
     begin
       match try_find pv bs with
 	| None -> [Done (StringMap.add pv e bs)]
 	| Some oe -> if e = oe then [Done bs] else []
     end in
-  let on_pvar pv e = if can_match pv e then bind pv else [] in
+  let on_pvar_var pv ev = if is_free pv then bind pv else if pv = ev then [Done bs] else [] in
+  let on_pvar_op pv o es = if can_be_op pv then bind pv else [] in
   let on_pop_var _ _ _ = [] in
   let on_pop_op po ps o es =
     if po <> o then []
@@ -500,30 +503,31 @@ let rec find_matches can_match bs (p, e) =
 	begin
 	  let mk_o l = Expr.mk_app o l in
 	  match ps with
-	    | [] -> [Done bs]
-	    | [x] -> List.map (fun m -> Done m) (find_matches can_match bs (x, normalize_comassoc e))
+	    | [] -> if es = [] then [Done bs] else []
+	    | [x] -> List.map (fun m -> Done m) (also_match bs (x, normalize_comassoc e))
 	    | ext_p::rest_p ->
 	      begin
 		let unspecific v =
 		  let is_more (yes, no) =
 		    let to_bind = normalize_comassoc (mk_o yes) in
 		    match try_find v bs with
-		      | None -> Some (More (StringMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
+		      | None ->
+			Some (More (StringMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
 		      | Some oyes ->
 			if oyes = to_bind then Some (More (bs, (mk_o rest_p, mk_o no)))
 			else None in
 		  unique_subsets es |> map_option is_more in
 		let specific () =
 		  match es with
-		    | [] -> [Done bs]
-		    | [x] -> List.map (fun m -> Done m) (find_matches can_match bs (ext_p, x))
+		    | [] -> []
+		    | [x] -> if rest_p = [] then List.map (fun m -> Done m) (also_match bs (ext_p, x)) else []
 		    | _ ->
 		      let ext_match (ext_e, rest_e) =
 			let mk_more m = More (m, (mk_o rest_p, mk_o rest_e)) in
-			List.map mk_more (find_matches can_match bs (ext_p, ext_e)) in
+			List.map mk_more (also_match bs (ext_p, ext_e)) in
 		      unique_extractions es >>= ext_match in
 		Expr.cases
-		  (fun v -> if Expr.is_tpat v then unspecific v else specific ()) (* TODO: is_tpat is only occasionally right *)
+		  (fun v -> if can_be_op v then unspecific v else specific ())
 		  (fun _ _ -> specific ())
 		  ext_p
 	      end
@@ -533,22 +537,69 @@ let rec find_matches can_match bs (p, e) =
 	else
 	  let todos = List.combine ps es in
 	  let process_todo acc (tp, te) =
-	    acc >>= (flip (find_matches can_match) (tp, te)) in
+	    acc >>= (flip also_match (tp, te)) in
 	  let result = List.fold_left process_todo [bs] todos in
 	  List.map (fun r -> Done r) result in
       on_comassoc handle_comassoc handle_skew po ps in
-  let matches =
-    Expr.cases (fun pv -> on_pvar pv e) (fun po ps -> Expr.cases (on_pop_var po ps) (on_pop_op po ps) e) p in
+  let matches = cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
   let process_match = function
     | Done final_bs -> [final_bs]
-    | More (next_bs, next_pair) ->
-      (*      Format.printf "<processing more %d>" (List.length next_bs); *)
-      find_matches can_match next_bs next_pair in
+    | More (next_bs, next_pair) -> also_match next_bs next_pair in
   matches >>= process_match
+  
+(*
+let rec find_some f = function
+  | [] -> None
+  | h :: t -> ( match f h with None -> find_some f t | x -> x )
+
+(* [can_convert} : var -> bool says if a variable can be instantiated *)
+let rec find_conversion can_convert bs (p, e) =
+  printf "@\nconvert (%a,%a)@\n" Expr.pp p Expr.pp e;
+  let bind pv =
+    printf "@\nTrying to bind %s to %a@\n" pv Expr.pp e;
+    match try_find pv bs with
+      | None -> Some (StringMap.add pv e bs)
+      | Some oe -> if e = oe then Some bs else None in
+  let on_pvar pv =
+    if can_convert pv
+    then Expr.cases (c1 (bind pv)) (c2 None) e
+    else if Expr.equal p e then Some bs else None in
+  let on_op po ps =
+    Expr.cases
+      (c1 None)
+      (fun o es -> if o <> po || List.length es <> List.length ps then None else
+	  let handle_comassoc _ _ =
+	    let rec inner bs = function
+	      | [], _ -> Some bs
+	      | ph :: pt, es ->
+		option
+		  None
+		  (fun (bs, rest_e) -> inner bs (pt, rest_e))
+		  (find_some
+		     (fun (ext_e,rest_e) -> option_map (fun m -> (m, rest_e))
+		       (find_conversion can_convert bs (ext_e, ph)))
+		     (unique_extractions es)) in
+	    inner bs (ps,es) in
+	  let handle_skew _ _ =
+	    let rec inner bs = function
+	    | [] -> Some bs
+	    | h :: t -> option None (flip inner t) (find_conversion can_convert bs h) in
+	    inner bs (List.combine ps es) in
+	  on_comassoc handle_comassoc handle_skew po ps
+      ) e in
+  Expr.cases on_pvar on_op p
+*)
 
 (* interpret free variables as existential variables *)
 let find_existential_matches =
-  find_matches (fun pv e -> Expr.is_lvar pv || Expr.cases ((=) pv) (c2 false) e)
+  find_matches Expr.is_lvar (c1 false)
+
+let find_existential_sub_matches leftover_var =
+  find_matches Expr.is_lvar ((=) leftover_var)
+
+(*
+let find_existential_match = find_conversion Expr.is_lvar
+*)
 
 let spatial_id_rule =
   { rule_name = "spatial parts match"
@@ -574,7 +625,8 @@ let match_rule =
   { rule_name = "matching free variables"
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let matches = find_existential_matches StringMap.empty (conclusion, hypothesis) in
+      let matches =
+	  find_existential_matches StringMap.empty (conclusion, hypothesis) in
       if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
       let mk_goal m =
 	let b = StringMap.bindings m in
@@ -593,9 +645,13 @@ let match_subformula_rule =
       let leftover = Expr.mk_var lo_name in
       printf "leftover is lvar: %b" (Expr.is_lvar lo_name);
       let enhanced_conc = mk_star leftover conclusion in
-      let matches = find_existential_matches StringMap.empty (enhanced_conc, hypothesis) in
+      let matches =
+	find_existential_sub_matches lo_name StringMap.empty (enhanced_conc, hypothesis) in
       if log log_prove then fprintf logf "@,trying to match %a and % a@," Expr.pp enhanced_conc Expr.pp hypothesis;
-      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+      if log log_prove then
+	fprintf logf "@,@[<v 2>found %d matches:@,%a@,@]"
+	  (List.length matches)
+	  (pp_list_sep "\n" (fun f m -> fprintf f "[ %a ]" (pp_list_sep "; " (fun f (v,e) -> fprintf f "%s->%a" v Expr.pp e)) (StringMap.bindings m))) matches;
       let mk_goal m =
 	let leftover_match = StringMap.find lo_name m in
 	if is_pure leftover_match then
@@ -608,8 +664,7 @@ let match_subformula_rule =
 	else [] in
       matches >>= mk_goal) }
 
-let find_pattern_matches =
-  find_matches (fun v -> Expr.cases (c1 true) (c2 (Expr.is_tpat v)))
+let find_pattern_matches = find_matches (c1 true) Expr.is_tpat
 
 let find_sequent_matches bs ps s =
   let fm pat exp bs = find_pattern_matches bs (pat, exp) in
@@ -637,7 +692,7 @@ let rules_of_calculus c =
     ; rule_apply = apply_rule_schema rs } in
   id_rule
   :: smt_pure_rule
-(*   :: match_rule *)
+  :: match_rule
 (*  :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
