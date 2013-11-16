@@ -360,6 +360,13 @@ let id_rule =
     (function { Calculus.hypothesis; conclusion; _ } ->
       if Expr.equal hypothesis conclusion then [[]] else []) }
 
+let or_rule =
+  { rule_name = "or elimination"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
+      Expr.cases (c1 []) (Expr.on_or (List.map mk_goal) (c2 [])) conclusion) }
+
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
@@ -696,6 +703,7 @@ let rules_of_calculus c =
 (*  :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
+  :: or_rule
   :: List.map to_rule c
 
 
