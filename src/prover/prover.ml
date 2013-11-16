@@ -182,165 +182,31 @@ let shuffle ls = ls (* XXX *)
 
 let dbg_mc = ref 0
 
-(*
 (* HACK. To fix. *)
 let smt_abduce hypothesis conclusion =
-  let module H = Hashtbl.Make (Expr) in
-  let module SH = StringHash in
-  let module IH = IntHash in
   if is_pure conclusion then begin
     (* XXX: this is intuitionistic *)
     let pure_hypothesis, _ = extract_pure_part hypothesis in
-    let colors_from_eqs eqs =
-      let h = H.create 0 in
-      let rec find e =
-        let f = (try H.find h e with Not_found -> e) in
-        let f = if Expr.equal e f then e else find f in
-        H.replace h e f; f in
-      let eq (a, b) =
-        let a, b = find a, find b in
-        H.replace h a b in
-      List.iter eq eqs;
-      let color = H.create 0 in
-      let last_color = ref (-1) in
-      let es = H.fold (fun e _ es -> e :: es) h [] in
-      let gc e =
-        let c =
-          (try H.find color (find e)
-          with Not_found -> (incr last_color; !last_color)) in
-        H.replace color e c in
-      List.iter (ignore @@ find) es;
-      List.iter gc es;
-      color in
-    let rep_of_color e2c =
-      let c2e = IH.create 0 in
-      let f a c =
-        let b = (try IH.find c2e c with Not_found -> a) in
-        IH.replace c2e c b in
-      H.iter f e2c;
-      c2e in
-    let is_neq (a, b) =
-      smt_implies pure_hypothesis (Expr.mk_neq a b)
-      || smt_implies
-          (mk_big_star [pure_hypothesis; conclusion; Expr.mk_eq a b])
-          Expr.fls in
-    let is_lvar = Expr.cases Expr.is_lvar (c2 false) in
-(*    let rec is_pfree e =
-      Expr.cases (not @@ Expr.is_pvar) (fun _ -> List.for_all is_pfree) e in
-*)
-    let rec get_eqs p1 p2 e =
-      let eq a b =
-         if (p1 a && p2 b) || (p2 a && p1 b)
-         then [a,b] else [] in
-      let star es = es >>= get_eqs p1 p2 in
-      Expr.cases undefined (Expr.on_eq eq & Expr.on_star star & c2 []) e in
-(*     let get_l_ct_eqs = get_eqs is_lvar is_pfree in *)
-    let get_all_eqs = get_eqs (c1 true) (c1 true) in
-    let hyp_color = colors_from_eqs (get_all_eqs pure_hypothesis) in
-    let rec minimize eqs =
+    let rec shrink eqs =
       incr dbg_mc;
-      printf "@[@<2>minimize %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
+      printf "@[@<2>shrink %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
       Smt.log_comment (string_of_int !dbg_mc);
       if smt_implies (mk_big_star (pure_hypothesis :: eqs)) conclusion
       then begin
-        let rec f xs y zs = match minimize (xs @ zs) with
+        let rec f xs y zs = match shrink (xs @ zs) with
           | Some _ as r  -> r
           | None -> (match zs with
             | [] -> Some (Expr.mk_big_star eqs)
             | z :: zs -> f (y :: xs) z zs) in
         (match eqs with [] -> Some Expr.emp | x :: xs -> f [] x xs)
       end else None in
-    let all_eqs = get_all_eqs pure_hypothesis @ get_all_eqs conclusion in
-    let all_terms = H.create 0 in
-    List.iter
-      (fun (a, b) -> H.replace all_terms a (); H.replace all_terms b ())
-      all_eqs;
-    let ls = H.fold (fun t () ts -> t :: ts) all_terms [] in
-    printf "@[oh-no! %d terms@ @[%a@]@]@\n"
-      (List.length ls) (pp_list_sep " " Expr.pp) ls;
-    assert (List.length ls < 100);
-    let lls = all_pairs ls in
-    let neqs = List.filter is_neq lls in
-    let neq_G = H.create 0 in
-    List.iter (fun v -> H.replace neq_G v []) ls;
-    let set_neq (a, b) =
-      let f a b = H.replace neq_G a (b :: H.find neq_G a) in
-      f a b; f b a in
-    List.iter set_neq neqs;
-    let by_stem = SH.create 0 in
-    let get_stem e = Expr.cases Expr.stem (c2 "#") e in
-    let set_stem v =
-      let stem = get_stem v in
-      SH.replace by_stem stem (try SH.find by_stem stem with Not_found -> []) in
-    List.iter set_stem ls;
-    let rec find_start init_color limit = if limit > 0 then begin
-      let color = H.create 0 in
-      H.iter (fun e c -> H.replace color e c) init_color;
-      let color_by_stem = SH.create 0 in
-      let give_color v =
-        let vstem_col_cnt =
-          let stem = get_stem v in
-          let r = (try SH.find color_by_stem stem with Not_found -> IH.create 0) in
-          SH.replace color_by_stem stem r; r in
-        let neighbor_colors = IH.create 0 in
-        List.iter
-          (fun w ->
-            (try IH.replace neighbor_colors (H.find color w) ()
-            with Not_found -> ()))
-          (H.find neq_G v);
-        let pick_color c cnt (best_color, best_cnt) =
-          if cnt > best_cnt && not (IH.mem neighbor_colors c)
-          then (c, cnt) else (best_color, best_cnt) in
-        let rec pick_color_fallback c =
-          if not (IH.mem neighbor_colors c)
-          then c else pick_color_fallback (c + 1) in
-        let best_color, best_cnt = IH.fold pick_color vstem_col_cnt (-1, 0) in
-        let best_color =
-          if best_color < 0 then pick_color_fallback 0 else best_color in
-        IH.replace vstem_col_cnt best_color
-          ((try IH.find vstem_col_cnt best_color with Not_found -> 0) + 1);
-        H.replace color v best_color in
-      List.iter give_color (shuffle ls);
-      let e2c = rep_of_color color in
-      let add_eq e c eqs =
-        let f = IH.find e2c (H.find color e) in
-        if Expr.equal e f
-          || (try H.find init_color e = H.find init_color f with Not_found -> false)
-          || (not (is_lvar e || is_lvar f))
-        then eqs else Expr.mk_eq e f :: eqs in
-      let eqs = H.fold add_eq color [] in
-      (match minimize eqs with
-      | None -> find_start init_color (limit - 1)
-      | Some _ as r -> r)
-    end else None in
-    let r = find_start hyp_color 1 in
-    (match r with
-    | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
-    | None -> ());
-    r
-  end else None
-*)
-
-(* HACK. To fix. *)
-let smt_abduce hypothesis conclusion =
-  if is_pure conclusion then begin
-    (* XXX: this is intuitionistic *)
-    let pure_hypothesis, _ = extract_pure_part hypothesis in
-    let rec minimize eqs =
-      incr dbg_mc;
-      printf "@[@<2>minimize %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
-      Smt.log_comment (string_of_int !dbg_mc);
-      if smt_implies (mk_big_star (pure_hypothesis :: eqs)) conclusion
-      then begin
-        let rec f xs y zs = match minimize (xs @ zs) with
-          | Some _ as r  -> r
-          | None -> (match zs with
-            | [] -> Some (Expr.mk_big_star eqs)
-            | z :: zs -> f (y :: xs) z zs) in
-        (match eqs with [] -> Some Expr.emp | x :: xs -> f [] x xs)
-      end else None in
+    let rec grow xs = function
+      | [] -> xs
+      | y :: ys ->
+          if smt_implies (mk_big_star (pure_hypothesis :: y :: xs)) Expr.fls
+          then grow xs ys else grow (y :: xs) ys in
     let cs = unfold Expr.on_star conclusion in
-    let r = minimize cs in
+    let r = shrink (grow [] cs) in
     (match r with
     | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
     | None -> ());
