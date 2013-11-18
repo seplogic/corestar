@@ -82,12 +82,33 @@ let log_mm = 1 lsl 7
 let log_cc = 1 lsl 8
 let log_smt = 1 lsl 9
 
-let log_active = log_phase lor log_exec lor log_smt lor log_prove
+(* enable (html-)tags in output *)
+let log_html = false
+
+let log_active = log_phase lor log_exec lor log_smt
   (* -1 means all, 0 means one, in general use lor *)
+
+let () = if log_html then set_tags true
 
 let log x = log_active land x <> 0
 
 let logf = std_formatter
+
+let () =
+  let ftfs = get_formatter_tag_functions () in
+  set_formatter_tag_functions
+    { ftfs with 
+      mark_open_tag =
+	(function
+	  | "dotpdf" -> "<a href =\""
+	  | "css" -> "<link rel=\"stylesheet\" type=\"test/css\" href=\"..\\..\\..\\log.css\" title=\"Default\"/>"
+	  | t -> ftfs.mark_open_tag t)
+    ; mark_close_tag =
+	(function
+	  | "dotpdf" -> ".pdf\" title=\"pdf may need to be created with dot\">link</a>"
+	  | "css" -> ""
+	  | t -> ftfs.mark_close_tag t)
+    }
 
 (* {2} Profiling helpers *) (* {{{ *)
 

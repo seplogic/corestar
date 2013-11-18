@@ -39,18 +39,18 @@ let load fn =
 let all_ok = ref true
 
 let verify fn =
-  if log log_phase then fprintf logf "@[verifying file %s@." fn;
+  if log log_phase then fprintf logf "@[@{<h2>verifying file %s@}@." fn;
   try begin
     if Symexec.verify (load fn) then
-      printf "@[%s: @{<g> OK@}@]@\n" fn
+      printf "@[@{<h3>%s: @{<g> OK@}@}@]@\n" fn
     else begin
       all_ok := false;
-      printf "@[%s: @{<b>NOK@}@]@\n" fn
+      printf "@[@{<h3>%s: @{<b>NOK@}@}@]@\n" fn
     end
   end with Symexec.Fatal m -> eprintf "@[ERROR: %s@." m
 
 let () =
-  printf "@["; eprintf "@[";
+  printf "@[@{<html>@{<head>@{<css>@}@}@{<body>"; eprintf "@[";
   Arg.parse Config.args_default verify "corestar [options] <files>";
-  printf "@?"; eprintf "@?";
+  printf "@}@}@?"; eprintf "@?";
   if not !all_ok then exit 1

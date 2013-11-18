@@ -1,0 +1,9 @@
+summary:focus {
+    outline-style: none;
+}
+details details {
+    margin-left: 36px;
+}
+details p {
+    margin-left: 36px;
+}

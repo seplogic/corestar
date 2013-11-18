@@ -565,11 +565,11 @@ let rules_of_calculus c =
     ; rule_apply = apply_rule_schema rs } in
   id_rule
   :: smt_pure_rule
+  :: or_rule
 (*  :: match_rule *)
 (*  :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
-  :: or_rule
   :: List.map to_rule c
 
 
@@ -584,18 +584,18 @@ of acceptable as a leaf, but we should keep looking for something better.
   TODO: we may want to partly cache the results of proving
 *)
 let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
-  if log log_prove then fprintf logf "@[<2>";
+  if log log_prove then fprintf logf "@[<2>@{<details>";
   let goal =
     { Calculus.frame = normalize frame
     ; hypothesis = normalize hypothesis
     ; conclusion = normalize conclusion } in
-  if log log_prove then fprintf logf "goal: %a@," CalculusOps.pp_sequent goal;
+  if log log_prove then fprintf logf "@{<summary>goal:@}@,@{<p>%a@}@," CalculusOps.pp_sequent goal;
   let leaf = ([goal], penalty n goal) in
-  if log log_prove then fprintf logf "Current goal has penalty %d at level %d@\n" (penalty n goal) n;
+  if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
-        if log log_prove then fprintf logf "apply rule %s@\n" r.rule_name;
+        if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
         r.rule_apply goal in
       let solve_subgoal = solve rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal ([], 0) in
@@ -604,16 +604,16 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
       choose_rule leaf rules
     end in
-  if log log_prove then fprintf logf "@]";
+  if log log_prove then fprintf logf "@}@]";
   result
 
 let solve_idfs min_depth max_depth rules penalty goal =
-  if log log_prove then fprintf logf "@,@[<2>start idfs proving@\n";
+  if log log_prove then fprintf logf "@,@[<2>@{<details>@{<summary>start idfs proving@}@\n";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve give_up succ fail min_depth in
-  if log log_prove then fprintf logf "@]@,@?";
+  if log log_prove then fprintf logf "@}@]@,@?";
   r
 
 (* }}} *)

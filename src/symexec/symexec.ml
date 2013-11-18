@@ -734,7 +734,7 @@ end = struct
     if !confgraph_counter < 1000 then begin
       let ccc = incr confgraph_counter; !confgraph_counter in
       let fname = sprintf "%s_confgraph_%05d_%d.dot" n ccc i in
-      if log log_exec then fprintf logf "@[Outputing confgraph to file: %s@]@\n@?" fname;
+      if log log_exec then fprintf logf "@[Outputing confgraph to file: @{<dotpdf>%s@}@]@\n@?" fname;
       G.fileout_confgraph fname g
     end
 
@@ -869,25 +869,26 @@ end = struct
         let ts =
           (if infer then begin
             if log log_phase then
-              fprintf logf "@[symexec inferring %s@]@\n@?" procedure.C.proc_name;
+              fprintf logf "@[@{<h4>symexec inferring %s@}@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer rules body) in
             let ts = empty_triple :: ts in
             if log log_phase then
-              fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
+              fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
             let ts = option_map (abstract_triple rules.C.calculus) ts in
             let ts = option [] id ts in
             ts
           end else ts) in
         if log log_phase then
-          fprintf logf "@[symexec checking %s@]@\n@?" procedure.C.proc_name;
+          fprintf logf "@[@{<h4>symexec checking %s@}@]@\n@?" procedure.C.proc_name;
         if log log_phase then
-          fprintf logf "@[<2>%d candidate triples@]@\n@?" (List.length ts);
+          fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
         let process_triple_check =
           process_triple (update_check rules body) in
         let ts = lol_cat (List.map process_triple_check ts) in
         let ts = option [] id ts in
+        if log log_phase then fprintf logf "@}";
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
           let new_ts =
@@ -902,14 +903,14 @@ end = struct
           let finished = fixpoint_timeout || List.for_all not_better new_ts in
           if finished then begin
             if log log_exec then begin
-              fprintf logf "@[Reached fixed-point for %s@\n@]@?"
+              fprintf logf "@[@{<p>Reached fixed-point for %s@}@\n@]@?"
                 procedure.C.proc_name
             end;
             OK
           end else
             (procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
              if log log_exec then begin
-               fprintf logf "@[<2>Abducted triples:";
+               fprintf logf "@[<2>@{<h3>Abducted triples:@}";
 	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_triple triple) ts;
 	       fprintf logf "@]@,@?"
              end;
@@ -954,7 +955,7 @@ let interpret_one_scc proc_of_name q =
 
 let interpret q =
   if log log_phase then
-    fprintf logf "@[Interpreting %d procedure(s)@]@,@?" (List.length q.C.q_procs);
+    fprintf logf "@[@{<p>Interpreting %d procedure(s)@}@]@,@?" (List.length q.C.q_procs);
   let cg, von = compute_call_graph q.C.q_procs in
   let sccs =
     let module X = Digraph.Components.Make (CallGraph) in
@@ -971,7 +972,7 @@ let print_specs ps =
     fprintf f "@\n@[<2>%s%a@]"
       p.C.proc_name
       (pp_list triple) (C.TripleSet.elements p.C.proc_spec) in
-  printf "@[<2>@{<g>INFERRED@}:%a@\n@]@?" (pp_list proc) ps
+  printf "@[<2>@{<h3>@{<g>INFERRED@}:@}%a@\n@]@?" (pp_list proc) ps
 
 (*
 Summary of result of symbolic execution:
@@ -992,7 +993,7 @@ For a list of functions, all functions have to be OK.
 *)
 let verify q =
   if log log_exec then
-    fprintf logf "@[<2>got question@\n%a@?" CoreOps.pp_ast_question q;
+    fprintf logf "@[<2>@{<p>got question@\n%a@}@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
