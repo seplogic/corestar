@@ -19,13 +19,13 @@ open Parser
 type error =
   | Illegal_character of char
   | Unterminated_comment
+  | Unterminated_literal
 
 exception Error of error * Lexing.lexbuf
 
-let nest_depth = ref 0
-let nest_start_pos = ref dummy_pos
-let nest x = incr nest_depth; nest_start_pos := x.lex_curr_p
-let unnest x = decr nest_depth; !nest_depth <> 0
+let nest_start_pos = ref []
+let nest x = nest_start_pos := x.lex_curr_p :: !nest_start_pos
+let unnest x = nest_start_pos := List.tl !nest_start_pos; !nest_start_pos <> []
 
 let string_of_position p =
   let r = Buffer.create 10 in
@@ -42,7 +42,10 @@ let error_message e lb =
         (string_of_position lb.lex_curr_p) (Char.escaped c)
   | Unterminated_comment ->
       Printf.sprintf "%s: unterminated comment\n"
-        (string_of_position !nest_start_pos)
+        (string_of_position (List.hd !nest_start_pos))
+  | Unterminated_literal ->
+      Printf.sprintf "%s: unterminated literal\n"
+        (string_of_position (List.hd !nest_start_pos))
 
 (* [kwd_or_else d s] is the token corresponding to [s] if there is one,
   or the default [d] otherwise. *)
@@ -81,8 +84,6 @@ let  simple_id_char = alpha_char | dec_digit | '_' | '.' | '$'
 
 let  first_id_char = alpha_char | '_' | '$'
 
-let  string_char = ['\000' - '\033'] | ['\035' - '\091'] | ['\093' - '\127']
-
 let  line_comment = "//" not_cr_lf*
 
 let  blank = (' ' | '\009')+
@@ -96,6 +97,8 @@ let  at_identifier =
 
 let identifier =
       first_id_char simple_id_char*
+
+let integer = '0' | ['1'-'9'] ['0'-'9']*
 
 rule token = parse
   | newline { Lexing.new_line lexbuf; token lexbuf }
@@ -129,15 +132,23 @@ rule token = parse
   | at_identifier as s { kwd_or_else (IDENTIFIER s) s }
   | identifier as s { kwd_or_else (IDENTIFIER s) s }
 
-  (* FIXME: What is the right lexing of string constants? *)
-  | '"' (string_char* as s) '"' { STRING_CONSTANT s }
-  | _ { Printf.printf "here2 %!"; failwith (error_message (Illegal_character ((Lexing.lexeme lexbuf).[0])) lexbuf)}
+  (* Lexing integers and strings according to SMT-LIB 2.0. *)
+  | integer as s { INT_CONSTANT s }
+  | '"' { nest lexbuf; STRING_CONSTANT (lex_string (Buffer.create 0) lexbuf) }
+
+  | _ { failwith (error_message (Illegal_character ((Lexing.lexeme lexbuf).[0])) lexbuf)}
 and comment = parse
   | "/*"  { nest lexbuf; comment lexbuf }
   | "*/"  { if unnest lexbuf then comment lexbuf }
   | newline  { Lexing.new_line lexbuf; comment lexbuf }
   | eof      { failwith (error_message Unterminated_comment lexbuf)}
   | _     { comment lexbuf; }
+and lex_string b = parse
+  | "\\\\" { Buffer.add_char b '\\'; lex_string b lexbuf }
+  | "\\\"" { Buffer.add_char b '"'; lex_string b lexbuf }
+  | '"' { let r = unnest lexbuf in assert (not r); Buffer.contents b }
+  | eof { failwith (error_message Unterminated_literal lexbuf) }
+  | _ as c { Buffer.add_char b c; lex_string b lexbuf }
 
 
 (* ====================================================================== *)

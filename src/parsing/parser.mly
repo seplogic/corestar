@@ -58,6 +58,7 @@ let parse_warning = message "W"
 %token IDENTIFIER
 %token IF
 %token IMPORT
+%token INT_CONSTANT
 %token LABEL
 %token L_BRACE
 %token L_PAREN
@@ -79,6 +80,7 @@ let parse_warning = message "W"
 
 /* types */
 %type <string> IDENTIFIER
+%type <string> INT_CONSTANT
 %type <string> STRING_CONSTANT
 
 /* associativity and precedence */
@@ -141,6 +143,7 @@ term:
   | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
   | L_PAREN term binop term R_PAREN { Expr.mk_app $3 [$2; $4] }
   | STRING_CONSTANT { Expr.mk_string_const $1 }
+  | INT_CONSTANT { Expr.mk_int_const $1 }
 ;
 term_list_ne:
   | term {$1::[]}

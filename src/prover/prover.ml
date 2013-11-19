@@ -564,6 +564,7 @@ let rules_of_calculus c =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = apply_rule_schema rs } in
   id_rule
+  :: or_rule
   :: smt_pure_rule
   :: or_rule
 (*  :: match_rule *)
