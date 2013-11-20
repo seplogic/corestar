@@ -116,8 +116,162 @@ I *think* it might be fine to have a transparent type
     ; sequent_hypothesis : formula
     ; sequent_consequence : formula }
 
+--------------------------------------------------------------------------------
+-- Variables scope
+
+There are two kinds of variables in the logic, pvars (aka program variables) and
+lvars (aka logical variables). These have different scoping conventions.
+Variables occur in triples, sequents, and confgraphs.
+
+The scope of an lvar is, respectively, the triple, the sequent, or the
+confgraph. One could think of lvars as being universally quantified at these
+levels, but it's probably better to just think of them as free variables.
+Anyway, the important think is that triples, sequents, and confgraphs are scope
+boundaries for lvars.
+
+The scope of a pvar is somewhat more complicated to describe. The intuition is
+that the scope is the largest possible, as long as it talks about *one* point in
+the execution. In a triple, the precondition and the postcondition are two
+distinct scopes for pvars. In a sequent, the scope for pvars is the whole
+sequent, just like for lvars. In a confgraph, the scope of pvars is one
+node/configuration.
+
+The implications for the semantics of triples, sequents, and confgraphs are the
+following. A triple that contains lvars means that all triples that can be
+obtained by substituting constants for lvars hold. In other words, we could say
+that a triple means that all its instances with respect to lvars hold. Using
+this language, a confgraph means that all its instances with respect to lvars
+hold. (Just like in the case of the triple, the substitution lvar->constant is
+applied for the *whole* confgraph.) Thus, once we have a semantics for a
+confgraph without lvars, we'll also have a semantics for a confgraph with lvars.
+
+Similarly, we could say that a sequent means that all its instantiations with
+respect to lvars hold. This is nice and uniform with respect to the previous
+paragraph, but it might be a bit misleading, for in a sequent, the distinction
+pvar/lvar really isn't that important.
 
 
+--------------------------------------------------------------------------------
+-- Semantics of confgraphs
+
+Confgraphs turn out to be a bit more beastly than I previously anticipated.
+Given the previous section, we mostly need to worry about confgraphs that
+mention no lvar. Up to a point. At the end we need to turn a confgraph into a
+triple, and we don't want to do this at the level of instances (with repsect to
+lvars).
+
+Warning: The description here deviates a little from the current data-structure,
+but that's because the data-structure is likely to change to conform to the
+description from her.
+
+OK. Enough warning. Let's start.
+
+Flowgraphs and confgraphs are defined in the module Cfg.
+
+A flowgraph is graph-based representation of the program being analyzed.
+Vertices are labeled by commands. Labels represent nondeterministic flow of
+control, and are unlabelled. We maintain the invariant that each flowgraph has
+exactly one distinguished entry vertex and one distinguished exit vertex, both
+labelled by the command NOP.
+
+While symbolically executing a flowgraph we build a confgraph. Intuitively, arcs
+in the confgraph correspond to executing a command, so they should be labelled
+by vertices in the underlying flowgraph, which in turn are labelled by commands.
+However, the relation between a confgraph and its underlying flowgraph is a
+little more loose, to allow for extra flexibility. First, the links between
+flowgraph vertices and confgraph vertices are maintained in an interpreter
+context. But, where these links are being kept is really not that important:
+confgraphs are thrown away at the same time as interpreter contexts. Second,
+only *some* vertices in the confgraph have links back to vertices in the
+flowgraph. (These links are in [Symexec.ProcedureInterpreter.statement_of].)
+Let's write s(c) for the command (aka statement) for which configuration c is a
+post-configuration. Then, a path
+  c0 → c1 → ... → cn
+in the confgraph such that s(ck) is defined only for k=0 and k=n must occur only
+if s(c0) → s(cn) is an arc in the flowgraph. Moreover the path c0→...→cn
+corresponds to executing s(cn). (Consider the special case in which s(c) is
+always defined. In that case n=1, always. Essentially each arc c0→c1 is labelled
+by the command s(c1).) The extra flexibility (from allowing n>1) comes is used
+as follows: c0→c1 simulates executing cn, but then c1→...→cn does some
+simplifications. In any case, from now on I will pretend that we are in the
+special case n=1, so that each arc in the confgraph is labelled by a vertex of
+the flowgraph. This should make what follows more bearable, and shouldn't hide
+anything important.
+
+A confgraph is a digraph whose nodes are labeled by tuples (σ,H,t), and whose
+arcs are labeled by tuples (C, M). Here,
+  σ : State  is the current state, an assignment of constants to pvars
+  H : Heap → 2  is a seplogic formula (‘Here’)
+  t : {angelic, demonic} is a tag indicating the split type
+  C  is a command in the program being analyzed
+  M : Heap → 2 is a seplogic formula (‘Missing’)
+where
+  State = PVar → Val    (A value is a var-free term.)
+(NOTE: To simplify the presentation, I assume that the command C comes from the
+flowgraph as described in the previous paragraph, and I also assume that
+confgraphs are structurally compatible with their underlying flowgraph, again as
+described in the previous paragraph.) By decree, the formulas H and M do not
+mention any pvars! If you feel like writing an H that mentions pvars, then just
+apply the substitution σ to it. Imposing this invariant makes it trivial to
+satisfy the side-condition of the frame rule later on.
+
+Let us look now at the semantics of *one* arc in the confgraph. The arc
+  (σ1,H1,_) ---(C, M)---> (σ2,H2,_)
+intuitively corresponds to the triple
+  {eq(σ1)*H1*M} C {eq(σ2)→H2}
+where eq(σ) is a bunch of *-joined equalities of the form x=σx, for each pvar x
+in the domain of σ. In words, if the current state/stack is σ1 and the heap
+satisfies H1*M, and if after executing command C the state/stack satisfies σ2,
+then the heap (after executing C) satisfies H2. To be even more semantic
+(triples are somewhat algebraic), let R(C) be the relation (on program states)
+that describes command C. Also suppose x is the only pvar in the program. Then
+the arc above means that
+  R(C)(x1,x2) → x1=σ(x)*H1*M → x2=σ(x) → H2
+is valid, where x1 and x2 are two variables. The generalization to multiple
+pvars per program should be clear.
+
+(If you don't feel anxious to find out what's with the weird triple in the
+paragraph above, then feel free to skip this one. I'm afraid that I need to
+bring back lvars into discussion, temporarily, in order to motivate why the
+semantics of an arc are chosen with * in pre and → in post. Consider a confgraph
+with two arcs:
+  (x=_x1,H1,_) --(C1,M1)--> (x=_x2,H2,_) --(C2,M2)--> (x=_x3,H3,_)
+Here all formulas (H1, H2, H3, M2, M2) are pvar-free to make it easy to apply
+the frame rule, but they do mention lvars _x1, _x2, _x3. Typically, H2 wouldn't
+look into the future by mentioning _x3, but our semantics allows for that. Now,
+we can instantiate this confgraph by picking values for _x1, _x2, and _x3. No
+matter which values we pick, we should get something that accurately describes
+the program being analyzed. If we happen to pick (_x1,_x2) ∈ R(C1), where R(C1) is
+a relation describing the semantics of command C1, then the confgraph should
+tell us something interesting about the program; if (_x1,_x2) ∉ R(C1), then the
+confgraph should still be OK, but trivially. So, if we want the confgraph for be
+translatable to a bunch of triples
+  { x=_x1 * H1 * M1 } C1 { H2 }
+  { x=_x2 * H2 * M2 } C2 { H3 }
+we should put the equalities x=_x? in the pre, but not in the post. Say _x1=1
+and _x2=2, where we are free to choose the values arbitrarily, because that's
+what free variables mean. Now instantiate the first triple: It says *if* x=1
+and H1*M1, then H2. But, it cannot say then x=2, because that 2 is completely
+arbitrary. In conclusion, we want to *-join these equalities in the pre, but not
+in the post. Similarly, one can motivate the implication part in the post, in
+order to account for Hs and Ms that look into the future, although I believe we
+won't use that. In any case, this is just an intuitive justification for why the
+semantics are chosen as the previous paragraph stated.)
+
+The next step would be to define the semantics of something a bit more
+complicated than a single arc. To do that, we need to account for the two types
+of splits, angelic and demonic.
+
+Intuitively, a demonic split corresponds to a nondeterministic jump in the
+program, and an angelic split corresponds to picking a triple (out of a set) for
+a command. Thus, demonic splits always have (nop/goto, emp) as the label of
+outgoing arcs, and angelic splits always have the same command on their outgoing
+arcs but with possibly different Ms. In a sense, the confgraph encodes a game in
+which the Devil tries to make the program go wrong by choosing which jumps to
+make, and God chooses the triples (of individual commands) that are enough to
+construct a proof.
+
+[TODO: Continue here.]
 
 [1] http://youtu.be/IK0G04Mry3s
 
