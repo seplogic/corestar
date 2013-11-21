@@ -162,14 +162,14 @@ lvars).
 
 Warning: The description here deviates a little from the current data-structure,
 but that's because the data-structure is likely to change to conform to the
-description from her.
+description from here.
 
 OK. Enough warning. Let's start.
 
 Flowgraphs and confgraphs are defined in the module Cfg.
 
 A flowgraph is graph-based representation of the program being analyzed.
-Vertices are labeled by commands. Labels represent nondeterministic flow of
+Vertices are labeled by commands. Arcs represent nondeterministic flow of
 control, and are unlabelled. We maintain the invariant that each flowgraph has
 exactly one distinguished entry vertex and one distinguished exit vertex, both
 labelled by the command NOP.
@@ -191,7 +191,7 @@ in the confgraph such that s(ck) is defined only for k=0 and k=n must occur only
 if s(c0) → s(cn) is an arc in the flowgraph. Moreover the path c0→...→cn
 corresponds to executing s(cn). (Consider the special case in which s(c) is
 always defined. In that case n=1, always. Essentially each arc c0→c1 is labelled
-by the command s(c1).) The extra flexibility (from allowing n>1) comes is used
+by the command s(c1).) The extra flexibility (coming from allowing n>1) is used
 as follows: c0→c1 simulates executing cn, but then c1→...→cn does some
 simplifications. In any case, from now on I will pretend that we are in the
 special case n=1, so that each arc in the confgraph is labelled by a vertex of
@@ -200,7 +200,7 @@ anything important.
 
 A confgraph is a digraph whose nodes are labeled by tuples (σ,H,t), and whose
 arcs are labeled by tuples (C, M). Here,
-  σ : State  is the current state, an assignment of constants to pvars
+  σ : Store  is the current store/stack, an assignment of constants to pvars
   H : Heap → 2  is a seplogic formula (‘Here’)
   t : {angelic, demonic} is a tag indicating the split type
   C  is a command in the program being analyzed
@@ -220,15 +220,18 @@ Let us look now at the semantics of *one* arc in the confgraph. The arc
 intuitively corresponds to the triple
   {eq(σ1)*H1*M} C {eq(σ2)→H2}
 where eq(σ) is a bunch of *-joined equalities of the form x=σx, for each pvar x
-in the domain of σ. In words, if the current state/stack is σ1 and the heap
-satisfies H1*M, and if after executing command C the state/stack satisfies σ2,
-then the heap (after executing C) satisfies H2. To be even more semantic
-(triples are somewhat algebraic), let R(C) be the relation (on program states)
-that describes command C. Also suppose x is the only pvar in the program. Then
-the arc above means that
-  R(C)(x1,x2) → x1=σ(x)*H1*M → x2=σ(x) → H2
+in the domain of σ. In words, if the current store is σ1 and the heap satisfies
+H1*M, and if after executing command C the state/stack satisfies σ2, then the
+heap (after executing C) satisfies H2. To be even more semantic (triples are
+somewhat algebraic), let R(C) be the relation (on program states) that describes
+command C. Also suppose x is the only pvar in the program. Then the arc above
+means that
+  R(C)(x1,x2) → x1=σ1(x)*H1*M → x2=σ2(x) → H2
 is valid, where x1 and x2 are two variables. The generalization to multiple
-pvars per program should be clear.
+pvars per program should be clear. In other words, the generalization to
+arbitrary stores should be clear. On the other hand, perhaps I should spell out
+the generalization to arbitrary states, which have a heap in addition to the
+store (TODO).
 
 (If you don't feel anxious to find out what's with the weird triple in the
 paragraph above, then feel free to skip this one. I'm afraid that I need to
@@ -241,26 +244,40 @@ the frame rule, but they do mention lvars _x1, _x2, _x3. Typically, H2 wouldn't
 look into the future by mentioning _x3, but our semantics allows for that. Now,
 we can instantiate this confgraph by picking values for _x1, _x2, and _x3. No
 matter which values we pick, we should get something that accurately describes
-the program being analyzed. If we happen to pick (_x1,_x2) ∈ R(C1), where R(C1) is
-a relation describing the semantics of command C1, then the confgraph should
+the program being analyzed. If we happen to pick (_x1,_x2) ∈ R(C1), where R(C1)
+is a relation describing the semantics of command C1, then the confgraph should
 tell us something interesting about the program; if (_x1,_x2) ∉ R(C1), then the
-confgraph should still be OK, but trivially. So, if we want the confgraph for be
+confgraph should still be OK, but trivially. So, if we want the confgraph to be
 translatable to a bunch of triples
   { x=_x1 * H1 * M1 } C1 { H2 }
   { x=_x2 * H2 * M2 } C2 { H3 }
-we should put the equalities x=_x? in the pre, but not in the post. Say _x1=1
-and _x2=2, where we are free to choose the values arbitrarily, because that's
-what free variables mean. Now instantiate the first triple: It says *if* x=1
-and H1*M1, then H2. But, it cannot say then x=2, because that 2 is completely
-arbitrary. In conclusion, we want to *-join these equalities in the pre, but not
-in the post. Similarly, one can motivate the implication part in the post, in
-order to account for Hs and Ms that look into the future, although I believe we
-won't use that. In any case, this is just an intuitive justification for why the
-semantics are chosen as the previous paragraph stated.)
+we should put the equalities x=_x? in the pre, but not in the post. Suppose
+_x1=1 and _x2=2, where we 1 and 2 come from a die, just because we can.  Now
+instantiate the first triple: It says *if* x=1 and H1*M1, then H2. But, it
+cannot say then x=2, because that 2 is completely arbitrary. In conclusion, we
+want to *-join these equalities in the pre, but not in the post. Similarly, one
+can motivate the implication part in the post, in order to account for Hs and Ms
+that look into the future, although I believe we won't use that. In any case,
+this is just an intuitive justification for why the semantics are chosen as the
+previous paragraph stated.)
 
-The next step would be to define the semantics of something a bit more
-complicated than a single arc. To do that, we need to account for the two types
-of splits, angelic and demonic.
+The previous convention for what an arc means composes nicely.
+  (x=_x1,H1,_) --(C1,M1)--> (x=_x2,H2,_) --(C2,M2)--> (x=_x3,H3,_)
+means that 
+  ∀ _x1 _x2: { x=_x1 * H1 * M1 } C1 { x=_x2 → H2 }
+  ∀ _x2 _x3: { x=_x2 * H2 * M2 } C2 { x=_x3 → H3 }
+which imply
+  ∀ _x1 _x3: { x=_x1 * H1 * M1 * M2 } C1;C2 { x=_x3 → H3 }
+Sketch of how to check this: Write triples in the semantic way, using relations
+R(C1), R(C2) and, respectively, R(C1;C2). Use the standard convention of what ;
+means, namely that R(C1;C2)=R(C2)∘R(C1). Assume R(C1;C2), which means that an
+intermediate state (_x2) exists. Then used the assumed triples, instantiating
+_x2 to the thing that the previous sentence says it exists. This should yield
+the conclusion.
+
+OK. Now let's define the semantics of a path in the confgraph that starts at the
+distinguished initial configuration. The semantics of the whole confgraph comes
+later. For both these, we need to talk about the angelic/demonic tag.
 
 Intuitively, a demonic split corresponds to a nondeterministic jump in the
 program, and an angelic split corresponds to picking a triple (out of a set) for
@@ -270,6 +287,78 @@ arcs but with possibly different Ms. In a sense, the confgraph encodes a game in
 which the Devil tries to make the program go wrong by choosing which jumps to
 make, and God chooses the triples (of individual commands) that are enough to
 construct a proof.
+
+The semantics of a path c0→c1→...→cn in the confgraph is that
+  IF the two players (Devil and God) made the choices that pick this path
+  THEN { x=_x0 * H0 * M1 * ... * Mn } C1;...;Cn { x=_xn → Hn }
+Notice that a particular confgraph talks only about a slice of program behavior,
+corresponding to the demonic choice made in order to go along this path. Thus,
+it is not possible, in general, to infer something about the whole behavior of
+the program from a single configuration. In particular, if we want to infer a
+triple for the whole procedure we need to look at a *set* of confgraphs that are
+each associated to the return statement of the procedure, and that together
+cover all possible demonic choices.
+
+Consider tests/infer_tests/test20.star. In one case, the body is
+  call foo
+where foo has three triples, {P1}(){Q1} and {P2}(){Q2} and {P3}(){Q3}.
+Obviously, we'd like to conclude that the same spec (made of three triples) is
+good for the procedure whose body is the single call above. In the other case,
+the body is
+  goto l1, l2, l3;
+  l1: call foo1(); return;
+  l2: call foo2(); return;
+  l3: call foo3(); return;
+where the spec of fook is {Pk}(){Qk}. What do we want to infer, ideally, in this
+case? There are two possibilities that come two mind:
+  { P1 ∧ P2 ∧ P3 } () { Q1 ∨ Q2 ∨ Q3 }
+  { P1 * P2 * P3 } () { (Q1 * P2 * P2) ∨ (P1 * Q2 * P3) ∨ (P1 * P2 * Q3) }
+The latter has the problem that it's likely that often P1*P2*P3 is inconsistent:
+just consider an if-statement whose both branches read (x.f); that is, field f
+of object x. The former has the problem that we don't have any support for ∧
+yet: do we really want to interpret both ∧ and * everywhere (prover&symexec)?
+
+Let's suppose we want something *like*
+  { P1 ∧ P2 ∧ P3 } () { Q1 ∨ Q2 ∨ Q3 }
+but expressed using only * and ∨. Let's focus on the precondition. Suppose Pk-s
+are pure: then P1*P2*P3 works. Suppose now that, on the contrary, Pk-s have
+(each) only a spatial predicate. Then we want a P such that P⊢P1 and P⊢P2 and
+P⊢P3. Make it more concrete: P1 is x↦1; P2 is x↦_x1; P3 is x↦ls(x,_x2). Then we
+want x↦1, because it entails (some instantiations) of all the others. The
+general rule (that would handle ls and other predicates) seems to involve some
+help from the user, perhaps just in the form of abstraction rules. It seems that
+there's some solution where you ask the abduction question Pi*Aij?↦Pj for all i
+and j and then use the answer to build a good P. However, I didn't work out the
+details. This was proposed by NikosT. In contrast, in a previous discussion with
+Rasmus, he expressed the belief that just detecting alpha-renamings might be
+enough. That is, detect that given x↦_x1 and x↦_x2 you want just one (because an
+alpha-renaming of lvars turns one into the other). The next step along these
+lines is to say that usually P1=a*b and P2=c*d and if a and c are
+alpha-convertible, then you want to say something like a*(b∧d) and continue
+turning that b∧d conjunction into *-junction recursively.
+
+Anyway ... I'll leave the above rather unpolished because the JACM paper on
+bi-abduction uses another heuristic that may be simple to try first: Pretend we
+don't know that it's not OK to get triples from single configurations and just
+rely on the checking phase to weed out the bad triples. So, this would infer
+{Pk}(){Qk} (for k=1,2,3) instead of the conjunctive version. Surely, these would
+all be weeded out, no? Well, the JACM paper seems to suggest that this may
+happen, but, if we do the inference on a transformed program then we get better
+triples. The heuristic is called ‘assume as assert’. The idea is that a
+nondeterministic split in the program is usually followed by an (assume φ). If
+we transform the program and turn all assumes into asserts, then the
+precondition of *one* configuration will insist that that path *must* be taken.
+Which often gives what we want. So this is what I'll try first.
+
+On the other hand, the version that says we should look at sets of confgraphs
+that cover all demonic choices is somewhat theoretically luring, so I don't want
+to bury that avenue for good. Just for now. Here are the interesting
+subproblems. First, how do we enumerate all minimal sets of configurations that
+cover all demonic choices? I know a reduction to the problem of enumerating
+minimal unsatisfiable cores (with group 0). (That sounds cool, right? :) Second,
+the fuzzy alpha-renaming and the abduction based approaches mentioned later need
+some refinement, and they might give good results.
+
 
 [TODO: Continue here.]
 
