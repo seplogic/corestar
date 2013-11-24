@@ -658,7 +658,7 @@ end = struct
       List.for_all (flip StringSet.mem t2m) t1.C.modifies
       && List.exists check_intermediate (prove t2.C.pre t1.C.pre) in
     if log log_exec then begin
-      fprintf logf "@[<2>implies_triple: %b@ @[%a@ =?=> %a@]@\n"
+      fprintf logf "@[<2>implies_triple: %b@ @[%a@ =?=> %a@]@]@\n"
         r CoreOps.pp_triple t1 CoreOps.pp_triple t2;
     end;
     r
@@ -689,15 +689,15 @@ end = struct
 
   (* helpers for [prune_error_confs] {{{ *)
 
-  let pec_init context ne_succ_cnt q v = match CG.V.label v with
+  let pec_ge_init confgraph ne_succ_cnt q v = match CG.V.label v with
     | G.ErrorConf -> ConfBfs.enque q v
     | G.OkConf (_, G.Angelic) ->
         (* TODO(rgrig): simplify? *)
-        let cnt = CG.fold_succ (fun _ -> succ) context.confgraph v 0 in
+        let cnt = CG.fold_succ (fun _ -> succ) confgraph v 0 in
         CD.add ne_succ_cnt v cnt
     | _ -> ()
 
-  let pec_process context ne_succ_cnt q =
+  let pec_ge_process confgraph ne_succ_cnt q =
     let process_pred u =
       if not (ConfBfs.is_seen q u) then begin
         match CG.V.label u with
@@ -709,22 +709,44 @@ end = struct
           | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
           | G.ErrorConf -> failwith "ErrorConf should have no successors"
       end in
-    CG.iter_pred process_pred context.confgraph
+    CG.iter_pred process_pred confgraph
+
+  let pec_get_errors confgraph =
+    let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
+    let q = ConfBfs.initialize true in
+    CG.iter_vertex (pec_ge_init confgraph ne_succ_cnt q) confgraph;
+    while not (ConfBfs.is_done q) do
+      pec_ge_process confgraph ne_succ_cnt q (ConfBfs.deque q)
+    done;
+    CS.of_list (ConfBfs.get_seen q)
+
+  (* Finds confs reachable from [inits] without going thru [errors]. *)
+  let pec_get_to_keep confgraph inits errors =
+    let q = ConfBfs.initialize true in
+    let enque c = if not (CS.mem errors c) then ConfBfs.enque q c in
+    CS.iter enque inits;
+    while not (ConfBfs.is_done q) do
+      CG.iter_succ enque confgraph (ConfBfs.deque q)
+    done;
+    CS.of_list (ConfBfs.get_seen q)
+
+  let pec_get_to_remove confgraph to_keep =
+    let to_remove = CS.create 0 in
+    let rm v = if not (CS.mem to_keep v) then CS.add to_remove v in
+    CG.iter_vertex rm confgraph;
+    to_remove
 
   (* }}} *)
 
-  let prune_error_confs context =
-    let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
-    let q = ConfBfs.initialize true in
-    CG.iter_vertex (pec_init context ne_succ_cnt q) context.confgraph;
-    while not (ConfBfs.is_done q) do
-      pec_process context ne_succ_cnt q (ConfBfs.deque q)
-    done;
-    List.iter (remove_conf context) (ConfBfs.get_seen q)
-
-  let get_new_specs context stop =
-    prune_error_confs context;
-    post_confs context stop |> CS.elements |> List.map conf_of_vertex
+  (* Keeps those configurations that are reachable from [post_confs context
+  start], and can avoid error thru angelic choices. *)
+  let prune_error_confs context start =
+    let confgraph = context.confgraph in
+    let inits = post_confs context start in
+    let errors = pec_get_errors confgraph in
+    let to_keep = pec_get_to_keep confgraph inits errors in
+    let to_remove = pec_get_to_remove confgraph to_keep in
+    CS.iter (remove_conf context) to_remove
 
   let output_confgraph n g =
     G.fileout_confgraph (n ^ "_confgraph.dot") g
@@ -737,6 +759,10 @@ end = struct
       if log log_exec then fprintf logf "@[Outputing confgraph to file: @{<dotpdf>%s@}@]@\n@?" fname;
       G.fileout_confgraph fname g
     end
+
+  let get_new_specs context proc =
+    prune_error_confs context proc.P.start;
+    post_confs context proc.P.stop |> CS.elements |> List.map conf_of_vertex
 
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph proc_name update procedure pre =
@@ -758,7 +784,7 @@ end = struct
     end
     else begin
 (*      if log log_exec then output_confgraph proc_name context.confgraph; *)
-      Some (get_new_specs context procedure.P.stop)
+      Some (get_new_specs context procedure)
     end
 
   let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = [] }
@@ -948,7 +974,6 @@ let interpret_one_scc proc_of_name q =
   let module PI = ProcedureInterpreter in
   let interpret = PI.interpret proc_of_name q.C.q_rules q.C.q_infer in
   let rec fix limit =
-    printf "@\nfix limit: %d@\n" limit;
     let rs = List.map interpret q.C.q_procs in
     if limit <> 0 && List.exists ((=) PI.Spec_updated) rs
     then fix (limit-1)

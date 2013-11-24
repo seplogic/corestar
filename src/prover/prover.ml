@@ -188,9 +188,11 @@ let smt_abduce hypothesis conclusion =
     (* XXX: this is intuitionistic *)
     let pure_hypothesis, _ = extract_pure_part hypothesis in
     let rec shrink eqs =
+(* DBG
       incr dbg_mc;
       printf "@[@<2>shrink %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
       Smt.log_comment (string_of_int !dbg_mc);
+      *)
       if smt_implies (mk_big_star (pure_hypothesis :: eqs)) conclusion
       then begin
         let rec f xs y zs = match shrink (xs @ zs) with

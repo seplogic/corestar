@@ -6,6 +6,7 @@
 - check out what do tests do
 - split on || in postcondition makes corestar forget
   a bit too much how to compute a pvar in term of the initial state
+- disjunctions in preconditions should probably lead to splitting the triple
 - proper treatement of global variables
 - scoping for variables in expression; that is, quantifiers
 - add types to expressions (useful for talking to Z3)
