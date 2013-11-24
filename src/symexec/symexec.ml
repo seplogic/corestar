@@ -818,6 +818,7 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
+  (* TODO: This function is huge: must be refactorred into smaller pieces. *)
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
@@ -828,6 +829,7 @@ end = struct
           fprintf logf "@[Interpreting procedure body: %s@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let mvars = collect_modified_vars body.P.cfg in
+        let mvars_global = List.filter CoreOps.is_global mvars in
         let pvars = collect_pvars body.P.cfg in
         let process_triple update triple =
           if log log_phase then
@@ -859,7 +861,7 @@ end = struct
             simplify_triple
               { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
               ; post = mk_star current_heap post_eqs
-              ; modifies = mvars } in
+              ; modifies = mvars_global } in
           let cs =
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
