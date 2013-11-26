@@ -45,12 +45,12 @@ let pp_logic _ _ = failwith "TODO (a8d7bnw2w)"
 
 let pp_ast_procedure f { proc_name; proc_spec; proc_body } =
   let pp_body f body =
-    let pp_nl_core f c = fprintf f "@\n%a" pp_statement c in
+    let pp_nl_core f c = fprintf f "@\n@{<p>%a@}" pp_statement c in
     fprintf f "@\n@[<2>?%a@]" (pp_list pp_nl_core) body in
-  fprintf f "@\n@[";
-  fprintf f "@[<2>procedure %s :@\n%a@]" proc_name pp_spec proc_spec;
+  fprintf f "@\n@[@{<details>";
+  fprintf f "@[<2>@{<summary>procedure %s :@}@\n%a@]" proc_name pp_spec proc_spec;
   option () (pp_body f) proc_body;
-  fprintf f "@]"
+  fprintf f "@}@]"
 
 let pp_rules f { calculus; abstraction } =
   fprintf f "@[%a@\n%a@]"
@@ -58,7 +58,7 @@ let pp_rules f { calculus; abstraction } =
     (pp_list AbstractionOps.pp_rule_schema) abstraction
 
 let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
-  fprintf f "@[<2>question %s@\ninfer %b@\n%a@\n%a@]"
+  fprintf f "@[<2>@{<p>question %s@}@\n@{<p>infer %b@}@\n%a@\n%a@]"
     q_name
     q_infer
     (pp_list pp_ast_procedure) q_procs

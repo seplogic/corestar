@@ -605,7 +605,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
       choose_rule leaf rules
     end in
-  if log log_prove then fprintf logf "@}@]";
+  if log log_prove then fprintf logf "@{</details>@]";
   result
 
 let solve_idfs min_depth max_depth rules penalty goal =
@@ -614,7 +614,7 @@ let solve_idfs min_depth max_depth rules penalty goal =
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve give_up succ fail min_depth in
-  if log log_prove then fprintf logf "@}@]@,@?";
+  if log log_prove then fprintf logf "@{</details>@]@,@?";
   r
 
 (* }}} *)

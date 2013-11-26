@@ -557,7 +557,7 @@ end = struct
   frame) pairs (Ak, Fk). *)
   let execute_one_triple abduct is_deadend pre_conf triple =
     if log log_exec then
-      fprintf logf "@[<2>execute %a@ from %a@ to get@\n"
+      fprintf logf "@[<2>@{<p>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
         Cfg.pp_ok_configuration pre_conf;
     let { C.pre; post; modifies } = triple in
@@ -596,7 +596,7 @@ end = struct
             fprintf logf "(error conf)@?";
           CT_error
       | afs -> branch afs in
-    if log log_exec then fprintf logf "@]@,@?";
+    if log log_exec then fprintf logf "@}@]@,@?";
     r
 
   let execute abduct is_deadend =
@@ -821,17 +821,17 @@ end = struct
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then
-          fprintf logf "@[Interpreting empty procedure body: %s@\n@]@?" procedure.C.proc_name;
+          fprintf logf "@[@{<p>Interpreting empty procedure body: %s@}@\n@]@?" procedure.C.proc_name;
         OK
     | Some body ->
         if log log_phase then
-          fprintf logf "@[Interpreting procedure body: %s@\n@]@?" procedure.C.proc_name;
+          fprintf logf "@{<details>@[@{<summary>Interpreting procedure body: %s@}@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let mvars = collect_modified_vars body.P.cfg in
         let pvars = collect_pvars body.P.cfg in
         let process_triple update triple =
           if log log_phase then
-            fprintf logf "@[Processing triple: %a@\n@]@?" CoreOps.pp_triple triple;
+            fprintf logf "@{<details>@[@{<summary>Processing triple: %a@}@\n@]@?" CoreOps.pp_triple triple;
           let pre_defs = update_defs StringMap.empty pvars triple.C.pre in
           let is_init_value =
             let module H = Hashtbl.Make (Expr) in
@@ -864,7 +864,9 @@ end = struct
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
-          option_map (List.map triple_of_conf) cs in
+          let r = option_map (List.map triple_of_conf) cs in
+          if log log_phase then fprintf logf "@{</details>@?";
+	  r in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
@@ -903,17 +905,19 @@ end = struct
           let finished = fixpoint_timeout || List.for_all not_better new_ts in
           if finished then begin
             if log log_exec then begin
-              fprintf logf "@[@{<p>Reached fixed-point for %s@}@\n@]@?"
+              fprintf logf "@[@{<h3>Reached fixed-point for %s@}@\n@]@?"
                 procedure.C.proc_name
             end;
+            if log log_phase then fprintf logf "@{</details>@?";
             OK
           end else
             (procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
              if log log_exec then begin
-               fprintf logf "@[<2>@{<h3>Abducted triples:@}";
+               fprintf logf "@[<2>@{<h4>Abducted triples:@}";
 	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_triple triple) ts;
 	       fprintf logf "@]@,@?"
              end;
+             if log log_phase then fprintf logf "@{</details>@?";
 	     Spec_updated)
 	end
 	else begin (* checking, not inferring *)
@@ -940,7 +944,7 @@ let fix_timeout = 5
 (* Assumes that components come in reversed topological order. *)
 let interpret_one_scc proc_of_name q =
   if log log_phase then begin
-    fprintf logf "@[Interpreting one scc, with %d procedure(s)@]@,@?"
+    fprintf logf "@[@{<p>Interpreting one scc, with %d procedure(s)@}@]@,@?"
       (List.length q.C.q_procs)
   end;
   let module PI = ProcedureInterpreter in
@@ -969,7 +973,7 @@ let interpret q =
 let print_specs ps =
   let triple f t = fprintf f "@\n@[<2>%a@]" CoreOps.pp_triple t in
   let proc f p =
-    fprintf f "@\n@[<2>%s%a@]"
+    fprintf f "@\n@{<p>@[<2>%s%a@]@}"
       p.C.proc_name
       (pp_list triple) (C.TripleSet.elements p.C.proc_spec) in
   printf "@[<2>@{<h3>@{<g>INFERRED@}:@}%a@\n@]@?" (pp_list proc) ps
@@ -993,7 +997,7 @@ For a list of functions, all functions have to be OK.
 *)
 let verify q =
   if log log_exec then
-    fprintf logf "@[<2>@{<p>got question@\n%a@}@?" CoreOps.pp_ast_question q;
+    fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;

@@ -4,6 +4,10 @@ summary:focus {
 details details {
     margin-left: 36px;
 }
+details {
+    padding-left: 2px;
+    border: 2px solid grey;
+}
 details p {
     margin-left: 36px;
 }

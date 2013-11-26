@@ -126,13 +126,14 @@ Variables occur in triples, sequents, and confgraphs.
 The scope of an lvar is, respectively, the triple, the sequent, or the
 confgraph. One could think of lvars as being universally quantified at these
 levels, but it's probably better to just think of them as free variables.
-Anyway, the important think is that triples, sequents, and confgraphs are scope
+Anyway, the important thing is that triples, sequents, and confgraphs are scope
 boundaries for lvars.
 
 The scope of a pvar is somewhat more complicated to describe. The intuition is
 that the scope is the largest possible, as long as it talks about *one* point in
 the execution. In a triple, the precondition and the postcondition are two
-distinct scopes for pvars. In a sequent, the scope for pvars is the whole
+distinct scopes for pvars <RLP: what does this mean? I can alpha
+convert in one but not the other?>. In a sequent, the scope for pvars is the whole
 sequent, just like for lvars. In a confgraph, the scope of pvars is one
 node/configuration.
 
