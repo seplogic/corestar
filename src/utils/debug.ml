@@ -82,35 +82,43 @@ let log_mm = 1 lsl 7
 let log_cc = 1 lsl 8
 let log_smt = 1 lsl 9
 
-(* enable (html-)tags in output *)
+(* enable html tags in output *)
 let log_html = false
 
 let log_active = log_phase lor log_exec lor log_smt
   (* -1 means all, 0 means one, in general use lor *)
 
-let () = if log_html then set_tags true
-
 let log x = log_active land x <> 0
 
 let logf = std_formatter
 
+let add_formatter_tag formatter (tag, start, stop) =
+  let fs = pp_get_formatter_tag_functions formatter () in
+  let add s f t = if t = tag then s else f t in
+  pp_set_formatter_tag_functions formatter
+    { fs with
+      mark_open_tag = add start fs.mark_open_tag
+    ; mark_close_tag = add stop fs.mark_close_tag }
+
 let () =
-  let ftfs = get_formatter_tag_functions () in
-  set_formatter_tag_functions
-    { ftfs with 
-      mark_open_tag =
-	(function
-	  | "dotpdf" -> "<a href =\""
-	  | "css" -> "<link rel=\"stylesheet\" type=\"test/css\" href=\"..\\..\\..\\log.css\" title=\"Default\"/>"
-	  | "encoding" -> "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>"
-	  | t -> ftfs.mark_open_tag t)
-    ; mark_close_tag =
-	(function
-	  | "dotpdf" -> ".pdf\" title=\"pdf may need to be created with dot\">link</a>"
-	  | "css" -> ""
-	  | "encoding" -> ""
-	  | t -> ftfs.mark_close_tag t)
-    }
+  let tags =
+    [ "dotpdf"
+      , "<a href =\""
+      , ".pdf\" title=\"pdf may need to be created with dot\">link</a>"
+    ; "css"
+      , "<link rel=\"stylesheet\" type=\"test/css\" href=\"..\\..\\..\\log.css\" title=\"Default\"/>"
+      , ""
+    ; "encoding"
+      , "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>"
+      , "" ] in
+  let html_tags = ["p"; "summary"; "details"] in
+  if log_html then begin
+    List.iter (add_formatter_tag std_formatter) tags;
+    set_tags true
+  end else begin
+    let disable t = add_formatter_tag std_formatter (t, "", "") in
+    List.iter disable html_tags
+  end
 
 (* {2} Profiling helpers *) (* {{{ *)
 

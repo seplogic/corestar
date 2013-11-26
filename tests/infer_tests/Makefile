@@ -11,7 +11,7 @@ $(TESTS): %.test:
 	@rm -rf $*.out && mkdir $*.out
 	@cd $*.out;\
 	  OCAMLRUNPARAM=b \
-	  	corestar -v -v -v ../$*.star > stdout.html 2> stderr \
+	  	corestar -v -v -v ../$*.star > stdout 2> stderr \
 	  || echo "  $* gives exit code $$?"
 
 .PHONY: test $(TESTS) clean

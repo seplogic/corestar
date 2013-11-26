@@ -24,4 +24,7 @@ val log_cc : int
 val log_smt : int
 val log : int -> bool
 val logf : Format.formatter
+val add_formatter_tag : Format.formatter -> Format.tag * string * string -> unit
 val prof_phase : string -> unit
+
+(* TODO: [add_formatter_tag] should probably be in another module *)

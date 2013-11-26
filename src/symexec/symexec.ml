@@ -11,7 +11,10 @@ module P = Cfg.Procedure
 
 exception Fatal of string
 
+(* constants *)
 let bfs_limit = 1 lsl 4
+let fix_scc_limit = 1 lsl 4
+
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
 
@@ -966,9 +969,6 @@ end
 let with_procs q ps = { q with C.q_procs = ps }
 let map_procs f q = with_procs q (List.map f q.C.q_procs)
 
-(* use -1 for a really long timeout *)
-let fix_timeout = 5
-
 (* Assumes that components come in reversed topological order. *)
 let interpret_one_scc proc_of_name q =
   if log log_phase then begin
@@ -982,7 +982,7 @@ let interpret_one_scc proc_of_name q =
     if limit <> 0 && List.exists ((=) PI.Spec_updated) rs
     then fix (limit-1)
     else List.for_all2 (fun r p -> (r = PI.OK) = p.C.proc_ok) rs q.C.q_procs in
-  fix fix_timeout
+  fix fix_scc_limit
 
 let interpret q =
   if log log_phase then
