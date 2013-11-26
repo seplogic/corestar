@@ -56,6 +56,8 @@ module type IM = sig
   val iter_edges : (vertex -> vertex -> unit) -> t -> unit
   val iter_edges_e : (edge -> unit) -> t -> unit
   val map_vertex : (vertex -> vertex) -> t -> t
+  val iter_succ_e : (edge -> unit) -> t -> vertex -> unit
+  val iter_pred_e : (edge -> unit) -> t -> vertex -> unit
   val iter_succ : (vertex -> unit) -> t -> vertex -> unit
   val iter_pred : (vertex -> unit) -> t -> vertex -> unit
   val fold_succ : (vertex -> 'a -> 'a) -> t -> vertex -> 'a -> 'a
@@ -141,6 +143,8 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
   let fold_of_iter iter f g v zero =
     let acc = ref zero in iter (fun w -> acc := f w !acc) g v; !acc
 
+  let iter_succ_e f g = iter_pred_or_succ f g.out_edges id
+  let iter_pred_e f g = iter_pred_or_succ f g.in_edges id
   let iter_succ f g = iter_pred_or_succ f g.out_edges E.dst
   let iter_pred f g = iter_pred_or_succ f g.in_edges E.src
   let fold_succ f = fold_of_iter iter_succ f
@@ -156,6 +160,13 @@ module Make (Vl : ANY_TYPE) (El : ORDERED_TYPE_DFT)
     add x g.in_edges
 
   let remove_vertex g x =
+    let rm_e vm1 vm2 tip2 =
+      let f e =
+        let y = tip2 e in
+        VMap.replace vm2 y (ESet.remove e (VMap.find vm2 y)) in
+      ESet.iter f (VMap.find vm1 x) in
+    rm_e g.out_edges g.in_edges E.dst;
+    rm_e g.in_edges g.out_edges E.src;
     VMap.remove g.out_edges x;
     VMap.remove g.in_edges x
 

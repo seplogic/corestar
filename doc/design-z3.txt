@@ -272,7 +272,7 @@ which imply
 Sketch of how to check this: Write triples in the semantic way, using relations
 R(C1), R(C2) and, respectively, R(C1;C2). Use the standard convention of what ;
 means, namely that R(C1;C2)=R(C2)∘R(C1). Assume R(C1;C2), which means that an
-intermediate state (_x2) exists. Then used the assumed triples, instantiating
+intermediate state (_x2) exists. Then use the assumed triples, instantiating
 _x2 to the thing that the previous sentence says it exists. This should yield
 the conclusion.
 
@@ -360,8 +360,19 @@ minimal unsatisfiable cores (with group 0). (That sounds cool, right? :) Second,
 the fuzzy alpha-renaming and the abduction based approaches mentioned later need
 some refinement, and they might give good results.
 
+To wrap up, let me summarize what is my current plan. First, I want to fix the
+unsoundness exposed by infer_tests/test20.star: even if wrongly inferred, the
+triples {Pk}(){Qk} should be filtered out by the checking phase but aren't. This
+needs to be fixed first. Second, *if* I notice later that inference needs some
+help to come up with useful triples then I should try first the assume-as-assert
+solution first, because it seems easiest to implement. Only if that epically
+fails should I venture to handle sets of confgraphs. And third, it might be
+reasonable to throw away the inferred postcondition, and only use the
+postcondition found by the checking phase. (But, careful, the ‘postcondition’
+found by the checking phase is in fact many postconditions, which again need to
+be put together into one. So, the wisdom of this third point is rather
+questionable.)
 
-[TODO: Continue here.]
 
 [1] http://youtu.be/IK0G04Mry3s
 
