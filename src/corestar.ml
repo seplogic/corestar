@@ -50,7 +50,7 @@ let verify fn =
   end with Symexec.Fatal m -> eprintf "@[ERROR: %s@." m
 
 let () =
-  printf "@[@{<html>@{<head>@{<css>@}@}@{<body>"; eprintf "@[";
+  printf "@[@{<html>@{<head>@{<css>@}@{<encoding>@}@}@{<body>"; eprintf "@[";
   Arg.parse Config.args_default verify "corestar [options] <files>";
   printf "@}@}@?"; eprintf "@?";
   if not !all_ok then exit 1

@@ -83,9 +83,9 @@ let log_cc = 1 lsl 8
 let log_smt = 1 lsl 9
 
 (* enable (html-)tags in output *)
-let log_html = true
+let log_html = false
 
-let log_active = log_phase lor log_exec lor log_smt lor log_prove
+let log_active = log_phase lor log_exec lor log_smt
   (* -1 means all, 0 means one, in general use lor *)
 
 let () = if log_html then set_tags true
@@ -102,11 +102,13 @@ let () =
 	(function
 	  | "dotpdf" -> "<a href =\""
 	  | "css" -> "<link rel=\"stylesheet\" type=\"test/css\" href=\"..\\..\\..\\log.css\" title=\"Default\"/>"
+	  | "encoding" -> "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>"
 	  | t -> ftfs.mark_open_tag t)
     ; mark_close_tag =
 	(function
 	  | "dotpdf" -> ".pdf\" title=\"pdf may need to be created with dot\">link</a>"
 	  | "css" -> ""
+	  | "encoding" -> ""
 	  | t -> ftfs.mark_close_tag t)
     }
 
