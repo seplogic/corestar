@@ -20,7 +20,7 @@ let interpreted =
   ; "*", "and"
   ; "==", "="
   ; "emp", "true"
-  ; "fls", "false"
+  ; "false", "false"
   ; "not", "not"
   ; "or", "or" ]
 (* TODO: The name [identities] is bad. *)

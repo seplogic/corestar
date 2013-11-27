@@ -112,7 +112,8 @@ let () =
       , "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>"
       , "" ] in
   let html_tags =
-    ["p"; "summary"; "details"; "/details"; "h1"; "h2"; "h3"; "h4"] in
+    [ "/details"; "details"; "h1"; "h2"; "h3"; "h4"; "p"; "summary" ]
+    @ List.map (fun (t, _, _) -> t) tags in
   if log_html then begin
     List.iter (add_formatter_tag std_formatter) tags;
     set_tags true

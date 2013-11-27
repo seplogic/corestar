@@ -10,12 +10,6 @@ type t_orig = Var of string | App of string * exp list
 and exp = t_orig * int  (* e, f, ... *)
   (* TODO: explain which are valid names; empty string is not *)
 
-let rec pp f =
-  let pp_rec f e = fprintf f "@ %a" pp e in
-  fun g -> match fst g with
-    | Var v -> pp_string f v
-    | App (op, xs) -> fprintf f "@[<2>(%s%a)@]" op (pp_list pp_rec) xs
-
 let hash = snd
 let equal = (==)
 
@@ -217,6 +211,33 @@ let is_interpreted _ = failwith "TODO"
 
 let nil = mk_0 "nil"  (* TODO: Why do we have this? *)
 let emp = mk_0 "emp"
-let fls = mk_0 "fls"
+let fls = mk_0 "false"
+
+(* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
+
+(* close to SMT-LIB's language *)
+let rec pp_prefix f =
+  let pp_rec f e = fprintf f "@ %a" pp_prefix e in
+  fun g -> match fst g with
+    | Var v -> pp_string f v
+    | App (op, xs) -> fprintf f "@[<2>(%s%a)@]" op (pp_list pp_rec) xs
+
+(* WARNING: close to input language, but somewhat mangled wrt data structure *)
+let infix_op = function
+  | "or" -> "||"
+  | "==" -> "="
+  | s -> s
+let rec pp_infix f e = match_ e
+  (pp_string f)
+  ( on_string_const (fprintf f "\"%s\"")
+  & on_int_const (fprintf f "%s")
+  & fun op es -> fprintf f "@[(%a)@]@," (pp_list_sep (infix_op op) pp_infix) es)
+
+(* NOTE: This function should be used *only* for debug. The [pp_prefix] version
+is a verbatim dump of the data structure, and should be preferred. The
+[pp_infix] version is a hack that you might want to use if you want to print
+expressions, edit them, then read them back with corestar's parser. All this
+while debugging, of course.*)
+let pp = pp_prefix
 
 type t = exp

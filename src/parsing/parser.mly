@@ -155,8 +155,8 @@ term_list:
 ;
 
 formula:
-  | /*empty*/  { Expr.emp }
-  | EMP  { Expr.emp }
+  | /* empty */ { Expr.emp }
+  | EMP { Expr.emp }
   | FALSE { Expr.fls }
   | BANG identifier L_PAREN term_list R_PAREN { Expr.mk_app ("!"^$2) $4 }
   | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
@@ -184,8 +184,8 @@ triple:
 spec:
   | /* empty */ { C.TripleSet.create 0 }
   | spec triple { C.TripleSet.add $1 $2; $1 }
+  | spec OP_PLUS triple { C.TripleSet.add $1 $3; $1 }
 ;
-
 
 /* Core statements */
 
@@ -200,13 +200,13 @@ label_list:
   | IDENTIFIER COMMA label_list   { $1 :: $3 }
 ;
 
-call_stmt: /* split in cases to avoid parsing conflict */
+call_stmt:
   | IDENTIFIER core_args_in
     { { C.call_name = $1; call_rets = []; call_args = $2 } }
-  | lvariable COLON_EQUALS IDENTIFIER core_args_in
-    { { C.call_name = $3; call_rets = [$1]; call_args = $4 } }
-  | lvariable COMMA lvariable_list_ne COLON_EQUALS IDENTIFIER core_args_in
-    { { C.call_name = $5; call_rets = $1 :: $3; call_args = $6 } }
+  | COLON_EQUALS IDENTIFIER core_args_in
+    { { C.call_name = $2; call_rets = []; call_args = $3 } }
+  | lvariable_list_ne COLON_EQUALS IDENTIFIER core_args_in
+    { { C.call_name = $3; call_rets = $1; call_args = $4 } }
 ;
 
 core_stmt:

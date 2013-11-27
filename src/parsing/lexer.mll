@@ -52,8 +52,8 @@ let error_message e lb =
 let kwd_or_else =
   let keyword_table = Hashtbl.create 53 in
   List.iter (fun (kwd, tok) -> Hashtbl.add keyword_table kwd tok) [
-    "Emp", EMP;
-    "False", FALSE;
+    "emp", EMP;
+    "false", FALSE;
     "assign", ASSIGN;
     "call", CALL;
     "end", END;
