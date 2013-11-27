@@ -11,7 +11,8 @@
       LICENSE.txt
  ********************************************************)
 
+let esc_nl_re = Str.regexp "\\\\n"
 
-let escape_for_label s = 
-  Str.global_replace (Str.regexp "\\\\n") "\\l" (String.escaped s)
+let escape_for_label s =
+  Str.global_replace esc_nl_re "\\l" (String.escaped s)
 

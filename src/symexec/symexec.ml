@@ -11,9 +11,8 @@ module P = Cfg.Procedure
 
 exception Fatal of string
 
-(* constants *)
 let bfs_limit = 1 lsl 4
-let fix_scc_limit = 1 lsl 4
+let fix_scc_limit = 1 lsl 0
 
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
