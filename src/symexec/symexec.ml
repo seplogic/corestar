@@ -123,6 +123,15 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
     ;
   t2
 
+let normalize { C.pre; post; modifies } =
+  let f = Prover.normalize in
+  { C.pre = f pre; post = f post; modifies = modifies }
+
+let normalize_spec = C.TripleSet.map normalize
+
+let normalize_proc proc =
+  proc.C.proc_spec <- normalize_spec proc.C.proc_spec
+
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
@@ -687,7 +696,7 @@ end = struct
       { ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
-      (fun _ _ -> ()) (implies_triple calculus)
+      (fun _ _ -> ()) (flip (implies_triple calculus))
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -834,10 +843,6 @@ end = struct
           G.Cfg.V.create (G.Spec_cfg spec)
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
-
-  let normalize { C.pre; post; modifies } =
-    let f = Prover.normalize in
-    { C.pre = f pre; post = f post; modifies = modifies }
 
   let hashset_subset s1 s2 =
     try HashSet.iter (HashSet.find s2) s1; true with Not_found -> false
@@ -1022,6 +1027,7 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
+  List.iter normalize_proc q.C.q_procs;
   if log log_exec then
     fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
