@@ -68,9 +68,12 @@ let flip f x y = f y x
 
 let undefined _ = failwith "INTERNAL: undefined"
 
-let id x = x
+let c0 x = x
+let c1 x _ = x
+let c2 x _ _ = x
 
-let const x _ = x
+let id = c0
+let const = c1
 
 module CharH = struct
   let is_space =
@@ -161,6 +164,8 @@ module ListH = struct
     foldli g [] xs
 
   let iteri f = ignore @@ mapi f
+
+  let concatMap f xs = List.concat (List.map f xs)
 end (* of ListH *)
 
 type 'a pretty_printer = formatter -> 'a -> unit

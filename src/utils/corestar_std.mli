@@ -79,6 +79,10 @@ val id : 'a -> 'a
 (** Like in Haskell. *)
 val const : 'a -> 'b -> 'a
 
+val c0 : 'a -> 'a       (* same as [id] *)
+val c1 : 'a -> 'b -> 'a (* same as [const] *)
+val c2 : 'a -> 'b -> 'c -> 'a
+
 (* }}} *)
 (* {{{ *) (** {2 Sets and maps} *)
 
@@ -152,6 +156,9 @@ module ListH : sig
   val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
   val rev_mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
   val iteri : (int -> 'a -> unit) -> 'a list -> unit
+
+  (* Like in Haskell. Same as [flip (>>=)]*)
+  val concatMap : ('a -> 'b list) -> 'a list -> 'b list
 end
 
 (* }}} *)

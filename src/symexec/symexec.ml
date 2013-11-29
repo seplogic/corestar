@@ -362,12 +362,6 @@ end = struct
   (* INV: The set [pre_of s] should never shrink, for all statements [s]. *)
   (* NOTE: Be careful, these are imperative data structures. *)
 
-  let pp_context f c =
-    let pp_vertex v = fprintf f "@ @[%a@]" Cfg.pp_configuration (CG.V.label v) in
-    fprintf f "@[<2>Configuration graph:";
-    CG.iter_vertex pp_vertex c.confgraph;
-    fprintf f "@]@,@?";
-
   (* Executing one statement produces one [choice_tree], which is later
   integrated into the confgraph by [update]. (Alternatively, the function
   [execute] could know about confgraphs, rather than being just a local
@@ -393,9 +387,6 @@ end = struct
   let conf_of_vertex v = match CG.V.label v with
     | G.OkConf (c, _) -> c
     | G.ErrorConf -> assert false
-
-  let make_angelic c = G.OkConf (c, G.Angelic)
-  let make_demonic c = G.OkConf (c, G.Demonic)
 
   let is_ok_conf_vertex v = match CG.V.label v with
     | G.OkConf _ -> true
@@ -558,8 +549,23 @@ end = struct
     !post_defs
 
   let eqs_of_bindings ds =
-      let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-      ds |> List.map mk_eq |> mk_big_star
+    let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+    ds |> List.map mk_eq |> mk_big_star
+
+  (* helpers for [execute_one_triple] *) (* {{{ *)
+
+  (* Normalizes formulas. Also, splits disjunctions of frames. See the comment
+  on [execute_one_triple]. This is incomplete, but it frees the prover from
+  handling disjunctions. *)
+  let eot_normalize_afs afs =
+    let do_one { Prover.frame; antiframe } =
+      let frame = Prover.normalize frame in
+      let antiframe = Prover.normalize antiframe in
+      let fs = Expr.match_ frame undefined (Expr.on_or id & c2 [frame]) in
+      List.map (fun frame -> { Prover.frame; antiframe }) fs in
+    afs >>= do_one
+
+  (* }}} *)
 
   (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
   that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
@@ -576,6 +582,7 @@ end = struct
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
     let afs = abduct (mk_star pre_conf.G.current_heap def_eqs) pre in
+    let afs = eot_normalize_afs afs in
     let branch afs =
       let mk_post_conf { Prover.antiframe = a; frame = f } =
         let post_defs = update_defs pre_defs vs post in
@@ -607,6 +614,7 @@ end = struct
             fprintf logf "(error conf)@?";
           CT_error
       | afs -> branch afs in
+        (* TODO: Demonically split leafs that have disjunctions *)
     if log log_exec then fprintf logf "@}@]@,@?";
     r
 
@@ -813,19 +821,14 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_infer rules body post =
-    let abduct = abduct rules.C.calculus in
-    let is_deadend e = Prover.is_inconsistent rules.C.calculus e in
-    let execute =
-      execute abduct is_deadend (spec_of post body.P.stop) in
+  let update_gen ask rules body post =
+    let ask = ask rules.C.calculus in
+    let is_deadend = Prover.is_inconsistent rules.C.calculus in
+    let execute = execute ask is_deadend (spec_of post body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 
-  let update_check rules body post =
-    let abduct = frame rules.C.calculus in
-    let is_deadend e = Prover.is_inconsistent rules.C.calculus e in
-    let execute =
-      execute abduct is_deadend (spec_of post body.P.stop) in
-    update execute (abstract_conf rules.C.calculus)
+  let update_infer = update_gen abduct
+  let update_check = update_gen frame
 
   (* Lifts binary operators to options, *but* treats [None] as the identity. *)
   let bin_option f x y = match x, y with
@@ -851,7 +854,7 @@ end = struct
     HashSet.length s1 = HashSet.length s2 &&
     hashset_subset s1 s2
 
-  (* TODO: This function is huge: must be refactorred into smaller pieces. *)
+  (* TODO: This function is huge: must be refactored into smaller pieces. *)
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
         if log log_phase then

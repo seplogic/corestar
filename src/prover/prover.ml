@@ -13,12 +13,6 @@ type frame_and_antiframe =
 
 (* Helper functions for prover rules. *) (* {{{ *)
 
-(* TODO: Move in [Corestar_std]? *)
-let c0 x = x
-let c1 x _ = x
-let c2 x _ _ = x
-let concatMap f xs = List.concat (List.map f xs)
-
 let smt_is_valid a =
   Smt.push ();
   Smt.say (Expr.mk_not a);
@@ -26,6 +20,7 @@ let smt_is_valid a =
   Smt.pop ();
   r
 
+(* TODO: This should use the ! marker on predicates. *)
 let is_pure e =
   let ok_n = [ Expr.on_star; Expr.on_or ] in
   let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
@@ -60,7 +55,7 @@ let is_true e =
   || Expr.cases (c1 false) (Expr.on_eq Expr.equal & c2 false) e
 
 let rec unfold on e =
-  Expr.cases (c1 [e]) (on (concatMap (unfold on)) & c2 [e]) e
+  Expr.cases (c1 [e]) (on (ListH.concatMap (unfold on)) & c2 [e]) e
 
 (* Removes zero, and removes repetitions of pure parts. *)
 let ac_simplify_split is_zero on es =

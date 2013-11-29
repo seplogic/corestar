@@ -1,12 +1,11 @@
 - test on problem similar to those of topstar
+- split on || in postcondition makes corestar forget
+  a bit too much how to compute a pvar in terms of the initial state
+- disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
   (this is a soundness problem!)
 - add prover rule that drops spatial part in hypothesis if conclusion is pure
   (should also lead to a better inconsistency check)
-- check out what do tests do
-- split on || in postcondition makes corestar forget
-  a bit too much how to compute a pvar in term of the initial state
-- disjunctions in preconditions should probably lead to splitting the triple
 - proper treatement of global variables
 - scoping for variables in expression; that is, quantifiers
 - add types to expressions (useful for talking to Z3)
