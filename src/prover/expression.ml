@@ -160,12 +160,19 @@ places in the codebase, because that is bug-prone. *)
 type 'a automorphism = 'a -> 'a
 type 'a app_eval = (op -> exp list -> 'a) automorphism
 type 'a app_eval_n = (exp list -> 'a) -> 'a app_eval
+type 'a app_eval_0 = (unit -> 'a) -> 'a app_eval
 type 'a app_eval_1 = (exp -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (exp -> exp -> 'a) -> 'a app_eval
 
 
 let on_op op_ref f g op =
   if op = op_ref then f else g op
+
+let on_0 op_ref f =
+  let f = function
+    | [] -> f ()
+    | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 0" ) in
+  on_op op_ref f
 
 let on_1 op_ref f =
   let f = function
@@ -179,12 +186,18 @@ let on_2 op_ref f =
     | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 2" ) in
   on_op op_ref f
 
-let on_const op_ref f =
+let on_tag op_ref f =
   let f = function
     | [e] -> let s, xs = bk_app e in assert (xs = []); f s
     | _ -> failwith ("INTERNAL: "^ op_ref ^ " should have arity 1") in
   on_op op_ref f
 
+let emp = mk_0 "emp"
+let on_emp f = on_0 "emp" f
+let fls = mk_0 "fls"
+let on_fls f = on_0 "fls" f
+let nil = mk_0 "nil"  (* TODO: Why do we have this? *)
+let on_nil f = on_0 "nil" f
 
 let mk_star = mk_2 "*"
 let mk_big_star = mk_app "*"
@@ -202,16 +215,12 @@ let mk_neq = mk_2 "!="
 let on_neq f = on_2 "!=" f
 
 let mk_string_const s = mk_1 "<string>" (mk_0 s)
-let on_string_const f = on_const "<string>" f
+let on_string_const f = on_tag "<string>" f
 let mk_int_const s = mk_1 "<int>" (mk_0 s)
-let on_int_const f = on_const "<int>" f
+let on_int_const f = on_tag "<int>" f
 
 let is_interpreted _ = failwith "TODO"
 
-
-let nil = mk_0 "nil"  (* TODO: Why do we have this? *)
-let emp = mk_0 "emp"
-let fls = mk_0 "false"
 
 (* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
 
@@ -223,15 +232,24 @@ let rec pp_prefix f =
     | App (op, xs) -> fprintf f "@[<2>(%s%a)@]" op (pp_list pp_rec) xs
 
 (* WARNING: close to input language, but somewhat mangled wrt data structure *)
-let infix_op = function
-  | "or" -> "||"
-  | "==" -> "="
-  | s -> s
-let rec pp_infix f e = match_ e
-  (pp_string f)
-  ( on_string_const (fprintf f "\"%s\"")
-  & on_int_const (fprintf f "%s")
-  & fun op es -> fprintf f "@[(%a)@]@," (pp_list_sep (infix_op op) pp_infix) es)
+let rec pp_infix f e =
+  let pp_n op = fprintf f "@[(%a)@]" (pp_list_sep op pp_infix) in
+  let pp_2 op e1 e2 = pp_n op [e1; e2] in
+  let pp_1 op e = fprintf f "@[%s%a@]" op pp_infix e in
+  let pp_0 op () = fprintf f "%s" op in
+  match_ e
+    (pp_string f)
+    ( on_string_const (fprintf f "\"%s\"")
+    & on_int_const (fprintf f "%s")
+    & on_emp (pp_0 "emp")
+    & on_fls (pp_0 "false")
+    & on_nil (pp_0 "nil()")
+    & on_star (pp_n " * ")
+    & on_or (pp_n " || ")
+    & on_not (pp_1 "!")
+    & on_eq (pp_2 "=")
+    & on_neq (pp_2 "!=")
+    & fun op es -> fprintf f "@[%s(%a)@]" op (pp_list_sep ", " pp_infix) es)
 
 (* NOTE: This function should be used *only* for debug. The [pp_prefix] version
 is a verbatim dump of the data structure, and should be preferred. The

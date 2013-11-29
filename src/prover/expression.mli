@@ -59,6 +59,7 @@ val mk_star : t -> t -> t
 val mk_big_star : t list -> t
 val mk_or : t -> t -> t
 val mk_big_or : t list -> t
+
 val mk_not : t -> t
 
 val mk_eq : t -> t -> t
@@ -75,9 +76,13 @@ order.)  *)
 val cases : (var -> 'a) -> (op -> t list -> 'a) -> t -> 'a
 val match_ : t -> (var -> 'a) -> (op -> t list -> 'a) -> 'a
 type 'a app_eval = (op -> t list -> 'a) -> (op -> t list -> 'a)
+type 'a app_eval_0 = (unit -> 'a) -> 'a app_eval
 type 'a app_eval_1 = (t -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
 type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
+val on_emp : 'a app_eval_0
+val on_fls : 'a app_eval_0
+val on_nil : 'a app_eval_0
 val on_star : 'a app_eval_n
 val on_or : 'a app_eval_n
 val on_not : 'a app_eval_1

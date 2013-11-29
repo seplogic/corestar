@@ -6,13 +6,13 @@
       assign :={(($g_state!="HasNexterror"))}()
         {(($g_state!="HasNexterror"))}();
     procedure step_$$ :
-      {()}
+      {false}
       ($g_qsz,$g_state,$g_rI
       ,$g_qsz)
       {(($g_rI=_rI_2_1)
        *($g_state="HasNextvalid")
        *($g_qsz="0"))
-      }+{()}
+      }+{false}
       ($g_qsz,$g_state,$g_rI
       ,$g_qsz,$g_q_0_1
       ,$g_q_0_0)
@@ -21,7 +21,7 @@
        *($g_state="HasNexterror")
        *($g_rI=_rI_1_0)
        *($g_qsz="1"))
-      }+{()}
+      }+{false}
       ($g_qsz,$g_state,$g_rI
       ,$g_qsz,$g_qsz
       ,$g_state,$g_rI,$g_qsz
@@ -35,7 +35,7 @@
          *($g_rI=_rI_1_0)
          *($g_qsz="1"))
        )
-      }+{()}
+      }+{false}
       ($g_qsz,$g_state,$g_rI
       ,$g_qsz,$g_q_0_1
       ,$g_q_0_0)
@@ -44,7 +44,7 @@
        *($g_q_0_0=_q_1_0)
        *($g_rI=_rI_1_0)
        *($g_qsz="1"))
-      }+{()}
+      }+{false}
       ($g_qsz,$g_rI,$g_qsz
       ,$g_q_0_1,$g_q_0_0
       ,$g_qsz,$g_state,$g_rI
@@ -86,7 +86,7 @@
          *($g_state="HasNextinvalid")
          *(_rI_1_1=_rI_0))
         ||(($g_q_0_0=_q_0_0)
-          *($g_q_1_1!=true)
+          *($g_q_1_1=0)
           *($g_q_0_1=_q_0_1)
           *($g_rI=_rI_0)
           *($g_state="HasNextinvalid")
@@ -106,7 +106,7 @@
         ||(($g_rI=_rI_0)
           *($g_state="HasNextinvalid")
           *($g_q_0_1!=_rI_0)
-          *($g_q_1_1!=true)
+          *($g_q_1_1=0)
           *($g_q_1_1=_q_1_1)
           *($g_q_0_1=_q_0_1)
           *($g_qsz="2")
@@ -183,7 +183,7 @@
        *($g_q_0_0=_q_1_0)
        *($g_state="HasNexterror")
        *($g_qsz="1"))
-      }+{()}
+      }+{false}
       ($g_qsz,$g_rI,$g_qsz
       ,$g_q_0_1,$g_q_0_0)
       {(($g_state="HasNextstart")
