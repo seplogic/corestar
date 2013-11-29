@@ -1,36 +1,734 @@
-//  1 -> 2: a
-//  1 -> 1: a, b, c
-//  2 -> 1: b
-//  2 -> 2: a, c
-//  2 -> 3: b
-//  3 -> 3: a, b, c
-
-procedure a:
-  { $gs=1 } ($gs) { $gs=1 || $gs=2 }
-  { $gs!=1 } () { } // $gs not modified
-
 procedure b:
-  { $gs=2 } ($gs) { $gs=1 || $gs=3 }
-  { $gs!=2 } () {}
-
+  {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  {emp*$gs!=2} () {emp}
 procedure c:
-  {} () {} // quite irrelevant to the automaton
+  {emp} () {emp}
+procedure a:
+  {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  {emp*$gs!=1} () {emp}
 
-// one step
-procedure run_a: ? call a();
-procedure run_b: ? call b();
-procedure run_c: ? call c();
+procedure seq_:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+?
 
-// two steps
-procedure run_aa: ? call a(); call a(); // same as one a()
-procedure run_ab: ? call a(); call b(); // 1->1,3; 2->1,3; 3->3
-procedure run_ac: ? call a(); call c(); // same as one a()
-procedure run_ba: ? call b(); call a(); // 1->1,2; 2->1,2,3; 3->3
-procedure run_bb: ? call b(); call b(); // same as one b()
-procedure run_bc: ? call b(); call c(); // same as one b()
-procedure run_ca: ? call c(); call a(); // same as one a()
-procedure run_cb: ? call c(); call b(); // same as one b()
-procedure run_cc: ? call c(); call c(); // same as one c()
+procedure seq_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b();
 
-// three steps
-// TODO
+procedure seq_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c();
+
+procedure seq_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a();
+
+procedure seq_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b();
+
+procedure seq_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b();
+
+procedure seq_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b();
+
+procedure seq_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c();
+
+procedure seq_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c();
+
+procedure seq_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c();
+
+procedure seq_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a();
+
+procedure seq_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a();
+
+procedure seq_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a();
+
+procedure seq_b_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call b();
+
+procedure seq_c_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call b();
+
+procedure seq_a_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call b();
+
+procedure seq_b_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call b();
+
+procedure seq_c_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call b();
+
+procedure seq_a_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call b();
+
+procedure seq_b_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call b();
+
+procedure seq_c_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call b();
+
+procedure seq_a_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call b();
+
+procedure seq_b_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call c();
+
+procedure seq_c_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call c();
+
+procedure seq_a_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call c();
+
+procedure seq_b_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call c();
+
+procedure seq_c_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call c();
+
+procedure seq_a_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call c();
+
+procedure seq_b_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call c();
+
+procedure seq_c_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call c();
+
+procedure seq_a_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call c();
+
+procedure seq_b_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call a();
+
+procedure seq_c_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call a();
+
+procedure seq_a_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call a();
+
+procedure seq_b_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call a();
+
+procedure seq_c_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call a();
+
+procedure seq_a_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call a();
+
+procedure seq_b_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call a();
+
+procedure seq_c_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call a();
+
+procedure seq_a_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call a();
+
+procedure seq_b_b_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call b(); call b();
+
+procedure seq_c_b_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call b(); call b();
+
+procedure seq_a_b_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call b(); call b();
+
+procedure seq_b_c_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call b(); call b();
+
+procedure seq_c_c_b_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call b(); call b();
+
+procedure seq_a_c_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call b(); call b();
+
+procedure seq_b_a_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call b(); call b();
+
+procedure seq_c_a_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call b(); call b();
+
+procedure seq_a_a_b_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call b(); call b();
+
+procedure seq_b_b_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call c(); call b();
+
+procedure seq_c_b_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call c(); call b();
+
+procedure seq_a_b_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call c(); call b();
+
+procedure seq_b_c_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call c(); call b();
+
+procedure seq_c_c_c_b:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call c(); call b();
+
+procedure seq_a_c_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call c(); call b();
+
+procedure seq_b_a_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call c(); call b();
+
+procedure seq_c_a_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call c(); call b();
+
+procedure seq_a_a_c_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call c(); call b();
+
+procedure seq_b_b_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call a(); call b();
+
+procedure seq_c_b_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call a(); call b();
+
+procedure seq_a_b_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call a(); call b();
+
+procedure seq_b_c_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call a(); call b();
+
+procedure seq_c_c_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call a(); call b();
+
+procedure seq_a_c_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call a(); call b();
+
+procedure seq_b_a_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call a(); call b();
+
+procedure seq_c_a_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call a(); call b();
+
+procedure seq_a_a_a_b:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call a(); call b();
+
+procedure seq_b_b_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call b(); call c();
+
+procedure seq_c_b_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call b(); call c();
+
+procedure seq_a_b_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call b(); call c();
+
+procedure seq_b_c_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call b(); call c();
+
+procedure seq_c_c_b_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call b(); call c();
+
+procedure seq_a_c_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call b(); call c();
+
+procedure seq_b_a_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call b(); call c();
+
+procedure seq_c_a_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call b(); call c();
+
+procedure seq_a_a_b_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call b(); call c();
+
+procedure seq_b_b_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call c(); call c();
+
+procedure seq_c_b_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call c(); call c();
+
+procedure seq_a_b_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call c(); call c();
+
+procedure seq_b_c_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call c(); call c();
+
+procedure seq_c_c_c_c:
+  // {$gs=1} ($gs) {false||$gs=1}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call c(); call c();
+
+procedure seq_a_c_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call c(); call c();
+
+procedure seq_b_a_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call c(); call c();
+
+procedure seq_c_a_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call c(); call c();
+
+procedure seq_a_a_c_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call c(); call c();
+
+procedure seq_b_b_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call a(); call c();
+
+procedure seq_c_b_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call a(); call c();
+
+procedure seq_a_b_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call a(); call c();
+
+procedure seq_b_c_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call a(); call c();
+
+procedure seq_c_c_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call a(); call c();
+
+procedure seq_a_c_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call a(); call c();
+
+procedure seq_b_a_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call a(); call c();
+
+procedure seq_c_a_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call a(); call c();
+
+procedure seq_a_a_a_c:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call a(); call c();
+
+procedure seq_b_b_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call b(); call a();
+
+procedure seq_c_b_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call b(); call a();
+
+procedure seq_a_b_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call b(); call a();
+
+procedure seq_b_c_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call b(); call a();
+
+procedure seq_c_c_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call b(); call a();
+
+procedure seq_a_c_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call b(); call a();
+
+procedure seq_b_a_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call b(); call a();
+
+procedure seq_c_a_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call b(); call a();
+
+procedure seq_a_a_b_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call b(); call a();
+
+procedure seq_b_b_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call c(); call a();
+
+procedure seq_c_b_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call c(); call a();
+
+procedure seq_a_b_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call c(); call a();
+
+procedure seq_b_c_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call c(); call a();
+
+procedure seq_c_c_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call c(); call a();
+
+procedure seq_a_c_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call c(); call a();
+
+procedure seq_b_a_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call c(); call a();
+
+procedure seq_c_a_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call c(); call a();
+
+procedure seq_a_a_c_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call c(); call a();
+
+procedure seq_b_b_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call b(); call a(); call a();
+
+procedure seq_c_b_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call b(); call a(); call a();
+
+procedure seq_a_b_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call b(); call a(); call a();
+
+procedure seq_b_c_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call c(); call a(); call a();
+
+procedure seq_c_c_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call c(); call a(); call a();
+
+procedure seq_a_c_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call c(); call a(); call a();
+
+procedure seq_b_a_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=1||$gs=2||$gs=3}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call b(); call a(); call a(); call a();
+
+procedure seq_c_a_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call c(); call a(); call a(); call a();
+
+procedure seq_a_a_a_a:
+  // {$gs=1} ($gs) {false||$gs=1||$gs=2}
+  // {$gs=2} ($gs) {false||$gs=2}
+  // {$gs=3} ($gs) {false||$gs=3}
+? call a(); call a(); call a(); call a();
