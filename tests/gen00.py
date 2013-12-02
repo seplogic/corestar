@@ -72,7 +72,8 @@ for n in range(seq_len + 1):
         stdout.write('||$gs={}'.format(y))
       stdout.write('}\n')
     stdout.write('?');
-    for l in w:
-      stdout.write(' call {}();'.format(l))
+    if w != []:
+      stdout.write(' call seq_{}();'.format('_'.join(w[:-1])))
+      stdout.write(' call {}();'.format(w[-1]))
     stdout.write('\n')
 
