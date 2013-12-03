@@ -1,6 +1,4 @@
 - test on problem similar to those of topstar
-- split on || in postcondition makes corestar forget
-  a bit too much how to compute a pvar in terms of the initial state
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
   (this is a soundness problem!)

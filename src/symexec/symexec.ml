@@ -12,7 +12,7 @@ module P = Cfg.Procedure
 exception Fatal of string
 
 let bfs_limit = 1 lsl 4
-let fix_scc_limit = 1 lsl 0
+let fix_scc_limit = 1 lsl 2
 
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
@@ -977,6 +977,8 @@ let interpret_one_scc proc_of_name q =
   let module PI = ProcedureInterpreter in
   let interpret = PI.interpret proc_of_name q.C.q_rules q.C.q_infer in
   let rec fix limit =
+    if log log_exec && limit = 0 then
+      fprintf logf "fix_scc_limit reached@\n";
     let rs = List.map interpret q.C.q_procs in
     if limit <> 0 && List.exists ((=) PI.Spec_updated) rs
     then fix (limit-1)

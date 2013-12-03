@@ -84,7 +84,8 @@ let empty_ast_question =
 type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 
 let refines_triple calculus triple1 triple2 =
-  let ( => ) = Prover.is_entailment calculus in
+  (* NOTE: [infer_frame], unlike [is_entailment], instantiates lvars. *)
+  let ( => ) a b = Prover.infer_frame calculus a b <> [] in
   (triple2.pre => triple1.pre) && (triple1.post => triple2.post)
 
 let refines_spec logic spec1 spec2 =

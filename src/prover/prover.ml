@@ -99,7 +99,7 @@ let find_lvar_pvar_subs =
 	    not_on e1)
 	not_on) e in
   let add_if_good l =
-    on_var_eq_var 
+    on_var_eq_var
       (fun a b ->
 	if Expr.is_lvar a && Expr.is_pvar b then (a, Expr.mk_var b)::l
 	else if Expr.is_pvar a && Expr.is_lvar b then (b, Expr.mk_var a)::l
@@ -416,7 +416,7 @@ let rec find_matches is_free can_be_op bs (p, e) =
     | Done final_bs -> [final_bs]
     | More (next_bs, next_pair) -> also_match next_bs next_pair in
   matches >>= process_match
-  
+
 (*
 let rec find_some f = function
   | [] -> None
@@ -625,10 +625,11 @@ let wrap_calculus f calculus =
   fun hypothesis conclusion ->
     f rules { Calculus.hypothesis; conclusion; frame = Expr.emp }
 
+(* TODO: For efficiency, this shouldn't use matching rules (or anything that
+looks like abduction). *)
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
-    (* TODO: Should also require that the hypothesis is pure? *)
-    if is_instantiation conclusion
+    if Expr.equal conclusion Expr.emp && is_pure hypothesis
     then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
