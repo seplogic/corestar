@@ -554,16 +554,7 @@ end = struct
 
   (* helpers for [execute_one_triple] *) (* {{{ *)
 
-  (* Normalizes formulas. Also, splits disjunctions of frames. See the comment
-  on [execute_one_triple]. This is incomplete, but it frees the prover from
-  handling disjunctions. *)
-  let eot_normalize_afs afs =
-    let do_one { Prover.frame; antiframe } =
-      let frame = Prover.normalize frame in
-      let antiframe = Prover.normalize antiframe in
-      let fs = Expr.match_ frame undefined (Expr.on_or id & c2 [frame]) in
-      List.map (fun frame -> { Prover.frame; antiframe }) fs in
-    afs >>= do_one
+  (* TODO: Really, make that function nicer. *)
 
   (* }}} *)
 
@@ -582,21 +573,24 @@ end = struct
     let pre_defs = pre_conf.G.pvar_value in
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
     let afs = abduct (mk_star pre_conf.G.current_heap def_eqs) pre in
-    let afs = eot_normalize_afs afs in
     let branch afs =
       let mk_post_conf { Prover.antiframe = a; frame = f } =
         let post_defs = update_defs pre_defs vs post in
         let f = substitute_defs pre_defs f in
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
-        let conf =
-          { G.current_heap = mk_star post f
-          ; missing_heap = mk_star pre_conf.G.missing_heap a
-          ; pvar_value = post_defs } in
+        let h = Prover.normalize (mk_star post f) in
+        let hs = Expr.match_ h undefined (Expr.on_or id & c2 [h]) in
+        let missing_heap = mk_star pre_conf.G.missing_heap a in
+        let mk current_heap =
+          { G.current_heap; missing_heap; pvar_value = post_defs } in
 (*  TODO       G.check_ok_configuration conf; *)
-        if log log_exec then
-          fprintf logf "@,%a" Cfg.pp_ok_configuration conf;
-        conf in
+        let cs = List.map mk hs in
+        if log log_exec then begin
+          fprintf logf "@[<2>(demonic choice: %a)@]@\n"
+            (pp_list_sep " or " Cfg.pp_ok_configuration) cs
+        end;
+        cs in
       let mk_ok conf = CT_ok conf in
       let keep_conf { G.missing_heap; current_heap; pvar_value } =
         let current_heap =
@@ -604,7 +598,7 @@ end = struct
             current_heap (eqs_of_bindings (StringMap.bindings pvar_value)) in
         not (is_deadend missing_heap) && not (is_deadend current_heap) in
       afs
-        |> List.map mk_post_conf
+        >>= mk_post_conf
         |> List.filter keep_conf
         |> List.map mk_ok
         |> make_demonic_choice in
@@ -614,7 +608,6 @@ end = struct
             fprintf logf "(error conf)@?";
           CT_error
       | afs -> branch afs in
-        (* TODO: Demonically split leafs that have disjunctions *)
     if log log_exec then fprintf logf "@}@]@,@?";
     r
 
@@ -926,11 +919,12 @@ end = struct
           fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
         let process_triple_check =
           process_triple (update_check rules body) in
-        let ts = lol_cat (List.map process_triple_check ts) in
-        let ts = option [] id ts in
+        let tss = List.map process_triple_check ts in
         if log log_phase then fprintf logf "@}";
        	(* Check if we are OK or not (see comment for [verify]) *)
         if infer then begin
+          let ts = lol_cat tss in
+          let ts = option [] id ts in
           let new_ts =
             let f t = not (Prover.is_inconsistent rules.C.calculus t.C.pre) in
             List.filter f ts in
@@ -959,14 +953,12 @@ end = struct
 	     Spec_updated)
 	end
 	else begin (* checking, not inferring *)
-          let new_specs = C.TripleSet.of_list ts in (* TODO: Is this needed? *)
-          let len = C.TripleSet.length in
           let modifies_ok t =
             let ms =
               List.fold_right StringSet.add t.C.modifies StringSet.empty in
             List.for_all (flip StringSet.mem ms) mvars in
-          let ok = len new_specs = len procedure.C.proc_spec in
-          let ok = ok
+          let ok =
+            List.for_all (option false ((<>) [])) tss
             && C.TripleSet.for_all modifies_ok procedure.C.proc_spec in
           if ok then OK else NOK
 	end
