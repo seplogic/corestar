@@ -132,6 +132,13 @@ let normalize_spec = C.TripleSet.map normalize
 let normalize_proc proc =
   proc.C.proc_spec <- normalize_spec proc.C.proc_spec
 
+let join_triples ts =
+  let pre = Prover.mk_big_meet (List.map (fun t -> t.C.pre) ts) in
+  let post = Prover.mk_big_or (List.map (fun t -> t.C.post) ts) in
+  let modifies =
+    Misc.remove_duplicates compare (ts >>= fun t -> t.C.modifies) in
+  { C.pre; post; modifies }
+
 (* }}} *)
 (* graph operations *) (* {{{ *)
 (* helpers for [mk_intermediate_cfg] {{{ *)
@@ -322,8 +329,6 @@ let output_sccs cs =
 (* }}} *)
 (* symbolic execution for one procedure {{{ *)
 (* Fixed point calculation will stop when this number of triples is reached *)
-let max_triples = 20 (* the step function in TopStar can have a large number of triples, so this should not be too low *)
-  
 module ProcedureInterpreter : sig
   type interpret_procedure_result =
     | NOK
@@ -352,6 +357,41 @@ end = struct
 
   (* Other short names. *)
   module CG = G.ConfigurationGraph
+  module StatementBfs = Bfs.Make (SS)
+  module ConfBfs = Bfs.Make (CS)
+
+  (* helpers for configuration graphs *) (* {{{ *)
+
+  (* The following algorithm is used to compute which confs inevitably lead to
+  error, and also to compute whether a set of confs associated with the stop
+  vertex covers all possible demonic choices. In general, for each vertex x we
+  are given an integer c(x). The returned value is the least fixed-point of: If
+  c(x) successors of x are marked, then x is marked.  (Note that c(x)=0 implies
+  that x is in the result.) Works in linear time/space. *)
+  let eval_cg init confgraph =
+    let count = CD.create 0 in
+    let q = ConfBfs.initialize true in
+    let init x =
+      let c = init x in
+      if c = 0 then ConfBfs.enque q x;
+      assert (not (CD.mem count x));
+      CD.add count x c in
+    let decrement x =
+      if not (ConfBfs.is_seen q x) then begin
+        let c = CD.find count x - 1 in
+        assert (c >= 0);
+        if c = 0 then ConfBfs.enque q x;
+        CD.replace count x c
+      end in
+    let process x =
+      assert (CD.find count x = 0);
+      CG.iter_pred decrement confgraph x in
+    CG.iter_vertex init confgraph;
+    while not (ConfBfs.is_done q) do process (ConfBfs.deque q) done;
+    CS.of_list (ConfBfs.get_seen q)
+
+
+  (* }}} *)
 
   type interpreter_context =
     { confgraph : CG.t
@@ -463,8 +503,6 @@ end = struct
     SD.add post_of procedure.P.start (CS.singleton conf);
     { confgraph; flowgraph; post_of; pre_of; statement_of }
 
-  module StatementBfs = Bfs.Make (SS)
-  module ConfBfs = Bfs.Make (CS)
 
   let abduct = Prover.biabduct
   let frame = Prover.infer_frame
@@ -663,7 +701,7 @@ end = struct
   let implies_triple calculus t1 t2 =
     let t2m = List.fold_right StringSet.add t2.C.modifies StringSet.empty in
     let prove = Prover.infer_frame calculus in
-    let check_final { Prover.frame; _ } = Prover.is_pure frame in
+    let check_final { Prover.frame; _ } = Expr.is_pure frame in
     let check_intermediate { Prover.frame; _ } =
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
@@ -701,36 +739,12 @@ end = struct
 
   (* helpers for [prune_error_confs] {{{ *)
 
-  let pec_ge_init confgraph ne_succ_cnt q v = match CG.V.label v with
-    | G.ErrorConf -> ConfBfs.enque q v
-    | G.OkConf (_, G.Angelic) ->
-        (* TODO(rgrig): simplify? *)
-        let cnt = CG.fold_succ (fun _ -> succ) confgraph v 0 in
-        CD.add ne_succ_cnt v cnt
-    | _ -> ()
-
-  let pec_ge_process confgraph ne_succ_cnt q =
-    let process_pred u =
-      if not (ConfBfs.is_seen q u) then begin
-        match CG.V.label u with
-          | G.OkConf (_, G.Angelic) ->
-              let n = CD.find ne_succ_cnt u - 1 in
-              CD.replace ne_succ_cnt u n;
-              assert (n >= 0);
-              if n = 0 then ConfBfs.enque q u
-          | G.OkConf (_, G.Demonic) -> ConfBfs.enque q u
-          | G.ErrorConf -> failwith "ErrorConf should have no successors"
-      end in
-    CG.iter_pred process_pred confgraph
-
   let pec_get_errors confgraph =
-    let ne_succ_cnt = CD.create 1 in (* counts non-error angelic successors *)
-    let q = ConfBfs.initialize true in
-    CG.iter_vertex (pec_ge_init confgraph ne_succ_cnt q) confgraph;
-    while not (ConfBfs.is_done q) do
-      pec_ge_process confgraph ne_succ_cnt q (ConfBfs.deque q)
-    done;
-    CS.of_list (ConfBfs.get_seen q)
+    let count x = match CG.V.label x with
+      | G.OkConf (_, G.Angelic) -> CG.fold_succ (c1 succ) confgraph x 0
+      | G.OkConf (_, G.Demonic) -> 1
+      | G.ErrorConf -> 0 in
+    eval_cg count confgraph
 
   (* Finds confs reachable from [inits] without going thru [errors]. *)
   let pec_get_to_keep confgraph inits errors =
@@ -772,9 +786,42 @@ end = struct
       G.fileout_confgraph fname g
     end
 
-  let get_new_specs context proc =
+  (* helpers for [get_stop_confs] *) (* {{{ *)
+
+  let gsc_is_ok confgraph starts stops confs =
+    let count x =
+      if CS.mem stops x then (if CS.mem confs x then 0 else max_int) else
+      match CG.V.label x with
+        | G.OkConf (_, G.Angelic) -> 1
+        | G.OkConf (_, G.Demonic) -> CG.fold_succ (c1 succ) confgraph x 0
+        | G.ErrorConf -> failwith "INTERNAL: errors should be pruned by now" in
+    let covered = eval_cg count confgraph in
+    CS.for_all (CS.mem covered) starts
+
+  (* NOTE: The problem solved here is at least as hard as generating hitting
+  sets, for which no output-polynomial time is known. That's why it's OK to use
+  a rather stupid approximation. For some definition of OK. *)
+  let gsc_group confgraph starts cs =
+    let is_ok = gsc_is_ok confgraph starts (CS.of_list cs) in
+    let cs = Misc.shuffle cs in
+    let rec f css xs = function
+      | [] -> css
+      | y :: ys ->
+          let xs = y :: xs in
+          if is_ok (CS.of_list xs) then f (xs :: css) [] ys else f css xs ys in
+    let css = f [] [] cs in
+    List.iter (fun cs -> assert (cs <> [])) css;
+    css
+
+  (* }}} *)
+
+  (* TODO: Group configurations such that they cover all demonic choices. *)
+  let get_stop_confs context proc =
     prune_error_confs context proc.P.start;
-    post_confs context proc.P.stop |> CS.elements |> List.map conf_of_vertex
+    post_confs context proc.P.stop
+      |> CS.elements
+      |> gsc_group context.confgraph (post_confs context proc.P.start)
+      |> List.map (List.map conf_of_vertex)
 
   (* Builds a graph of configurations, in BFS order. *)
   let interpret_flowgraph proc_name update procedure pre =
@@ -796,7 +843,7 @@ end = struct
     end
     else begin
 (*      if log log_exec then output_confgraph proc_name context.confgraph; *)
-      Some (get_new_specs context procedure)
+      Some (get_stop_confs context procedure)
     end
 
   let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = [] }
@@ -840,13 +887,6 @@ end = struct
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
 
-  let hashset_subset s1 s2 =
-    try HashSet.iter (HashSet.find s2) s1; true with Not_found -> false
-
-  let hashset_equals s1 s2 =
-    HashSet.length s1 = HashSet.length s2 &&
-    hashset_subset s1 s2
-
   (* TODO: This function is huge: must be refactored into smaller pieces. *)
   let interpret proc_of_name rules infer procedure = match procedure.C.proc_body with
     | None ->
@@ -878,7 +918,7 @@ end = struct
             let post_eqs =
               let rec is_init e =
                 is_init_value e ||
-                Expr.cases (fun _ -> false) (fun _ -> List.for_all is_init) e in
+                Expr.cases (c1 false) (c1 & List.for_all is_init) e in
               let bs = StringMap.bindings visible_defs in
               let bs = List.filter (is_init @@ snd) bs in
               eqs_of_bindings bs in
@@ -891,13 +931,14 @@ end = struct
               { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
               ; post = mk_star current_heap post_eqs
               ; modifies = mvars_global } in
-          let cs =
+          let css =
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
-          let r = option_map (List.map triple_of_conf) cs in
+          let tss = option_map (List.map (List.map triple_of_conf)) css in
+          let ts = option_map (List.map join_triples) tss in
           if log log_phase then fprintf logf "@{</details>@?";
-	  r in
+	  ts in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
@@ -933,9 +974,7 @@ end = struct
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
-	  let fixpoint_timeout = List.length new_ts >= max_triples in
-          let finished = fixpoint_timeout || List.for_all not_better new_ts in
-          if finished then begin
+          if List.for_all not_better new_ts then begin
             if log log_exec then begin
               fprintf logf "@[@{<h3>Reached fixed-point for %s@}@\n@]@?"
                 procedure.C.proc_name

@@ -57,3 +57,5 @@ val hash_of_list
     -> ('elem -> 'value option)
     -> 'elem list
     -> ('key, 'summary) Hashtbl.t
+
+val shuffle : 'a list -> 'a list

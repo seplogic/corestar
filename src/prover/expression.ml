@@ -6,8 +6,8 @@ type var = symbol (* x, y, ... *)
 type op = symbol (* g, h, ... *)
 type sort = string (* t *)
 
-type t_orig = Var of string | App of string * exp list
-and exp = t_orig * int  (* e, f, ... *)
+type t_orig = Var of string | App of string * expr list
+and expr = t_orig * int  (* e, f, ... *)
   (* TODO: explain which are valid names; empty string is not *)
 
 let hash = snd
@@ -25,7 +25,7 @@ let declare_symbol u t =
   StringHash.add symbols u t
 
 module ExpBase = Hashtbl.Make (struct
-  type t = exp
+  type t = expr
   let hash = hash
   let equal f1 f2 = match fst f1, fst f2 with
     | Var x1, Var x2 -> x1 = x2
@@ -52,6 +52,7 @@ let pvar_re = Str.regexp "[a-zA-Z$@]" (* TODO: I'd prefer just [a-z]. *)
 let lvar_re = Str.regexp "_"
 let tpat_re = Str.regexp "\\?"
 let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
+let pure_re = Str.regexp "!"
 
 let is_pvar v = Str.string_match pvar_re v 0
 let is_lvar v = Str.string_match lvar_re v 0
@@ -117,24 +118,24 @@ let rec size e = match fst e with
 
 module ExprHashSet = HashSet.Make(
 struct
-  type t = exp
+  type t = expr
   let hash = hash
   let equal = equal
 end)
 
 let vars x =
   let vs = ExprHashSet.create 0 in
-  let rec f exp = match fst exp with
-    | Var _ -> ExprHashSet.add vs exp
+  let rec f expr = match fst expr with
+    | Var _ -> ExprHashSet.add vs expr
     | App (_, xs) -> List.iter f xs in
-  let g exp a = match fst exp with
+  let g expr a = match fst expr with
     | Var v -> v::a
     | _ -> assert false in
   f x ; ExprHashSet.fold g vs []
 
 module ExprHashMap = Hashtbl.Make(
 struct
-  type t = exp
+  type t = expr
   let hash = hash
   let equal = equal
 end)
@@ -158,11 +159,11 @@ let mk_2 op a b = mk_app op [a; b]
 (* NOTE: The main point of [on_*] functions is to avoid using strings in other
 places in the codebase, because that is bug-prone. *)
 type 'a automorphism = 'a -> 'a
-type 'a app_eval = (op -> exp list -> 'a) automorphism
-type 'a app_eval_n = (exp list -> 'a) -> 'a app_eval
+type 'a app_eval = (op -> expr list -> 'a) automorphism
+type 'a app_eval_n = (expr list -> 'a) -> 'a app_eval
 type 'a app_eval_0 = (unit -> 'a) -> 'a app_eval
-type 'a app_eval_1 = (exp -> 'a) -> 'a app_eval
-type 'a app_eval_2 = (exp -> exp -> 'a) -> 'a app_eval
+type 'a app_eval_1 = (expr -> 'a) -> 'a app_eval
+type 'a app_eval_2 = (expr -> expr -> 'a) -> 'a app_eval
 
 
 let on_op op_ref f g op =
@@ -196,8 +197,6 @@ let emp = mk_0 "emp"
 let on_emp f = on_0 "emp" f
 let fls = mk_0 "fls"
 let on_fls f = on_0 "fls" f
-let nil = mk_0 "nil"  (* TODO: Why do we have this? *)
-let on_nil f = on_0 "nil" f
 
 let mk_star = mk_2 "*"
 let mk_big_star = mk_app "*"
@@ -219,8 +218,20 @@ let on_string_const f = on_tag "<string>" f
 let mk_int_const s = mk_1 "<int>" (mk_0 s)
 let on_int_const f = on_tag "<int>" f
 
-let is_interpreted _ = failwith "TODO"
-
+let rec is_pure e =
+  let c0 x () = x in
+  let terr _ = failwith "INTERNAL: should be formula, not term" in
+  match_ e terr
+  ( on_string_const terr
+  & on_int_const terr
+  & on_emp (c0 true)
+  & on_fls (c0 true)
+  & on_star (List.for_all is_pure)
+  & on_or (List.for_all is_pure)
+  & on_not (fun e -> assert (is_pure e); true)
+  & on_eq (c2 true)
+  & on_neq (c2 true)
+  & fun op _ -> Str.string_match pure_re op 0)
 
 (* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
 
@@ -243,7 +254,6 @@ let rec pp_infix f e =
     & on_int_const (fprintf f "%s")
     & on_emp (pp_0 "emp")
     & on_fls (pp_0 "false")
-    & on_nil (pp_0 "nil()")
     & on_star (pp_n " * ")
     & on_or (pp_n " || ")
     & on_not (pp_1 "!")
@@ -258,4 +268,4 @@ expressions, edit them, then read them back with corestar's parser. All this
 while debugging, of course.*)
 let pp = pp_prefix
 
-type t = exp
+type t = expr

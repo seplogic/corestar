@@ -1,6 +1,7 @@
 true: package(str)
 true: package(unix)
 true: debug
+# true: profile
 <src>: include
 <src/parsing>: include
 <src/prover>: include

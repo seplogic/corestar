@@ -128,3 +128,7 @@ let hash_of_list one plus key value xs =
         with Not_found -> Hashtbl.add h k (one v)) in
   List.iter entry xs;
   h
+
+let shuffle xs = xs
+  (* TODO. Note: It's a bit annoying that [Random] has one global state. *)
+

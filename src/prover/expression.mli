@@ -37,6 +37,9 @@ val is_lvar : var -> bool (* logical variable *)
 val is_tpat : var -> bool (* pattern that matches terms or formulas *)
 val is_vpat : var -> bool (* pattern that matches variables *)
 
+(* Predicates are pure if the star with "!". *)
+val is_pure : t -> bool
+
 (* operations on formulas *)
 
 val equal : t -> t -> bool
@@ -51,7 +54,6 @@ val mk_0 : op -> t
 val mk_1 : op -> t -> t
 val mk_2 : op -> t -> t -> t
 
-val nil : t
 val emp : t
 val fls : t
 
@@ -82,7 +84,6 @@ type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
 type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
 val on_emp : 'a app_eval_0
 val on_fls : 'a app_eval_0
-val on_nil : 'a app_eval_0
 val on_star : 'a app_eval_n
 val on_or : 'a app_eval_n
 val on_not : 'a app_eval_1
@@ -95,10 +96,8 @@ val on_op : op -> 'a app_eval_n
 (* Example: let rec f e = cases (fun _->false) (recurse f) *)
 val recurse : (t -> t) -> (op -> t list -> t)
 
-val is_interpreted : string -> bool
-
 val pp : t pretty_printer
 
 
-(* HACK *)
+(* HACK. To remove. *)
 val stem : var -> var

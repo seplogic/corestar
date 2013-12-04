@@ -17,13 +17,17 @@ val biabduct
 frame was found, while the result [Expression.emp] means that the entailment
 holds as given; that is, with an empty frame. Similarly for biabduct. *)
 
-val mk_big_star
-  : Expression.t list -> Expression.t
+val mk_or
+  : Expression.t -> Expression.t -> Expression.t
 val mk_star
   : Expression.t -> Expression.t -> Expression.t
+val mk_meet (* [mk_meet a b] is stronger than both [a] and [b] *)
+  : Expression.t -> Expression.t -> Expression.t
+val mk_big_or
+  : Expression.t list -> Expression.t
+val mk_big_star
+  : Expression.t list -> Expression.t
+val mk_big_meet
+  : Expression.t list -> Expression.t
 val normalize
   : Expression.t -> Expression.t
-
-(* TODO: Move to [Expression], and use "!" prefix *)
-val is_pure (* Approx: if true, then yes; if false, then maybe pure. *)
-  : Expression.t -> bool

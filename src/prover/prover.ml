@@ -20,23 +20,6 @@ let smt_is_valid a =
   Smt.pop ();
   r
 
-(* TODO: This should use the ! marker on predicates. *)
-let is_pure e =
-  let ok_n = [ Expr.on_star; Expr.on_or ] in
-  let ok_2 = [ Expr.on_eq; Expr.on_neq ] in
-  let ok_1 = [ Expr.on_not ] in
-  let ok_0 = [ Expr.emp; Expr.fls ] in
-  let stop_op = [ Expr.on_string_const; Expr.on_int_const ] in
-  let rec is_ok e =
-    let f _ _ = false in
-    let f = List.fold_right ((|>) are_all_ok) ok_n f in
-    let f = List.fold_right ((|>) (c2 true)) ok_2 f in
-    let f = List.fold_right ((|>) is_ok) ok_1 f in
-    let f = List.fold_right ((|>) (c1 true)) stop_op f in
-    List.exists (Expr.equal e) ok_0 || Expr.cases (c1 true) f e
-  and are_all_ok es = List.for_all is_ok es in
-  is_ok e
-
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
 (*   printf "oops@\n@?"; *)
@@ -61,7 +44,7 @@ let rec unfold on e =
 let ac_simplify_split is_zero on es =
   let xs = es >>= unfold on in
   let xs = List.filter (not @@ is_zero) xs in
-  let xs, ys = List.partition is_pure xs in
+  let xs, ys = List.partition Expr.is_pure xs in
   let module H = Hashtbl.Make (Expr) in
   let h = H.create (List.length xs) in
   List.iter (fun x -> H.replace h x ()) xs;
@@ -86,6 +69,13 @@ let mk_big_or =
   ac_make Expr.fls Expr.mk_big_or @@ ac_simplify is_false Expr.on_or
 
 let mk_star e1 e2 = mk_big_star [e1; e2]
+let mk_or e1 e2 = mk_big_or [e1; e2]
+
+(* TODO: Some more precise implementations. *)
+let mk_meet e1 e2 = if Expr.equal e1 e2 then e1 else Expr.fls
+let mk_big_meet = function
+  | [] -> Expr.emp
+  | e :: es -> List.fold_left mk_meet e es
 
 let find_lvar_pvar_subs =
   let on_var_eq_var f g e =
@@ -122,7 +112,7 @@ let afs_of_sequents = function
       List.map f ss
 
 let smt_implies a b =
-  if is_pure b then
+  if Expr.is_pure b then
     let a_pure, _ = extract_pure_part a in
     smt_is_valid (Expr.mk_or (Expr.mk_not a_pure) b)
   else false
@@ -179,7 +169,7 @@ let dbg_mc = ref 0
 
 (* HACK. To fix. *)
 let smt_abduce hypothesis conclusion =
-  if is_pure conclusion then begin
+  if Expr.is_pure conclusion then begin
     (* XXX: this is intuitionistic *)
     let pure_hypothesis, _ = extract_pure_part hypothesis in
     let rec shrink eqs =
@@ -524,7 +514,7 @@ let match_subformula_rule =
 	  (pp_list_sep "\n" (fun f m -> fprintf f "[ %a ]" (pp_list_sep "; " (fun f (v,e) -> fprintf f "%s->%a" v Expr.pp e)) (StringMap.bindings m))) matches;
       let mk_goal m =
 	let leftover_match = StringMap.find lo_name m in
-	if is_pure leftover_match then
+	if Expr.is_pure leftover_match then
 	  let m = StringMap.remove lo_name m in
           let b = StringMap.bindings m in
 	  let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
@@ -629,7 +619,7 @@ let wrap_calculus f calculus =
 looks like abduction). *)
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
-    if Expr.equal conclusion Expr.emp && is_pure hypothesis
+    if Expr.equal conclusion Expr.emp && Expr.is_pure hypothesis
     then 0
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
