@@ -93,18 +93,6 @@ module DotCfg = DG.Dot (struct
         [ l lbl; `Shape `Box; `Style [`Rounded] ]
 end)
 
-module DotConf = DG.Dot (struct
-  include DG.DotDefault (ConfigurationGraph)
-  let vertex_attributes v =
-    let presentation = match V.label v with
-      | ErrorConf -> [ `Color "red"; `Shape `Ellipse; `Style [`Filled] ]
-      | OkConf _ -> [ `Shape `Box; `Style [`Rounded] ] in
-    let l x = `Label (Dot.escape_for_label x) in
-    fprintf str_formatter "%a" pp_configuration (V.label v);
-    let s = flush_str_formatter () in
-    l s :: presentation
-end)
-
 let fileout file_name f =
   let o = open_out file_name in
   f o; close_out o
@@ -112,5 +100,21 @@ let fileout file_name f =
 let fileout_cfg file_name g =
   fileout file_name (fun o -> DotCfg.output_graph o g)
 
-let fileout_confgraph file_name g =
+let fileout_confgraph stops file_name g =
+  let module DotConf = DG.Dot (struct
+    include DG.DotDefault (ConfigurationGraph)
+    let vertex_attributes v =
+      let color =
+        match V.label v with ErrorConf -> "red" | OkConf _ -> "black" in
+      let shape =
+        match V.label v with ErrorConf -> `Ellipse | OkConf _ -> `Box in
+      let style =
+        (if CVHashSet.mem stops v then [ `Bold ] else [])
+        @ [match V.label v with ErrorConf -> `Filled | OkConf _ -> `Rounded] in
+      let presentation = [ `Color color; `Shape shape; `Style style ] in
+      let l x = `Label (Dot.escape_for_label x) in
+      fprintf str_formatter "%a" pp_configuration (V.label v);
+      let s = flush_str_formatter () in
+      l s :: presentation
+  end) in
   fileout file_name (fun o -> DotConf.output_graph o g)

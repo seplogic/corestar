@@ -366,8 +366,8 @@ end = struct
   error, and also to compute whether a set of confs associated with the stop
   vertex covers all possible demonic choices. In general, for each vertex x we
   are given an integer c(x). The returned value is the least fixed-point of: If
-  c(x) successors of x are marked, then x is marked.  (Note that c(x)=0 implies
-  that x is in the result.) Works in linear time/space. *)
+  at least c(x) successors of x are marked, then x is marked.  (Note that c(x)=0
+  implies that x is in the result.) Works in linear time/space. *)
   let eval_cg init confgraph =
     let count = CD.create 0 in
     let q = ConfBfs.initialize true in
@@ -774,27 +774,24 @@ end = struct
     let to_remove = pec_get_to_remove confgraph to_keep in
     CS.iter (remove_conf context) to_remove
 
-  let output_confgraph n g =
-    G.fileout_confgraph (n ^ "_confgraph.dot") g
-
   let confgraph_counter = ref 0
-  let output_confgraph_i n i g =
+  let output_confgraph_i stops n i g =
     if !confgraph_counter < 1000 then begin
       let ccc = incr confgraph_counter; !confgraph_counter in
       let fname = sprintf "%s_confgraph_%05d_%d.dot" n ccc i in
       if log log_exec then fprintf logf "@[Outputing confgraph to file: @{<dotpdf>%s@}@]@\n@?" fname;
-      G.fileout_confgraph fname g
+      G.fileout_confgraph stops fname g
     end
 
   (* helpers for [get_stop_confs] *) (* {{{ *)
 
-  let gsc_is_ok confgraph starts stops confs =
+  let gsc_is_ok confgraph starts confs =
     let count x =
-      if CS.mem stops x then (if CS.mem confs x then 0 else max_int) else
-      match CG.V.label x with
+      if CS.mem confs x then 0
+      else max 1 (match CG.V.label x with
         | G.OkConf (_, G.Angelic) -> 1
         | G.OkConf (_, G.Demonic) -> CG.fold_succ (c1 succ) confgraph x 0
-        | G.ErrorConf -> failwith "INTERNAL: errors should be pruned by now" in
+        | G.ErrorConf -> failwith "INTERNAL: errors should be pruned by now") in
     let covered = eval_cg count confgraph in
     CS.for_all (CS.mem covered) starts
 
@@ -802,15 +799,32 @@ end = struct
   sets, for which no output-polynomial time is known. That's why it's OK to use
   a rather stupid approximation. For some definition of OK. *)
   let gsc_group confgraph starts cs =
-    let is_ok = gsc_is_ok confgraph starts (CS.of_list cs) in
-    let cs = Misc.shuffle cs in
-    let rec f css xs = function
-      | [] -> css
-      | y :: ys ->
-          let xs = y :: xs in
-          if is_ok (CS.of_list xs) then f (xs :: css) [] ys else f css xs ys in
-    let css = f [] [] cs in
-    List.iter (fun cs -> assert (cs <> [])) css;
+    let is_ok = gsc_is_ok confgraph starts in
+    assert (List.length cs < 100); (* Otherwise this may take forever. *)
+    let shrink cs =
+      let ds = CS.of_list cs in
+      let f c = CS.remove ds c; if not (is_ok ds) then CS.add ds c in
+      List.iter f cs;
+      CS.elements ds in
+    let remaining = CS.of_list cs in
+    let rec loop css =
+      if is_ok remaining then
+        let cs = shrink (CS.elements remaining) in
+        List.iter (CS.remove remaining) cs;
+        loop (cs :: css)
+      else css in
+    let css = loop [] in
+    if safe then List.iter (fun cs -> assert (cs <> [])) css;
+    if log log_exec then begin
+      let n = ref 0 in
+      let ppg f cs =
+        incr n;
+        fprintf f "@[<2>group %d:@ %a@]@\n"
+          !n
+          (pp_list_sep "+" G.pp_configuration) cs in
+      let css = List.map (List.map CG.V.label) css in
+      fprintf logf "@[<2>stop confs:@ %a@]@\n" (pp_list ppg) css
+    end;
     css
 
   (* }}} *)
@@ -830,7 +844,10 @@ end = struct
     let enque_succ = G.Cfg.iter_succ (StatementBfs.enque q) context.flowgraph in
     enque_succ procedure.P.start;
     let rec bfs budget =
-      if log log_exec then output_confgraph_i proc_name budget context.confgraph;
+      if log log_exec then begin
+        let stops = post_confs context procedure.P.stop in
+        output_confgraph_i stops proc_name budget context.confgraph
+      end;
       if budget = 0 || StatementBfs.is_done q then budget else begin
         let s = StatementBfs.deque q in
         if update context s then enque_succ s;
@@ -842,7 +859,6 @@ end = struct
       None
     end
     else begin
-(*      if log log_exec then output_confgraph proc_name context.confgraph; *)
       Some (get_stop_confs context procedure)
     end
 

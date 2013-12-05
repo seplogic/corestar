@@ -214,7 +214,7 @@ module DotAttributes = struct
     | `Polygon of int * float
     | `Record ]
 
-  type style = [ `Rounded | `Filled ]
+  type style = [ `Bold | `Filled | `Rounded ]
 
   type graph =
     [ `Center of bool ]
@@ -265,8 +265,9 @@ module Dot (X : DISPLAY) = struct
     | `Color c -> fprintf f "color=\"%s\"" c
     | `Style ss ->
       (let pp_style f = function
-	| `Rounded -> fprintf f "rounded"
-	| `Filled -> fprintf f "filled" in
+	| `Bold -> fprintf f "bold"
+	| `Filled -> fprintf f "filled"
+	| `Rounded -> fprintf f "rounded" in
        fprintf f "style=\"%a\"" (pp_list_sep "," pp_style) ss
       )
     | #DotAttributes.edge

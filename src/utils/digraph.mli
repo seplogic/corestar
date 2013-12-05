@@ -74,7 +74,7 @@ module DotAttributes :
         | `Plaintext
         | `Polygon of int * float
         | `Record ]
-    type style = [ `Rounded | `Filled ]
+    type style = [ `Bold | `Filled | `Rounded ]
     type graph = [ `Center of bool ]
     type vertex = [ `Label of string | `Shape of shape | `Color of string | `Style of style list ]
     type edge = [ `Arrowsize of float ]
