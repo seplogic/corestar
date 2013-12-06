@@ -813,7 +813,7 @@ end = struct
         List.iter (CS.remove remaining) cs;
         loop (cs :: css)
       else css in
-    let css = loop [] in
+    let css = if CS.length starts = 0 then [] else  loop [] in
     if safe then List.iter (fun cs -> assert (cs <> [])) css;
     if log log_exec then begin
       let n = ref 0 in
@@ -1051,7 +1051,9 @@ let interpret q =
   if !Config.verbosity >= 3 then output_sccs sccs;
   let proc_of_name n = CallGraph.V.label (von n) in
   let qs = List.map (with_procs q) sccs in
-  List.for_all (interpret_one_scc proc_of_name) qs
+  (* NOTE: We do *not* want to stop early if an SCC fails. *)
+  let rs = List.map (interpret_one_scc proc_of_name) qs in
+  List.for_all id rs
 
 let print_specs ps =
   let triple f t = fprintf f "@\n@[<2>%a@]" CoreOps.pp_triple t in

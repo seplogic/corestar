@@ -83,12 +83,12 @@ type 'a app_eval_1 = (t -> 'a) -> 'a app_eval
 type 'a app_eval_2 = (t -> t -> 'a) -> 'a app_eval
 type 'a app_eval_n = (t list -> 'a) -> 'a app_eval
 val on_emp : 'a app_eval_0
-val on_fls : 'a app_eval_0
-val on_star : 'a app_eval_n
-val on_or : 'a app_eval_n
-val on_not : 'a app_eval_1
 val on_eq : 'a app_eval_2
+val on_fls : 'a app_eval_0
 val on_neq : 'a app_eval_2
+val on_not : 'a app_eval_1
+val on_or : 'a app_eval_n
+val on_star : 'a app_eval_n
 val on_string_const : (string -> 'a) -> 'a app_eval
 val on_int_const : (string -> 'a) -> 'a app_eval
 val on_op : op -> 'a app_eval_n

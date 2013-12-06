@@ -23,6 +23,7 @@ let interpreted =
   ; "fls", "false"
   ; "not", "not"
   ; "or", "or" ]
+
 (* TODO: The name [identities] is bad. *)
 let identities =
   [ "and", "true"
@@ -52,6 +53,7 @@ let z3_out, z3_in, z3_err =
 
 let z3_log =
   if log log_smt then open_out "smt.corestar.log" else stderr
+  (* TODO: [stderr] should be something like outnull *)
 
 let log_comment = fprintf z3_log "; %s\n"
 
@@ -130,16 +132,22 @@ let () = (* send prelude *)
 (* TODO: Replace by some proper implementation; should use [Expr.sort_of]. *)
 let analyze_sorts =
   let rec repeat x = function [] -> [] | _ :: ts -> x :: repeat x ts in
-  let dec ts c  = declare c (repeat "Ref" ts, "Ref") in
-  let var = dec [] @@ sanitize_sym in
-  let str = dec [] @@ sanitize_str in
-  let int = dec [] @@ sanitize_int in
-  let rec app op ts = dec ts (sanitize_sym op); List.iter visit ts
-  and visit t = Expr.cases var
-    ( Expr.on_string_const str
-    & Expr.on_int_const int
-    & app) t in
-  visit
+  let dec sort ts c = declare c (repeat "Ref" ts, sort) in
+  let rec visit1 sort t = Expr.match_ t
+    (dec "Ref" [] @@ sanitize_sym)
+    ( Expr.on_emp (c1 ())
+    & Expr.on_eq (visit2 "Ref")
+    & Expr.on_fls (c1 ())
+    & Expr.on_neq (visit2 "Ref")
+    & Expr.on_not (visit1 "Bool")
+    & Expr.on_or (visitn "Bool")
+    & Expr.on_star (visitn "Bool")
+    & Expr.on_string_const (dec "Ref" [] @@ sanitize_str)
+    & Expr.on_int_const (dec "Ref" [] @@ sanitize_int)
+    & (fun op ts -> dec sort ts (sanitize_sym op); visitn "Ref" ts) )
+  and visit2 sort t1 t2 = visitn sort [t1; t2]
+  and visitn sort = List.iter (visit1 sort) in
+  visit1 "Bool"
 
 (* For debugging. *)
 let read_error () =

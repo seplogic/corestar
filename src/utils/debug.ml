@@ -82,7 +82,7 @@ let log_smt = 1 lsl 6
 (* enable html tags in output *)
 let log_html = false
 
-let log_active = log_phase lor log_exec lor log_smt
+let log_active = log_phase lor log_smt lor log_exec
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0
