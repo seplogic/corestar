@@ -40,7 +40,8 @@ let is_true e =
 let rec unfold on e =
   Expr.cases (c1 [e]) (on (ListH.concatMap (unfold on)) & c2 [e]) e
 
-(* Removes zero, and removes repetitions of pure parts. *)
+(* Removes zero, and removes repetitions of pure parts.
+Returns (pure, spatial) pair. *)
 let ac_simplify_split is_zero on es =
   let xs = es >>= unfold on in
   let xs = List.filter (not @@ is_zero) xs in
@@ -56,6 +57,7 @@ let ac_simplify is_zero on es =
 let ac_make zero mk =
   function [] -> zero | [e] -> e | es -> mk es
 
+(* Returns (pure, spatial) pair. *)
 let extract_pure_part e =
   let mk = ac_make Expr.emp Expr.mk_big_star in
   let xs, ys = ac_simplify_split is_true Expr.on_star [e] in
@@ -71,8 +73,13 @@ let mk_big_or =
 let mk_star e1 e2 = mk_big_star [e1; e2]
 let mk_or e1 e2 = mk_big_or [e1; e2]
 
-(* TODO: Some more precise implementations. *)
-let mk_meet e1 e2 = if Expr.equal e1 e2 then e1 else Expr.fls
+let mk_meet e1 e2 =
+  let e1p, e1s = extract_pure_part e1 in
+  let e2p, e2s = extract_pure_part e2 in
+  if not (Expr.equal e1s Expr.emp && Expr.equal e2s Expr.emp)
+  then Expr.fls (* TODO: More precise. *)
+  else mk_star e1p e2p
+
 let mk_big_meet = function
   | [] -> Expr.emp
   | e :: es -> List.fold_left mk_meet e es
