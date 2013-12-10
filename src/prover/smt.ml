@@ -39,6 +39,8 @@ let uniq_id = ref 0
 let str_map = StringHash.create 0
 let sym_map = StringHash.create 0
 let () = List.iter (uncurry (StringHash.add sym_map)) interpreted
+(** remember the expressions that Z3 knows about *)
+let expr_map = Expression.ExprHashMap.create 0
 
 let bad_id_re = Str.regexp "[^a-zA-Z0-9]+"
 
@@ -56,6 +58,7 @@ let sanitize_int = sanitize "int" str_map (* TODO: handle integers properly *)
 
 let log_comment s = if log log_smt then Log.append ("; "^s^"\n")
 
+(* TODO: ideally, this should be called before we exit *)
 let close_log () = Log.close()
 
 let declared = ref [StringHash.create 0]
@@ -99,23 +102,29 @@ let declare_fun sm ps st =
   FuncDecl.mk_func_decl_s z3_ctx (sanitize_sym sm) ps st
 
 (* TODO: have proper typing; should use [Expression.sort_of]. *)
+(** translate a coreStar expression [t] into a Z3 expression. Memoize the results in [expr_map]. *)
 let rec z3_expr_of_expr =
   let rec repeat x = function [] -> [] | e :: ts -> x :: repeat x ts in
   let bool_sort = Boolean.mk_sort z3_ctx in
-  let rec visit0 sort t = Expression.match_ t
-    (fun v -> (Expr.mk_const_s z3_ctx (sanitize_sym v) sort))
-    (Expression.on_emp (c1 (Boolean.mk_true z3_ctx))
-     & Expression.on_eq (visit2 ref_sort (Boolean.mk_eq z3_ctx))
-     & Expression.on_fls (c1 (Boolean.mk_false z3_ctx))
-     & Expression.on_neq (visit2bis ref_sort (Boolean.mk_distinct z3_ctx))
-     & Expression.on_not (visit1 bool_sort (Boolean.mk_not z3_ctx))
-     & Expression.on_or (visitn bool_sort (Boolean.mk_or z3_ctx))
-     & Expression.on_star (visitn bool_sort (Boolean.mk_and z3_ctx))
-     & Expression.on_string_const (fun s -> Expr.mk_const_s z3_ctx (sanitize_str s) sort)
-     & Expression.on_int_const (fun n -> Expr.mk_const_s z3_ctx (sanitize_str n) sort)
-     & (fun op ts ->
-       let opdecl = declare_fun op (repeat ref_sort ts) sort in
-       visitn ref_sort (Expr.mk_app z3_ctx opdecl) ts) )
+  let rec visit0 sort t =
+    try Expression.ExprHashMap.find expr_map t
+    with Not_found ->
+      let e = Expression.match_ t
+	(fun v -> (Expr.mk_const_s z3_ctx (sanitize_sym v) sort))
+	(Expression.on_emp (c1 (Boolean.mk_true z3_ctx))
+	 & Expression.on_eq (visit2 ref_sort (Boolean.mk_eq z3_ctx))
+	 & Expression.on_fls (c1 (Boolean.mk_false z3_ctx))
+	 & Expression.on_neq (visit2bis ref_sort (Boolean.mk_distinct z3_ctx))
+	 & Expression.on_not (visit1 bool_sort (Boolean.mk_not z3_ctx))
+	 & Expression.on_or (visitn bool_sort (Boolean.mk_or z3_ctx))
+	 & Expression.on_star (visitn bool_sort (Boolean.mk_and z3_ctx))
+	 & Expression.on_string_const (fun s -> Expr.mk_const_s z3_ctx (sanitize_str s) sort)
+	 & Expression.on_int_const (fun n -> Expr.mk_const_s z3_ctx (sanitize_str n) sort)
+	 & (fun op ts ->
+	   let opdecl = declare_fun op (repeat ref_sort ts) sort in
+	   visitn ref_sort (Expr.mk_app z3_ctx opdecl) ts) ) in
+      Expression.ExprHashMap.add expr_map t e;
+      e
   and visit1 sort f1 t = f1 (visit0 sort t)
   and visit2 sort f2 =
     let f2bis = function
