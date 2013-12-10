@@ -1,0 +1,5 @@
+Implication:
+  x = bvadd.32 (bv_const("32", "1"), bv_const("32", "2"))|- 
+  x = bv_const("32", "3")
+? True
+

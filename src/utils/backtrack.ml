@@ -28,8 +28,10 @@ let rec tryall f l t cont =
   in fnm_inner l 
 
 let andthen first second x cont =
-  first x (fun y -> second y cont) 
-    
+  let mk_cont f cont (ts, eq1) = f ts (function y, eq2 -> cont (y, eq2 @ eq1)) in
+  let cont = mk_cont second cont in
+  let cont = mk_cont first cont in
+  cont (x, [])
 
 let using x cont f =
   f x cont 

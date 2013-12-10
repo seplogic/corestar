@@ -507,7 +507,7 @@ and execute_core_stmt
                 let sheap1_af,sheap2_af =
                   if Config.abs_int_join() then join_over_numeric sheap1_af sheap2_af
                   else sheap1_af,sheap2_af in
-                if ((frame_inner !curr_logic sheap2_form sheap1_form <> None) ||
+                if ((frame_inner !curr_logic sheap2_form sheap1_form <> None) &&
                   (frame_inner !curr_logic sheap2_af sheap1_af <> None))
                 then
                   (ignore (add_edge_with_proof id2 id1 ContE

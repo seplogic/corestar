@@ -26,6 +26,7 @@ module type PCC =
         CHole of constant
       | CPConstant of constant
       | CPApp of pattern_curry * pattern_curry
+    type eq = constant * constant
     val create : unit -> t
     val add_term : t -> term -> constant * t
     val add_app : t -> constant -> constant -> constant * t
@@ -43,9 +44,9 @@ module type PCC =
     val others : t -> constant -> constant list
     val eq_term : t -> curry_term -> curry_term -> bool
     val neq_term : t -> curry_term -> curry_term -> bool
-    val patternmatch : t -> curry_term -> constant -> (t -> 'a) -> 'a
-    val unifies : t -> curry_term -> constant -> (t -> 'a) -> 'a
-    val unifies_any : t -> curry_term -> (t * constant -> 'a) -> 'a
+    val patternmatch : t -> curry_term -> constant -> (t * eq list -> 'a) -> 'a
+    val unifies : t -> curry_term -> constant -> (t * eq list -> 'a) -> 'a
+    val unifies_any : t -> curry_term -> (t * eq list * constant -> 'a) -> 'a
     val determined_exists :
       t -> (constant list) -> constant -> constant -> t * (constant * constant) list
     val compress_full : t -> t * (constant -> constant)

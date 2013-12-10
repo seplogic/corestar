@@ -20,6 +20,8 @@ type term_handle
 
 type pattern 
 
+type eq = term_handle * term_handle
+
 (*
    Create a new term structure
    It is externally functional, however underneath it uses mutation, 
@@ -30,7 +32,8 @@ val new_ts : unit -> term_structure
 (* Convert a Psyntax.args with AnyVars into a pattern to match *)
 (*val make_pattern : Psyntax.args -> term_structure -> (pattern * term_structure)))))))))*)
 
-val unifies : term_structure -> pattern -> term_handle -> (term_structure -> 'a) -> 'a
+val unifies : term_structure -> pattern -> term_handle
+  -> (term_structure * eq list -> 'a) -> 'a
 
 val determined_exists : term_structure -> (term_handle list) -> term_handle -> term_handle -> term_structure  * (term_handle * term_handle) list
 
@@ -56,11 +59,13 @@ val add_pattern : Psyntax.args -> term_structure -> (pattern * term_structure)
 
 val equal : term_structure -> term_handle -> term_handle -> bool
 
-val unify_patterns : term_structure -> pattern -> pattern -> (term_structure -> 'a) -> 'a
+val unify_patterns : term_structure -> pattern -> pattern
+  -> (term_structure * eq list -> 'a) -> 'a
 
 val not_equal : term_structure -> term_handle -> term_handle -> bool
 
-val unify_not_equal_pattern : term_structure -> pattern -> pattern -> (term_structure -> 'a) -> 'a
+val unify_not_equal_pattern : term_structure -> pattern -> pattern
+  -> (term_structure * eq list -> 'a) -> 'a
 
 val make_equal : term_structure -> term_handle -> term_handle -> term_structure
 

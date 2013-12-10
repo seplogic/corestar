@@ -122,15 +122,15 @@ let sequent_join fresh (seq : sequent) (pseq : pat_sequent) : sequent option =
       with Contradiction ->
         try
           convert_sf_without_eqs true ts false_sform
-        with Contradiction -> assert false
-          in
-          Some {
-           assumption = ass;
-           obligation = obs;
-           matched = sam;
-           ts = ts;
-           antiframe = ant; 
-         }
+        with Contradiction -> assert false in
+
+    Some {
+      assumption = ass;
+      obligation = obs;
+      matched = sam;
+      ts = ts;
+      antiframe = ant; 
+    }
   with Contradiction ->
     fprintf !(Debug.proof_dump) "Contradiction detected!!@\n";
     None
