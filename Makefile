@@ -4,8 +4,9 @@ MAINS=corestar
 
 # section that shouldn't change often
 
+OCAMLPATH=$(PWD)/libext
 SHELL=/bin/bash
-OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v
+OCAMLBUILD=ocamlbuild -use-ocamlfind -cflag -annot -yaccflag -v
 CPLN=scripts/_build/cpln.byte
 
 build: native

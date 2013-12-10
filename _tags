@@ -1,5 +1,6 @@
 true: package(str)
 true: package(unix)
+true: package(z3)
 true: debug
 true: profile
 <src>: include
@@ -7,3 +8,4 @@ true: profile
 <src/prover>: include
 <src/symexec>: include
 <src/utils>: include
+<libext>: precious

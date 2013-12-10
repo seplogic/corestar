@@ -4,13 +4,19 @@ open Corestar_std
 open Debug
 open Printf
 open Scanf
+open Z3
 
-module Expr = Expression
+(** Z3 initialisation *)
+(* we must open any log file before creating any context *)
+let () =
+  if (log log_smt) && (not (Log.open_ "smt.corestar.log")) then
+    failwith "SMT logging is enabled but Z3 could not open smt.corestar.log.";;
+let z3_ctx = Z3.mk_context !Config.z3_options
 
-type sort = Expr.sort  (* p, p1, p2, q, ... *)
+type sort = Expression.sort  (* p, p1, p2, q, ... *)
 type symbol = string  (* s, s1, s2, *)
-type term = Expr.t  (* t, t1, t2, *)
-type var = Expr.var  (* x, y, ... *)
+type term = Expression.t  (* t, t1, t2, *)
+type var = Expression.var  (* x, y, ... *)
 
 type check_sat_response = Sat | Unsat | Unknown
 
@@ -33,6 +39,8 @@ let uniq_id = ref 0
 let str_map = StringHash.create 0
 let sym_map = StringHash.create 0
 let () = List.iter (uncurry (StringHash.add sym_map)) interpreted
+(** remember the expressions that Z3 knows about *)
+let expr_map = Expression.ExprHashMap.create 0
 
 let bad_id_re = Str.regexp "[^a-zA-Z0-9]+"
 
@@ -48,14 +56,10 @@ let sanitize_sym = sanitize "sym" sym_map
 let sanitize_str = sanitize "str" str_map
 let sanitize_int = sanitize "int" str_map (* TODO: handle integers properly *)
 
-let z3_out, z3_in, z3_err =
-  Unix.open_process_full "z3 -smt2 -in" (Unix.environment())
+let log_comment s = if log log_smt then Log.append ("; "^s^"\n")
 
-let z3_log =
-  if log log_smt then open_out "smt.corestar.log" else stderr
-  (* TODO: [stderr] should be something like outnull *)
-
-let log_comment = fprintf z3_log "; %s\n"
+(* TODO: ideally, this should be called before we exit *)
+let close_log () = Log.close()
 
 let declared = ref [StringHash.create 0]
 
@@ -81,118 +85,92 @@ let is_declared s =
   is_predeclared s
   || (try ignore (declared_sort s); true with Not_found -> false)
 
-(* Helpers to send strings to Z3. *) (* {{{ *)
-(* NOTE: Many of these function resemble pretty-printers from [Corestar_std],
-but there are some differences. For example, here we must use [Printf] rather
-than [Format], because we don't want the latter to introduce spaces at its
-whim. *)
-
-(* NOTE: Helper functions should use [fprintf];
-toplevel sending to z3 should use [sendK]. *)
-let send0 f format = fprintf f format; if log log_smt then fprintf z3_log format
-let send1 f format x = fprintf f format x; if log log_smt then fprintf z3_log format x
-let send2 f format x y = fprintf f format x y; if log log_smt then fprintf z3_log format x y
-let send3 f format x y z = fprintf f format x y z; if log log_smt then fprintf z3_log format x y z
-
-let send_string f = fprintf f "%s"
-
-let send_list pp f = List.iter (fprintf f " %a" pp)
-
 let find_op op =
  try List.assoc op identities
  with Not_found -> op
 
-let rec send_expr f =
-  let ps = fprintf f "%s" in
-  let app op = function
-    | [] -> fprintf f "%s" (find_op op)
-    | xs -> fprintf f "(%s%a)" op (send_list send_expr) xs in
-  Expr.cases
-    (ps @@ sanitize_sym)
-    ( Expr.on_string_const (ps @@ sanitize_str)
-    & Expr.on_int_const (ps @@ sanitize_int)
-    & (app @@ sanitize_sym))
-
 (* }}} *)
 
-let declare s ((ps, q) as psq) =
-  if not (is_predeclared s) then
-  try
-    let psq_old = declared_sort s in
-    assert (psq = psq_old)
-  with Not_found -> begin
-    send1 z3_in "(declare-fun %s" s;
-    send3 z3_in " (%a) %s)\n%!" (send_list send_string) ps q;
-    StringHash.add (List.hd !declared) s psq
-  end
+let z3_sort_of_sort = Sort.mk_uninterpreted_s z3_ctx
 
-let () = (* send prelude *)
-  send0 z3_in "(declare-sort Ref)\n%!"
+(* TODO: temporary hack to have homogeneous sorts. Should use [Expression.sort_of] *)
+let ref_sort = z3_sort_of_sort "Ref"
 
-(* TODO: Replace by some proper implementation; should use [Expr.sort_of]. *)
-let analyze_sorts =
-  let rec repeat x = function [] -> [] | _ :: ts -> x :: repeat x ts in
-  let dec sort ts c = declare c (repeat "Ref" ts, sort) in
-  let rec visit1 sort t = Expr.match_ t
-    (dec "Ref" [] @@ sanitize_sym)
-    ( Expr.on_emp (c1 ())
-    & Expr.on_eq (visit2 "Ref")
-    & Expr.on_fls (c1 ())
-    & Expr.on_neq (visit2 "Ref")
-    & Expr.on_not (visit1 "Bool")
-    & Expr.on_or (visitn "Bool")
-    & Expr.on_star (visitn "Bool")
-    & Expr.on_string_const (dec "Ref" [] @@ sanitize_str)
-    & Expr.on_int_const (dec "Ref" [] @@ sanitize_int)
-    & (fun op ts -> dec sort ts (sanitize_sym op); visitn "Ref" ts) )
-  and visit2 sort t1 t2 = visitn sort [t1; t2]
-  and visitn sort = List.iter (visit1 sort) in
-  visit1 "Bool"
+let z3_solver = Solver.mk_simple_solver z3_ctx
 
-(* For debugging. *)
-let read_error () =
-  let b = Buffer.create 0 in
-  let r () = fscanf z3_out "%c" (fun c -> Buffer.add_char b c; c) in
-  let rec f = function
-    | 0 -> Buffer.sub b 0 (Buffer.length b - 1)
-    | n -> (match r () with
-        | '(' -> f (n + 1) | ')' -> f (n - 1)
-        | '\'' -> g n '\'' | '"' -> g n '"'
-        | _ -> f n)
-  and g n c = if r () = c then f n else g n c in
-  f 1
+let declare_fun sm ps st =
+  FuncDecl.mk_func_decl_s z3_ctx (sanitize_sym sm) ps st
+
+(* TODO: have proper typing; should use [Expression.sort_of]. *)
+(** translate a coreStar expression [t] into a Z3 expression. Memoize the results in [expr_map]. *)
+let rec z3_expr_of_expr =
+  let rec repeat x = function [] -> [] | e :: ts -> x :: repeat x ts in
+  let bool_sort = Boolean.mk_sort z3_ctx in
+  let rec visit0 sort t =
+    try Expression.ExprHashMap.find expr_map t
+    with Not_found ->
+      let e = Expression.match_ t
+	(fun v -> (Expr.mk_const_s z3_ctx (sanitize_sym v) sort))
+	(Expression.on_emp (c1 (Boolean.mk_true z3_ctx))
+	 & Expression.on_eq (visit2 ref_sort (Boolean.mk_eq z3_ctx))
+	 & Expression.on_fls (c1 (Boolean.mk_false z3_ctx))
+	 & Expression.on_neq (visit2bis ref_sort (Boolean.mk_distinct z3_ctx))
+	 & Expression.on_not (visit1 bool_sort (Boolean.mk_not z3_ctx))
+	 & Expression.on_or (visitn bool_sort (Boolean.mk_or z3_ctx))
+	 & Expression.on_star (visitn bool_sort (Boolean.mk_and z3_ctx))
+	 & Expression.on_string_const (fun s -> Expr.mk_const_s z3_ctx (sanitize_str s) sort)
+	 & Expression.on_int_const (fun n -> Expr.mk_const_s z3_ctx (sanitize_str n) sort)
+	 & (fun op ts ->
+	   let opdecl = declare_fun op (repeat ref_sort ts) sort in
+	   visitn ref_sort (Expr.mk_app z3_ctx opdecl) ts) ) in
+      Expression.ExprHashMap.add expr_map t e;
+      e
+  and visit1 sort f1 t = f1 (visit0 sort t)
+  and visit2 sort f2 =
+    let f2bis = function
+      | [e1; e2] -> f2 e1 e2
+      | _ -> failwith "Internal error" in
+    visit2bis sort f2bis
+  and visit2bis sort f2 t1 t2 = visitn sort f2 [t1; t2]
+  and visitn sort fn ts = fn (List.map (visit0 sort) ts) in
+  visit0 bool_sort
 
 let smt_listen () =
-  send0 z3_in "%!";
-  fscanf z3_out " %s" (function
-    | "sat" -> Sat
-    | "unsat" -> Unsat
-    | "unknown" -> Unknown
-    | "(error" -> failwith ("Z3 error: " ^ read_error ())
-    | s -> failwith ("Z3 says: " ^ s))
+  match Solver.check z3_solver [] with
+  | Solver.SATISFIABLE -> Sat
+  | Solver.UNSATISFIABLE -> Unsat
+  | Solver.UNKNOWN -> Unknown
 
 let define_fun sm vs st tm  =
-  let send_arg f (v, s) = fprintf f "(%s %s)" v s in
-  send3 z3_in "(define-fun %s (%a)" sm (send_list send_arg) vs;
-  send3 z3_in " %s %a)\n" st send_expr tm
+  let psorts = List.map snd vs in
+  let params = List.map (fun (v,s) -> Expr.mk_const_s z3_ctx v (z3_sort_of_sort s)) vs in
+  let fdecl = declare_fun sm (List.map z3_sort_of_sort psorts) (z3_sort_of_sort st) in
+  let fx = Expr.mk_app z3_ctx fdecl params in
+  let def = Boolean.mk_eq z3_ctx fx (z3_expr_of_expr tm) in
+  let quantified_def =
+    Quantifier.mk_forall_const z3_ctx params def
+      None (* default weight (0) *)
+      []   (* no patterns *)
+      []   (* no nopatterns *)
+      None (* quantifier_id *)
+      None (* skolem_id *) in
+  Solver.add z3_solver [Quantifier.expr_of_quantifier quantified_def]
 
-let say e =
-  analyze_sorts e;
-  send2 z3_in "(assert %a)\n" send_expr e
+let say e = Solver.add z3_solver [z3_expr_of_expr e]
 
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. *)
   let ss = StringHash.fold (fun _ -> ListH.cons) str_map [] in
   let ss = List.filter is_declared ss in
+  let ss = List.map (fun s -> Expr.mk_const_s z3_ctx s ref_sort) ss in
   if ss <> [] then
-    send2 z3_in "(assert (distinct%a))\n" (send_list send_string) ss;
-  send0 z3_in "(check-sat)\n%!";
+    Solver.add z3_solver [Boolean.mk_distinct z3_ctx ss];
   smt_listen ()
 
 let push () =
   declared_push ();
-  send0 z3_in "(push)\n%!"
+  Solver.push z3_solver
 
 let pop () =
   declared_pop ();
-  send0 z3_in "(pop)\n%!"
+  Solver.pop z3_solver 1

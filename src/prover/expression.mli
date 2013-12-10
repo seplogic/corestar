@@ -25,6 +25,8 @@ val freshen : var -> var
 
 val fresh_pvar : string -> var
 
+module ExprHashMap : Hashtbl.S with type key = t
+
 (* kinds of variables *)
 (* Pattern variables:
   ?x matches any expression (formula or term)
