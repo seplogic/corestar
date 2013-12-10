@@ -15,3 +15,5 @@ val check_sat : unit -> check_sat_response
 
 (* For debug. *)
 val log_comment : string -> unit
+val close_log : unit -> unit
+

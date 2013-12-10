@@ -5,7 +5,7 @@ MAINS=corestar
 # section that shouldn't change often
 
 SHELL=/bin/bash
-OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v
+OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v -cflags -I,$(HOME)/softs/z3/build/api/ml -lflags -I,$(HOME)/softs/z3/build/api/ml,-I,$(HOME)/softs/z3/build,-cc,g++,-cclib,-lz3 -lib z3
 CPLN=scripts/_build/cpln.byte
 
 build: native

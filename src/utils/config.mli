@@ -15,3 +15,4 @@ val args_default : (Arg.key * Arg.spec * Arg.doc) list
 val check_arg_specs : (Arg.key * Arg.spec * Arg.doc) list -> unit
 val use_abduction : bool ref
 val verbosity : int ref
+val z3_options : ((string * string) list) ref
