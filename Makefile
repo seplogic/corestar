@@ -4,8 +4,9 @@ MAINS=corestar
 
 # section that shouldn't change often
 
+OCAMLPATH=$(PWD)/libext
 SHELL=/bin/bash
-OCAMLBUILD=ocamlbuild -cflag -annot -use-ocamlfind -yaccflag -v -cflags -I,$(HOME)/softs/z3/build/api/ml -lflags -I,$(HOME)/softs/z3/build/api/ml,-I,$(HOME)/softs/z3/build,-cc,g++,-cclib,-lz3 -lib z3
+OCAMLBUILD=ocamlbuild -use-ocamlfind -cflag -annot -yaccflag -v
 CPLN=scripts/_build/cpln.byte
 
 build: native
