@@ -4,7 +4,8 @@ MAINS=corestar
 
 # section that shouldn't change often
 
-OCAMLPATH=$(PWD)/libext
+# wish there was an option to give to ocamlfind instead...
+export OCAMLPATH := $(PWD)/libext::$(OCAMLPATH)
 SHELL=/bin/bash
 OCAMLBUILD=ocamlbuild -use-ocamlfind -cflag -annot -yaccflag -v
 CPLN=scripts/_build/cpln.byte
