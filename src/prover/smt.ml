@@ -161,7 +161,6 @@ let say e = Solver.add z3_solver [z3_expr_of_expr e]
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. *)
   let ss = StringHash.fold (fun _ -> ListH.cons) str_map [] in
-  let ss = List.filter is_declared ss in
   let ss = List.map (fun s -> Expr.mk_const_s z3_ctx s ref_sort) ss in
   if ss <> [] then
     Solver.add z3_solver [Boolean.mk_distinct z3_ctx ss];
