@@ -30,6 +30,9 @@ Dependencies:
   http://caml.inria.fr/download.en.html
   Debian / Ubuntu: ocaml, ocaml-native-compilers
 
+* Z3
+  Simply run "./scripts/install_z3.sh"
+
 
 Building on Win32 (native)
 --------------------------
