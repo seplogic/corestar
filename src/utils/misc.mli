@@ -22,6 +22,8 @@ val insert_sorted : 'a -> 'a list -> 'a list
 
 (* }}} *)
 
+val fold_pairs : ('b -> 'a -> 'a -> 'b) -> 'b -> 'a list -> 'b
+
 val iter_pairs : ('a -> 'a -> unit) -> 'a list -> unit
   (* Iterates over consecutive pairs. *)
 
@@ -50,6 +52,19 @@ val product : 'a list list -> 'a list list
 val fresh_int : unit -> unit -> int
   (** [fresh_int ()] is a generator for the sequence 0, 1, 2, ... *)
 
+val summarize_list
+  : (int -> 'hash)  (* create *)
+    -> ('hash -> 'key -> 'summary -> unit) (* add *)
+    -> ('hash -> 'key -> 'summary) (* find *)
+    -> ('value -> 'summary) (* computes summary out of first value *)
+    -> ('value -> 'summary -> 'summary) (* updates summary with a value *)
+    -> ('elem -> 'key option)
+    -> ('elem -> 'value option)
+    -> 'elem list (* the elements to summarize *)
+    -> 'hash
+
+(* TODO: Rename *)
+(* Version of [summarize_list] specialized for [Hashtbl.t]. *)
 val hash_of_list
   : ('value -> 'summary) (* computes summary out of first value *)
     -> ('value -> 'summary -> 'summary) (* updates summary with a value *)

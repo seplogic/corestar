@@ -932,12 +932,25 @@ end = struct
               StringMap.filter p pvar_value in
             let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
             let post_eqs =
+              (* TODO(rgrig): Fix. This is horrible code. *)
+              let module H = Hashtbl.Make (Expr) in
+              let h = H.create 0 in
+              let add e x =
+                let xs = (try H.find h e with Not_found -> []) in
+                H.replace h e (x :: xs) in
+              StringMap.iter (flip add) visible_defs;
               let rec is_init e =
                 is_init_value e ||
                 Expr.cases (c1 false) (c1 & List.for_all is_init) e in
-              let bs = StringMap.bindings visible_defs in
-              let bs = List.filter (is_init @@ snd) bs in
-              eqs_of_bindings bs in
+              let get_classes e xs ess =
+                let es = List.map Expr.mk_var xs in
+                let es = if is_init e then e :: es else es in
+                es :: ess in
+              let ess = H.fold get_classes h [] in
+              let add_eq eqs e1 e2 =
+                if true || is_init e1 then Expr.mk_eq e1 e2 :: eqs else eqs in
+              let eqs = List.fold_left (Misc.fold_pairs add_eq) [] ess in
+              mk_big_star eqs in
             let post_subst =
               let f v e xs = (e, Expr.mk_var v) :: xs in
               StringMap.fold f visible_defs [] in

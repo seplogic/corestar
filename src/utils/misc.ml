@@ -16,6 +16,13 @@ open Corestar_std
 (* TODO(rgrig): Don't open these. *)
 open Backtrack
 
+let rec fold_pairs f acc = function
+  | [] | [_] -> acc
+  | x :: ((y :: _) as xs) -> fold_pairs f (f acc x y) xs
+
+let iter_pairs f =
+  let f () x = f x in fold_pairs f
+
 let rec iter_pairs f = function
   | [] | [_] -> ()
   | x :: ((y :: _) as xs) -> f x y; iter_pairs f xs
@@ -119,15 +126,26 @@ let fresh_int () =
   let n = ref (-1) in
   fun () -> incr n; assert (!n >= 0); !n (* checks for overflow *)
 
-let hash_of_list one plus key value xs =
-  let h = Hashtbl.create (List.length xs) in
+module type HASHTBL = sig
+  type key
+  type 'value t
+  val create : int -> 'value t
+  val add : 'value t -> key -> 'value -> unit
+  val find : 'value t -> key -> 'value
+end
+
+let summarize_list create add find one plus key value xs =
+  let h = create (List.length xs) in
   let entry x = match key x, value x with
     | None, _ | _, None -> ()
     | Some k, Some v ->
-        (try Hashtbl.add h k (plus v (Hashtbl.find h k))
-        with Not_found -> Hashtbl.add h k (one v)) in
+        (try add h k (plus v (find h k))
+        with Not_found -> add h k (one v)) in
   List.iter entry xs;
   h
+
+let hash_of_list one plus key value xs =
+  summarize_list Hashtbl.create Hashtbl.add Hashtbl.find one plus key value xs
 
 let shuffle xs = xs
   (* TODO. Note: It's a bit annoying that [Random] has one global state. *)
