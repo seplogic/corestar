@@ -5,7 +5,7 @@ if [ "$UID" -ne "0" ]; then
     exit 1
 fi
 
-if [ -z $CORESTAR_HOME ]; then
+if [ -z "$CORESTAR_HOME" ]; then
     echo "CORESTAR_HOME is not set. Please source setenv first."
     exit 1
 fi
