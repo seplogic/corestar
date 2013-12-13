@@ -22,7 +22,9 @@ echo "Downloading..."
 wget $Z3_URL -O $Z3_ZIP
 echo "Extracting..."
 unzip $Z3_ZIP
-dos2unix configure
+# dos2unix ./configure
+tr -d '\r' < configure > configure.unix
+cat configure.unix > configure
 
 echo "Building Z3..."
 ./configure && cd build && make -j 8 && make install
