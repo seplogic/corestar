@@ -31,13 +31,14 @@ Dependencies:
   Debian / Ubuntu: ocaml, ocaml-native-compilers
 
 * Z3
-  Simply run "./scripts/install_z3.sh"
+  To install: "source setenv; sudo -E ./scripts/install_z3.sh".
+  See http://z3.codeplex.com/ for more info.
 
 
 Building on Win32 (native)
 --------------------------
 
-Open the Visual Studio Command Prompt. 
+Open the Visual Studio Command Prompt.
  - If you obtained Microsoft tools not as a part of Visual Studio, just open
    Command Prompt and manually set up necessary PATH and INCLUDE directories.)
 
