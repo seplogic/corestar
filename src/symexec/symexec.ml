@@ -947,8 +947,7 @@ end = struct
                 let es = if is_init e then e :: es else es in
                 es :: ess in
               let ess = H.fold get_classes h [] in
-              let add_eq eqs e1 e2 =
-                if true || is_init e1 then Expr.mk_eq e1 e2 :: eqs else eqs in
+              let add_eq eqs e1 e2 = Expr.mk_eq e1 e2 :: eqs in
               let eqs = List.fold_left (Misc.fold_pairs add_eq) [] ess in
               mk_big_star eqs in
             let post_subst =

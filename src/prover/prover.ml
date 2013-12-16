@@ -201,9 +201,10 @@ let smt_abduce hypothesis conclusion =
           then grow xs ys else grow (y :: xs) ys in
     let cs = unfold Expr.on_star conclusion in
     let r = shrink (grow [] cs) in
+    (* DBG
     (match r with
     | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
-    | None -> ());
+    | None -> ()); *)
     r
   end else None
 (* }}} *)

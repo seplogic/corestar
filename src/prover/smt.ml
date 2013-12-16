@@ -1,5 +1,3 @@
-(* TODO: This should be ported to Z3's OCAML API. *)
-
 open Corestar_std
 open Debug
 
