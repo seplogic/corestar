@@ -61,19 +61,19 @@ let rec z3_expr_of_expr =
     try Expression.ExprHashMap.find expr_map t
     with Not_found ->
       let e = Expression.match_ t
-	(fun v -> (Z3.Expr.mk_const_s z3_ctx (sanitize_sym v) sort))
-	(Expression.on_emp (c1 (Z3.Boolean.mk_true z3_ctx))
-	 & Expression.on_eq (visit2 ref_sort (Z3.Boolean.mk_eq z3_ctx))
-	 & Expression.on_fls (c1 (Z3.Boolean.mk_false z3_ctx))
-	 & Expression.on_neq (visit2bis ref_sort (Z3.Boolean.mk_distinct z3_ctx))
-	 & Expression.on_not (visit1 bool_sort (Z3.Boolean.mk_not z3_ctx))
-	 & Expression.on_or (visitn bool_sort (Z3.Boolean.mk_or z3_ctx))
-	 & Expression.on_star (visitn bool_sort (Z3.Boolean.mk_and z3_ctx))
-	 & Expression.on_string_const (fun s -> Z3.Expr.mk_const_s z3_ctx (sanitize_str s) sort)
-	 & Expression.on_int_const (fun n -> Z3.Expr.mk_const_s z3_ctx (sanitize_str n) sort)
-	 & (fun op ts ->
-	   let opdecl = declare_fun op (repeat ref_sort ts) sort in
-	   visitn ref_sort (Z3.Expr.mk_app z3_ctx opdecl) ts) ) in
+        (fun v -> (Z3.Expr.mk_const_s z3_ctx (sanitize_sym v) sort))
+        (Expression.on_emp (c1 (Z3.Boolean.mk_true z3_ctx))
+         & Expression.on_eq (visit2 ref_sort (Z3.Boolean.mk_eq z3_ctx))
+         & Expression.on_fls (c1 (Z3.Boolean.mk_false z3_ctx))
+         & Expression.on_neq (visit2bis ref_sort (Z3.Boolean.mk_distinct z3_ctx))
+         & Expression.on_not (visit1 bool_sort (Z3.Boolean.mk_not z3_ctx))
+         & Expression.on_or (visitn bool_sort (Z3.Boolean.mk_or z3_ctx))
+         & Expression.on_star (visitn bool_sort (Z3.Boolean.mk_and z3_ctx))
+         & Expression.on_string_const (fun s -> Z3.Expr.mk_const_s z3_ctx (sanitize_str s) sort)
+         & Expression.on_int_const (fun n -> Z3.Expr.mk_const_s z3_ctx (sanitize_str n) sort)
+         & (fun op ts ->
+           let opdecl = declare_fun op (repeat ref_sort ts) sort in
+           visitn ref_sort (Z3.Expr.mk_app z3_ctx opdecl) ts) ) in
       Expression.ExprHashMap.add expr_map t e;
       e
   and visit1 sort f1 t = f1 (visit0 sort t)

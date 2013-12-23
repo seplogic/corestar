@@ -105,16 +105,16 @@ qidentifier:
   | QUESTIONMARK IDENTIFIER { "?" ^ $2 }
 
 binop:
-  | OP_DIV { "!builtin_div" }
-  | OP_MINUS { "!builtin_minus" }
-  | OP_PLUS { "!builtin_plus" }
+  | OP_DIV { "!corestar_div" }
+  | OP_MINUS { "!corestar_minus" }
+  | OP_PLUS { "!corestar_plus" }
 ;
 
 cmpop:
-  | CMP_LE { "!builtin_le" }
-  | CMP_LT { "!builtin_lt" }
-  | CMP_GE { "!builtin_ge" }
-  | CMP_GT { "!builtin_gt" }
+  | CMP_LE { "!corestar_le" }
+  | CMP_LT { "!corestar_lt" }
+  | CMP_GE { "!corestar_ge" }
+  | CMP_GT { "!corestar_gt" }
 ;
 
 
