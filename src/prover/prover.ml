@@ -2,7 +2,6 @@
 open Corestar_std
 open Debug
 open Format
-open Smt
 
 module Expr = Expression
 
@@ -16,7 +15,7 @@ type frame_and_antiframe =
 let smt_is_valid a =
   Smt.push ();
   Smt.say (Expr.mk_not a);
-  let r = match Smt.check_sat () with Smt.Unsat -> true | _ -> false in
+  let r = Smt.check_sat () = Smt.Unsat in
   Smt.pop ();
   r
 
