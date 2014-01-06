@@ -1,5 +1,4 @@
 // Test for speed.
-
     procedure emit_$$ :
       
     ?
@@ -176,7 +175,8 @@
         * ($g_queue_event_0_position_1=_log_queue_1_1)
         * ($g_queue_event_0_position_0=_log_queue_1_0)
         * ($g_register_i=_log_register_i_1_trans_1))}
-      +{(($g_register_i=_log_register_i_0)
+      +
+      {(($g_register_i=_log_register_i_0)
          * ($g_queue_event_0_position_1=_log_queue_0_1)
          * ($g_current_automaton_state="HasNextinvalid")
          * ($g_queue_event_0_position_0=_log_queue_0_0)

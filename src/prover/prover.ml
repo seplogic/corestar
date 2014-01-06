@@ -117,12 +117,6 @@ let afs_of_sequents = function
         { frame; antiframe } in
       List.map f ss
 
-let smt_implies a b =
-  if Expr.is_pure b then
-    let a_pure, _ = extract_pure_part a in
-    smt_is_valid (Expr.mk_or (Expr.mk_not a_pure) b)
-  else false
-
 (* HACK: Simplified version of [Symexec.update_defs], used for
 [guess_instance] below. See that guy's comment. *)
 let get_defs vs =
@@ -179,6 +173,7 @@ let smt_abduce hypothesis conclusion =
     (* XXX: this is intuitionistic *)
     let pure_hypothesis, _ = extract_pure_part hypothesis in
     let rec shrink eqs =
+      printf "shrink %d@\n@?" (List.length eqs);
 (* DBG
       incr dbg_mc;
       printf "@[@<2>shrink %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
@@ -195,11 +190,12 @@ let smt_abduce hypothesis conclusion =
       end else None in
     let rec grow xs = function
       | [] -> xs
-      | y :: ys ->
+      | (y :: ys) as yys ->
+          printf "DBG grow, left %d@\n@?" (List.length yys);
           if smt_implies (mk_big_star (pure_hypothesis :: y :: xs)) Expr.fls
           then grow xs ys else grow (y :: xs) ys in
     let cs = unfold Expr.on_star conclusion in
-    let r = shrink (grow [] cs) in
+    let r = if List.length cs > 10 then None else shrink (grow [] cs) in
     (* DBG
     (match r with
     | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
@@ -231,9 +227,11 @@ let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
-      (match smt_abduce hypothesis conclusion with
+      (if smt_implies hypothesis conclusion
+      then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])
+      (* match smt_abduce hypothesis conclusion with
       | None -> []
-      | Some conclusion -> [[{ Calculus.hypothesis; conclusion; frame }]])) }
+      | Some conclusion -> [[{ Calculus.hypothesis; conclusion; frame }]]*)) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
@@ -561,8 +559,8 @@ let rules_of_calculus c =
   :: or_rule
   :: smt_pure_rule
   :: or_rule
-(*  :: match_rule *)
-(*  :: match_subformula_rule *)
+  :: match_rule
+(*   :: match_subformula_rule *)
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c

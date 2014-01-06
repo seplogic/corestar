@@ -1,5 +1,6 @@
 open Corestar_std
 open Debug
+open Format
 
 (** Z3 initialisation *)
 (* we must open any log file before creating any context *)
@@ -87,7 +88,10 @@ let rec z3_expr_of_expr =
   visit0 bool_sort
 
 let smt_listen () =
-  match Z3.Solver.check z3_solver [] with
+(*   printf "EXECUTING Z3@\n@?"; *)
+  let r = Z3.Solver.check z3_solver [] in
+(*   printf "REVIVING Z3@\n@?"; *)
+  match r with
   | Z3.Solver.SATISFIABLE -> Sat
   | Z3.Solver.UNSATISFIABLE -> Unsat
   | Z3.Solver.UNKNOWN -> Unknown

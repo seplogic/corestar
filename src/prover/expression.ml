@@ -220,7 +220,7 @@ let on_int_const f = on_tag "<int>" f
 
 let rec is_pure e =
   let c0 x () = x in
-  let terr _ = failwith "INTERNAL: should be formula, not term" in
+  let terr _ = failwith "INTERNAL: should be formula, not term (sda8in)" in
   match_ e terr
   ( on_string_const terr
   & on_int_const terr
@@ -266,6 +266,6 @@ is a verbatim dump of the data structure, and should be preferred. The
 [pp_infix] version is a hack that you might want to use if you want to print
 expressions, edit them, then read them back with corestar's parser. All this
 while debugging, of course.*)
-let pp = pp_prefix
+let pp = pp_infix
 
 type t = expr
