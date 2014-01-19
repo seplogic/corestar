@@ -2,8 +2,10 @@
 *.swp
 .depend
 .install.mk
-/gmon.out
+/bin
 _build
+gmon.out
 rg.log
+smt.corestar.log
 tags
 tmp

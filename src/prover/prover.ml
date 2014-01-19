@@ -167,7 +167,7 @@ let shuffle ls = ls (* XXX *)
 
 let dbg_mc = ref 0
 
-(* HACK. To fix. *)
+(* HACK. To fix. Also, profiling showed this is extremely slow. *)
 let smt_abduce hypothesis conclusion =
   if Expr.is_pure conclusion then begin
     (* XXX: this is intuitionistic *)
@@ -318,13 +318,14 @@ let on_pair f a b = f [a; b]
 *)
 
 let on_comassoc handle_comassoc handle_skew o es =
-  Expr.on_star (handle_comassoc o)
- (Expr.on_or (handle_comassoc o) handle_skew) o es
+  ( Expr.on_star (handle_comassoc o)
+  & Expr.on_or (handle_comassoc o)
 (*
- (Expr.on_eq (on_pair handle_comassoc)
- (Expr.on_neq (on_pair handle_comassoc)
-  handle_skew))))
+  & Expr.on_eq (on_pair handle_comassoc)
+  & Expr.on_neq (on_pair handle_comassoc)
 *)
+  & handle_skew )
+  o es
 
 (*
   This normalization is needed in the matcher
@@ -492,7 +493,7 @@ let match_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let matches =
 	  find_existential_matches StringMap.empty (conclusion, hypothesis) in
-      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+      if log log_prove then fprintf logf "@,found %d matches@\n" (List.length matches);
       let mk_goal m =
 	let b = StringMap.bindings m in
 	let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
@@ -501,7 +502,6 @@ let match_rule =
 	  ; frame } ] in
       List.map mk_goal matches) }
 
-(* This rule is not in the list yet *)
 let match_subformula_rule =
   { rule_name = "matching subformula"
   ; rule_apply =
@@ -509,7 +509,7 @@ let match_subformula_rule =
       let lo_name = "_leftover" in
       let leftover = Expr.mk_var lo_name in
       printf "leftover is lvar: %b" (Expr.is_lvar lo_name);
-      let enhanced_conc = mk_star leftover conclusion in
+      let enhanced_conc = Expr.mk_star leftover conclusion in
       let matches =
 	find_existential_sub_matches lo_name StringMap.empty (enhanced_conc, hypothesis) in
       if log log_prove then fprintf logf "@,trying to match %a and % a@," Expr.pp enhanced_conc Expr.pp hypothesis;
@@ -560,7 +560,7 @@ let rules_of_calculus c =
   :: smt_pure_rule
   :: or_rule
   :: match_rule
-(*   :: match_subformula_rule *)
+  :: match_subformula_rule
   :: inline_pvars_rule
   :: spatial_id_rule
   :: List.map to_rule c
