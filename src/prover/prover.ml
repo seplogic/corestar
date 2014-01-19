@@ -83,6 +83,7 @@ let mk_big_meet = function
   | [] -> Expr.emp
   | e :: es -> List.fold_left mk_meet e es
 
+(* TODO(rg): Add a comment with what this does. *)
 let find_lvar_pvar_subs =
   let on_var_eq_var f g e =
     let not_on _ _ = g e in
@@ -117,49 +118,29 @@ let afs_of_sequents = function
         { frame; antiframe } in
       List.map f ss
 
-(* HACK: Simplified version of [Symexec.update_defs], used for
-[guess_instance] below. See that guy's comment. *)
-let get_defs vs =
-  let is_v =
-    flip StringSet.mem (List.fold_right StringSet.add vs StringSet.empty) in
-  let is_ve = Expr.cases is_v (c2 false) in
-  let rec is_v_free e =
-    Expr.match_ e (not @@ is_v) (c1 (List.for_all is_v_free)) in
-  let rec f acc =
-    let eq acc a b =
-      let va, vb = is_ve a, is_ve b in
-      if va || vb then begin
-        let v, e = if va then Expr.bk_var a, b else Expr.bk_var b, a in
-        if is_v_free e then StringMap.add v e acc else acc
-      end else acc in
-    Expr.cases undefined
-      ( Expr.on_eq (eq acc)
-      & Expr.on_star (List.fold_left f acc)
-      & (c2 acc) ) in
-  f StringMap.empty
-
-(* TODO: This is a complete hack. Should be replaced by something else,
-for example a search based on models returned by Z3. Also, it repeats code in
-[Symexec]. *)
-let guess_instance vs e f =
-  let eds = get_defs vs e in
-  let fds = get_defs vs f in
-  let mk_eq x =
-    try
-      let v = StringMap.find x eds in
-      let w = StringMap.find x fds in
-      [Expr.mk_eq v w]
-    with Not_found -> [] in
-  let eqs = vs >>= mk_eq in
-  mk_big_star eqs
-
-let rec all_pairs = function
-  | [] -> []
-  | x :: xs -> List.map (fun y -> (x,y)) xs @ all_pairs xs
-
-let get_lvars acc e =
-  let vs = List.filter Expr.is_lvar (Expr.vars e) in
-  List.fold_right StringSet.add vs acc
+(* Should find some lvar that occurs only on the right and return some good
+candidates to which it might be equal. Dumb, for now: all (maximal) terms that
+occur in equalities. *)
+let guess_instance e f =
+  let get_lvars e =
+    let vs = List.filter Expr.is_lvar (Expr.vars e) in
+    List.fold_right StringSet.add vs StringSet.empty in
+  let get_eq_args e =
+    let module H = Hashtbl.Make (Expr) in
+    let h = H.create 0 in
+    let rec get e = Expr.match_ e
+      undefined (* shouldn't be a variable *)
+      ( Expr.on_star (List.iter get)
+      & Expr.on_or (List.iter get)
+      & Expr.on_eq (fun a b -> H.add h a (); H.add h b ())
+      & c2 () ) in
+    get e;
+    H.fold (fun x () xs -> x :: xs) h [] in
+  try
+    let v = StringSet.choose (StringSet.diff (get_lvars f) (get_lvars e)) in
+    let es = get_eq_args e in
+    List.map (fun e -> (v, e)) es
+  with Not_found -> []
 
 let smt_implies e f = smt_is_valid (Expr.mk_or (Expr.mk_not e) f)
 
@@ -228,10 +209,21 @@ let smt_pure_rule =
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
       (if smt_implies hypothesis conclusion
-      then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])
-      (* match smt_abduce hypothesis conclusion with
-      | None -> []
-      | Some conclusion -> [[{ Calculus.hypothesis; conclusion; frame }]]*)) }
+      then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
+
+(* ( H ⊢ C ) if ( ⊢ x=e and H * x=e ⊢ C ) *)
+(* TODO(rg): activating this makes it spin forever. Why?*)
+let abduce_instance_rule =
+  { rule_name = "guess value of lvar that occurs only on rhs"
+  ; rule_apply =
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let gs = guess_instance hypothesis conclusion in
+      let mk (x, e) =
+        let eq = Expr.mk_eq (Expr.mk_var x) e in
+        [ { Calculus.hypothesis = Expr.emp; conclusion = eq; frame = Expr.emp }
+        ; { Calculus.hypothesis = mk_star hypothesis eq; conclusion; frame } ]
+      in
+      List.map mk gs) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
@@ -559,6 +551,7 @@ let rules_of_calculus c =
   :: or_rule
   :: smt_pure_rule
   :: or_rule
+(*   :: abduce_instance_rule *)
   :: match_rule
   :: match_subformula_rule
   :: inline_pvars_rule

@@ -25,6 +25,7 @@ val freshen : var -> var
 
 val fresh_pvar : string -> var
 
+(* TODO(rg): I don't like this being *inside* [Expression]. *)
 module ExprHashMap : Hashtbl.S with type key = t
 
 (* kinds of variables *)
@@ -95,7 +96,7 @@ val on_string_const : (string -> 'a) -> 'a app_eval
 val on_int_const : (string -> 'a) -> 'a app_eval
 val on_op : op -> 'a app_eval_n
 
-(* Example: let rec f e = cases (fun _->false) (recurse f) *)
+(* Example: let rec f e = cases (c1 false) (recurse f) *)
 val recurse : (t -> t) -> (op -> t list -> t)
 
 val pp : t pretty_printer
