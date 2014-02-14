@@ -703,6 +703,7 @@ end = struct
     let prove = Prover.infer_frame calculus in
     let check_final { Prover.frame; _ } = Expr.is_pure frame in
     let check_intermediate { Prover.frame; _ } =
+      printf "XXX check_intermediate@\n";
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
       List.for_all (flip StringSet.mem t2m) t1.C.modifies
@@ -731,6 +732,7 @@ end = struct
       ; ac_mk = (fun () -> CS.create 0) }
       (CG.add_edge confgraph) (implies_conf calculus)
   let abstract_triple calculus =
+    printf "abstract_triple@\n";
     abstract
       { ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
@@ -813,7 +815,7 @@ end = struct
         List.iter (CS.remove remaining) cs;
         loop (cs :: css)
       else css in
-    let css = if CS.length starts = 0 then [] else  loop [] in
+    let css = if CS.length starts = 0 then [] else loop [] in
     if safe then List.iter (fun cs -> assert (cs <> [])) css;
     if log log_exec then begin
       let n = ref 0 in
@@ -823,7 +825,8 @@ end = struct
           !n
           (pp_list_sep "+" G.pp_configuration) cs in
       let css = List.map (List.map CG.V.label) css in
-      fprintf logf "@[<2>stop confs:@ %a@]@\n" (pp_list ppg) css
+      fprintf logf "@[<2>stop confs (%d):@ %a@]@\n@?"
+        (List.length css) (pp_list ppg) css
     end;
     css
 
@@ -963,9 +966,10 @@ end = struct
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
+          printf "XXX len(css) %d@\n" (option (-1) List.length css);
           let tss = option_map (List.map (List.map triple_of_conf)) css in
           let ts = option_map (List.map join_triples) tss in
-          if log log_phase then fprintf logf "@{</details>@?";
+          if log log_phase then fprintf logf "@}@?";
 	  ts in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =

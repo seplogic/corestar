@@ -121,6 +121,7 @@ let afs_of_sequents = function
 (* Should find some lvar that occurs only on the right and return some good
 candidates to which it might be equal. Dumb, for now: all (maximal) terms that
 occur in equalities. *)
+(* TODO: if the chosen lvar has an eq in f, then use only that *)
 let guess_instance e f =
   let get_lvars e =
     let vs = List.filter Expr.is_lvar (Expr.vars e) in
@@ -132,7 +133,7 @@ let guess_instance e f =
       undefined (* shouldn't be a variable *)
       ( Expr.on_star (List.iter get)
       & Expr.on_or (List.iter get)
-      & Expr.on_eq (fun a b -> H.add h a (); H.add h b ())
+      & Expr.on_eq (fun a _ -> H.replace h a ())
       & c2 () ) in
     get e;
     H.fold (fun x () xs -> x :: xs) h [] in
@@ -211,16 +212,18 @@ let smt_pure_rule =
       (if smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
 
-(* ( H ⊢ C ) if ( ⊢ x=e and H * x=e ⊢ C ) *)
-(* TODO(rg): activating this makes it spin forever. Why?*)
+(* ( H ⊢ C ) if ( H ⊢ x=e and H * x=e ⊢ C ) *)
+(* TODO(rg): activating this makes it spin forever. Why? *)
+(* TODO: If C is x=e, then don't apply this rule. *)
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
   ; rule_apply =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let gs = guess_instance hypothesis conclusion in
       let mk (x, e) =
+        printf "XXX guess %s = %a@\n" x Expr.pp e;
         let eq = Expr.mk_eq (Expr.mk_var x) e in
-        [ { Calculus.hypothesis = Expr.emp; conclusion = eq; frame = Expr.emp }
+        [ { Calculus.hypothesis = hypothesis; conclusion = eq; frame = Expr.emp }
         ; { Calculus.hypothesis = mk_star hypothesis eq; conclusion; frame } ]
       in
       List.map mk gs) }
@@ -548,10 +551,9 @@ let rules_of_calculus c =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = apply_rule_schema rs } in
   id_rule
-  :: or_rule
+  :: abduce_instance_rule
   :: smt_pure_rule
-  :: or_rule
-(*   :: abduce_instance_rule *)
+(*   :: or_rule *)
   :: match_rule
   :: match_subformula_rule
   :: inline_pvars_rule
@@ -575,7 +577,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
     { Calculus.frame = normalize frame
     ; hypothesis = normalize hypothesis
     ; conclusion = normalize conclusion } in
-  if log log_prove then fprintf logf "@{<summary>goal:@}@,@{<p>%a@}@," CalculusOps.pp_sequent goal;
+  if log log_prove then fprintf logf "@{<summary>goal@@%d:@} @{<p>%a@}@," n CalculusOps.pp_sequent goal;
   let leaf = ([goal], penalty n goal) in
   if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
   let result =
@@ -590,16 +592,16 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
       choose_rule leaf rules
     end in
-  if log log_prove then fprintf logf "@{</details>@]";
+  if log log_prove then fprintf logf "@}@]@\n";
   result
 
 let solve_idfs min_depth max_depth rules penalty goal =
-  if log log_prove then fprintf logf "@,@[<2>@{<details>@{<summary>start idfs proving@}@\n";
+  if log log_prove then fprintf logf "@[<2>@{<details>@{<summary>start idfs proving@}@\n";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve give_up succ fail min_depth in
-  if log log_prove then fprintf logf "@{</details>@]@,@?";
+  if log log_prove then fprintf logf "@}@]@\n@?";
   r
 
 (* }}} *)
