@@ -7,7 +7,6 @@ open Format
 module C = Core
 module PA = ParserAst
 
-
 (* NOTE: The lists of rules, procedures, etc, in the result are
 reversed compared to the argument. *)
 let question_of_entries xs =

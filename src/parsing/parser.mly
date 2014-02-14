@@ -17,7 +17,6 @@ open Corestar_std
 open Format
 
 module C = Core
-module Expr = Expression
 
 let pp_pos f pos =
   let line = pos.Lexing.pos_lnum in
@@ -34,6 +33,27 @@ let message prefix text =
 let parse_error = message "E"
 let parse_warning = message "W"
 
+let z3_ctx = Syntax.z3_ctx
+
+let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
+let bool_sort = Z3.Boolean.mk_sort z3_ctx
+
+let mk_int_var v = Z3.Expr.mk_const_s z3_ctx v int_sort
+let mk_bool_var v = Z3.Expr.mk_const_s z3_ctx v bool_sort
+let mk_int_app op args =
+  let fdecl = Z3.FuncDecl.mk_func_decl_s z3_ctx op
+    (List.map (fun _ -> int_sort) args) int_sort in
+  Z3.Expr.mk_app z3_ctx fdecl args
+let mk_bool_app op args =
+  let fdecl = Z3.FuncDecl.mk_func_decl_s z3_ctx op
+    (List.map (fun _ -> int_sort) args) bool_sort in
+  Z3.Expr.mk_app z3_ctx fdecl args
+
+let mk_string_const s =
+  ignore (Syntax.mk_string_const s);
+  Z3.Expr.mk_const_s z3_ctx s int_sort
+
+
 %} /* declarations */
 
 /* ============================================================= */
@@ -48,6 +68,7 @@ let parse_warning = message "W"
 %token COLON
 %token COLON_EQUALS
 %token COMMA
+%token DOT
 %token EMP
 %token END
 %token EOF
@@ -61,6 +82,7 @@ let parse_warning = message "W"
 %token INT_CONSTANT
 %token LABEL
 %token L_BRACE
+%token L_BRACKET
 %token L_PAREN
 %token MULT
 %token NOP
@@ -73,6 +95,7 @@ let parse_warning = message "W"
 %token QUESTIONMARK
 %token RULE
 %token R_BRACE
+%token R_BRACKET
 %token R_PAREN
 %token SEMICOLON
 %token STRING_CONSTANT
@@ -126,8 +149,8 @@ identifier_list_ne:
 ;
 
 lvariable:
-  | identifier { $1 }
-  | qidentifier { $1 }
+  | identifier { mk_int_var $1 }
+  | qidentifier { mk_int_var $1 }
 ;
 lvariable_list_ne:
   |  lvariable    { [$1] }
@@ -139,11 +162,11 @@ lvariable_list:
 ;
 
 term:
-  | lvariable { Expr.mk_var $1 }
-  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
-  | L_PAREN term binop term R_PAREN { Expr.mk_app $3 [$2; $4] }
-  | STRING_CONSTANT { Expr.mk_string_const $1 }
-  | INT_CONSTANT { Expr.mk_int_const $1 }
+  | lvariable { $1 }
+  | identifier L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
+  | L_PAREN term binop term R_PAREN { mk_int_app $3 [$2; $4] }
+  | STRING_CONSTANT { mk_string_const $1 }
+  | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
 ;
 term_list_ne:
   | term {$1::[]}
@@ -155,17 +178,17 @@ term_list:
 ;
 
 formula:
-  | /* empty */ { Expr.emp }
-  | EMP { Expr.emp }
-  | FALSE { Expr.fls }
-  | BANG identifier L_PAREN term_list R_PAREN { Expr.mk_app ("!"^$2) $4 }
-  | identifier L_PAREN term_list R_PAREN { Expr.mk_app $1 $3 }
-  | formula MULT formula { Expr.mk_star $1 $3 }
-  | formula OROR formula { Expr.mk_or $1 $3 }
-  | term NOT_EQUALS term { Expr.mk_neq $1 $3 }
-  | term EQUALS term { Expr.mk_eq $1 $3 }
-  | term cmpop term { Expr.mk_2 $2 $1 $3 }
-  | qidentifier { Expr.mk_var $1 } /* used for patterns */
+  | /* empty */ { Syntax.mk_emp }
+  | EMP { Syntax.mk_emp }
+  | FALSE { Z3.Boolean.mk_false z3_ctx }
+  | BANG identifier L_PAREN term_list R_PAREN { mk_bool_app ("!"^$2) $4 }
+  | identifier L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
+  | formula MULT formula { Syntax.mk_star $1 $3 }
+  | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
+  | term NOT_EQUALS term { Z3.Boolean.mk_distinct z3_ctx [$1; $3] }
+  | term EQUALS term { Z3.Boolean.mk_eq z3_ctx $1 $3 }
+  | term cmpop term { mk_bool_app $2 [$1; $3] }
+  | qidentifier { mk_bool_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
 ;
 
@@ -176,9 +199,19 @@ modifies:
   | L_PAREN lvariable_list R_PAREN { $2 }
 ;
 
+in_vars:
+  | /* empty */ { [] }
+  | L_BRACKET lvariable_list R_BRACKET { $2 }
+;
+
+out_vars:
+  | /* empty */ { [] }
+  | DOT lvariable_list_ne DOT { $2 }
+;
+
 triple:
-  | L_BRACE formula R_BRACE modifies L_BRACE formula R_BRACE
-    { { Core.pre = $2; modifies = $4; post = $6 } }
+  | L_BRACE formula R_BRACE modifies L_BRACE out_vars formula R_BRACE in_vars
+    { { Core.pre = $2; modifies = $4; post = $7; out_vars = $6; in_vars = $9 } }
 ;
 
 spec:
@@ -237,7 +270,7 @@ calculus_rule:
 
 sequent:
   | formula VDASH formula
-    { { Calculus.frame = Expr.emp
+    { { Calculus.frame = Syntax.mk_emp
       ; hypothesis = $1
       ; conclusion = $3 } }
 ;
@@ -264,12 +297,23 @@ body:
   | BANG core_stmt_list { (Some $2, false) }
 ;
 
+proc_lhs:
+  | L_PAREN lvariable_list R_PAREN COLON_EQUALS { $2 }
+  | /* empty */  { [] }
+;
+
+proc_args:
+  | /* empty */ { [] }
+  | L_PAREN lvariable_list R_PAREN { $2 }
+;
 procedure:
-  | PROCEDURE identifier COLON spec body
-    { { C.proc_name = $2
-      ; proc_spec = $4
-      ; proc_ok = snd $5
-      ; proc_body = fst $5
+  | PROCEDURE proc_lhs identifier proc_args COLON spec body
+    { { C.proc_name = $3
+      ; proc_spec = $6
+      ; proc_ok = snd $7
+      ; proc_body = fst $7
+      ; proc_params = $4
+      ; proc_rets = $2
       ; proc_rules = { C.calculus = []; abstraction = [] } } }
 ;
 

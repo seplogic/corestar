@@ -3,7 +3,6 @@ open Format
 
 module C = Core
 module DG = Digraph
-module Expr = Expression
 
 type cfg_vertex =
   | Abs_cfg
@@ -27,25 +26,26 @@ module CfgVHashSet = HashSet.Make (Cfg.V)
   [current_heap] is reached without fault.
 *)
 type ok_configuration =
-  { current_heap : Expr.t
-  ; missing_heap : Expr.t (* should be [Expr.emp] if doing checking *)
-  ; pvar_value : Expr.t StringMap.t }
+  { current_heap : Z3.Expr.expr
+  ; missing_heap : Z3.Expr.expr (* should be [Syntax.mk_emp] if doing checking *)
+  ; pvar_value : Z3.Expr.expr Syntax.ExprMap.t }
 
 let check_ok_configuration { current_heap; missing_heap; pvar_value } =
-  let rec has_only_lvars e =
-    Expr.cases Expr.is_lvar (fun _ -> List.for_all has_only_lvars) e in
-  assert (has_only_lvars current_heap);
-  assert (has_only_lvars missing_heap);
-  let f v e = assert (Expr.is_pvar v); assert (has_only_lvars e) in
-  StringMap.iter f pvar_value
+  let rec has_pvar e =
+    (Syntax.on_var Syntax.is_pvar
+     & Syntax.on_app (fun _ -> List.exists has_pvar)) e in
+  assert (not (has_pvar current_heap));
+  assert (not (has_pvar missing_heap));
+  let f v e = assert (Syntax.is_pvar v); assert (not (has_pvar e)) in
+  Syntax.ExprMap.iter f pvar_value
 
 let pp_ok_configuration f { current_heap; missing_heap; pvar_value } =
-  let ds = StringMap.bindings pvar_value in
-  let pd f (v, e) = fprintf f "%s=%a" v Expr.pp e in
+  let ds = Syntax.ExprMap.bindings pvar_value in
+  let pd f (v, e) = fprintf f "%a=%a" Syntax.pp_expr v Syntax.pp_expr e in
   fprintf f "(defs:%a,@ now:%a,@ missing:%a)"
     (pp_list_sep " * " pd) ds
-    Expr.pp current_heap
-    Expr.pp missing_heap
+    Syntax.pp_expr current_heap
+    Syntax.pp_expr missing_heap
 
 type split_type = Angelic | Demonic
 
@@ -72,7 +72,9 @@ module MakeProcedure (Cfg : DG.IM) = struct
   type t =
     { cfg : Cfg.t
     ; start : Cfg.vertex
-    ; stop : Cfg.vertex }
+    ; stop : Cfg.vertex
+    ; parameters : Z3.Expr.expr list
+    ; return_vars : Z3.Expr.expr list }
 end
 
 module Procedure = MakeProcedure (Cfg)

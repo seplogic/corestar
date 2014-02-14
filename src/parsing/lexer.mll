@@ -126,6 +126,9 @@ rule token = parse
   | "|-" { VDASH }
   | "||" { OROR }
   | "}" { R_BRACE }
+  | "[" { L_BRACKET }
+  | "]" { R_BRACKET }
+  | "." { DOT }
   | eof { EOF }
 
   (* Both at_identifer and identifer should produce IDENTIFIER *)
