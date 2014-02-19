@@ -211,12 +211,14 @@ type named_rule =
 let id_rule =
   { rule_name = "identity axiom"
   ; rule_apply =
+    prof_fun1 "Prover.id_rule"
     (function { Calculus.hypothesis; conclusion; _ } ->
       if Expr.equal hypothesis conclusion then [[]] else []) }
 
 let or_rule =
   { rule_name = "or elimination"
   ; rule_apply =
+    prof_fun1 "Prover.or_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
       Expr.cases (c1 []) (Expr.on_or (List.map mk_goal) (c2 [])) conclusion) }
@@ -224,6 +226,7 @@ let or_rule =
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
+    prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       (if smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
@@ -233,6 +236,7 @@ let smt_pure_rule =
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
   ; rule_apply =
+    prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let gs = guess_instance hypothesis conclusion in
       let mk (x, e) =
@@ -247,6 +251,7 @@ let abduce_instance_rule =
 let inline_pvars_rule =
   { rule_name = "substitution (of logical vars with program vars)"
   ; rule_apply =
+    prof_fun1 "Prover.inline_pvars_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs hypothesis in
       let sub_hyp = Expr.substitute subs hypothesis in
@@ -282,6 +287,7 @@ let normalize =
     ; forbid_not Expr.on_or
     ; forbid_not Expr.on_star ] in
   List.fold_left (@@) id fs
+let normalize = prof_fun1 "Prover.normalize" normalize
 
 (* find_matches and helpers *) (* {{{ *)
 let unique_extractions l =
@@ -480,6 +486,7 @@ let find_existential_match = find_conversion Expr.is_lvar
 let spatial_id_rule =
   { rule_name = "spatial parts match"
   ; rule_apply =
+    prof_fun1 "Prover.spatial_id_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
@@ -500,6 +507,7 @@ let spatial_id_rule =
 let match_rule =
   { rule_name = "matching free variables"
   ; rule_apply =
+    prof_fun1 "Prover.match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let matches =
 	  find_existential_matches StringMap.empty (conclusion, hypothesis) in
@@ -515,6 +523,7 @@ let match_rule =
 let match_subformula_rule =
   { rule_name = "matching subformula"
   ; rule_apply =
+    prof_fun1 "Prover.match_subformula_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let lo_name = "_leftover" in
       let leftover = Expr.mk_var lo_name in
@@ -558,22 +567,33 @@ let instantiate_sequent bs s =
   ; hypothesis = instantiate bs s.Calculus.hypothesis
   ; conclusion = instantiate bs s.Calculus.conclusion }
 
-let rules_of_calculus c =
+let builtin_rules =
+  [ id_rule
+  ; abduce_instance_rule
+  ; smt_pure_rule
+(*   ; or_rule *)
+  ; match_rule
+(*   ; match_subformula_rule *)
+  ; inline_pvars_rule
+  ; spatial_id_rule ]
+
+(* These are used for [is_entailment], which wouldn't benefit from instantiating
+lvars. *)
+let builtin_rules_noinst =
+  [ id_rule
+  ; smt_pure_rule
+  ; inline_pvars_rule
+  ; spatial_id_rule ]
+
+
+let rules_of_calculus builtin c =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches StringMap.empty rs.Calculus.goal_pattern s in
     List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
-    ; rule_apply = apply_rule_schema rs } in
-  id_rule
-  :: abduce_instance_rule
-  :: smt_pure_rule
-(*   :: or_rule *)
-  :: match_rule
-  :: match_subformula_rule
-  :: inline_pvars_rule
-  :: spatial_id_rule
-  :: List.map to_rule c
+    ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs) } in
+  builtin @ List.map to_rule c
 
 
 (* }}} *)
@@ -625,8 +645,8 @@ let solve_idfs min_depth max_depth rules penalty goal =
 let min_depth = 2
 let max_depth = 3
 
-let wrap_calculus f calculus =
-  let rules = rules_of_calculus calculus in
+let wrap_calculus builtin f calculus =
+  let rules = rules_of_calculus builtin calculus in
   fun hypothesis conclusion ->
     f rules { Calculus.hypothesis; conclusion; frame = Expr.emp }
 
@@ -639,6 +659,7 @@ let is_entailment rules goal =
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
+let is_entailment = prof_fun2 "Prover.is_entailment" is_entailment
 
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
@@ -649,6 +670,7 @@ let infer_frame rules goal =
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
+let infer_frame = prof_fun2 "Prover.infer_frame" infer_frame
 
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
@@ -657,12 +679,14 @@ let biabduct rules goal =
     (n + 1) * (Expr.size hyp_spatial + Expr.size con_spatial) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
+let biabduct = prof_fun2 "Prover.biabduct" biabduct
 
-let is_entailment = wrap_calculus is_entailment
-let infer_frame = wrap_calculus infer_frame
-let biabduct = wrap_calculus biabduct
+let is_entailment = wrap_calculus builtin_rules_noinst is_entailment
+let infer_frame = wrap_calculus builtin_rules infer_frame
+let biabduct = wrap_calculus builtin_rules biabduct
 (* NOTE: [simplify] is defined in the beginning. *)
 
 let is_inconsistent rules e =
   is_entailment rules e Expr.fls
+let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 (* }}} *)

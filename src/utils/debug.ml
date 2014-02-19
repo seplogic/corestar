@@ -67,6 +67,7 @@
  * Finally, don't forget that guidelines are meant to be broken.
  *)
 
+open Corestar_std
 open Format
 
 let safe = true
@@ -131,5 +132,32 @@ let prof_phase m =
     prof_time := t;
     prof_phase := m
   end
+
+let prof_time_of_c = Hashtbl.create 0
+let prof_start_of_c = Hashtbl.create 0
+let prof_start c =
+  assert (not (Hashtbl.mem prof_start_of_c c));
+  Hashtbl.replace prof_start_of_c c (Sys.time ())
+let prof_stop c =
+  let t2 = Sys.time () in
+  let t1 = Hashtbl.find prof_start_of_c c in
+  Hashtbl.remove prof_start_of_c c;
+  let ts = (try Hashtbl.find prof_time_of_c c with Not_found -> []) in
+  Hashtbl.replace prof_time_of_c c (t2 -. t1 :: ts)
+let prof_pp_stats () =
+  let pp_float f = fprintf f "%.03f" in
+  let stats =
+    let sum = List.fold_left (+.) 0.0 in
+    [ (* "times", pp_list_sep " " pp_float
+    ; *) "max", (fun f ts -> pp_float f (List.fold_left max 0.0 ts))
+    ; "total", (fun f ts -> pp_float f (sum ts))
+    ; "cnt", (fun f ts -> pp_int f (List.length ts))
+    ; "avg", (fun f ts -> pp_float f (sum ts /. float_of_int (List.length ts)))
+    ] in
+  let pp (n, f) c ts = fprintf logf "@[<2>%s %s %a@]@\n" c n f ts in
+  List.iter (fun s -> Hashtbl.iter (pp s) prof_time_of_c) stats
+let prof_fun1 c f x = prof_start c; let r = f x in prof_stop c; r
+let prof_fun2 c f x y = prof_start c; let r = f x y in prof_stop c; r
+let prof_fun3 c f x y z = prof_start c; let r = f x y z in prof_stop c; r
 
 (* }}} *)

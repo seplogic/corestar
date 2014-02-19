@@ -54,5 +54,6 @@ let () =
   printf "@[@{<html>@{<head>@{<css>@}@{<encoding>@}@}@{<body>"; eprintf "@[";
   Arg.parse Config.args_default verify "corestar [options] <files>";
   prof_phase "shutdown";
+  prof_pp_stats ();
   printf "@}@}@?"; eprintf "@?";
   if not !all_ok then exit 1
