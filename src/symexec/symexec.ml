@@ -1097,10 +1097,12 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
+  prof_phase "preprocess for symexec";
   List.iter normalize_proc q.C.q_procs;
   if log log_exec then
     fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
+  prof_phase "symexec";
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@\n@?";

@@ -32,6 +32,7 @@ let path = System.getenv_dirlist (System.getenv "COREPATH")
 let parse fn = System.parse_file Parser.file Lexer.token fn "core"
 
 let load fn =
+  prof_phase "parse";
   let xs = Load.load ~path parse fn in
   let q = question_of_entries (List.rev xs) in
   { q with C.q_name = fn }
@@ -52,5 +53,6 @@ let verify fn =
 let () =
   printf "@[@{<html>@{<head>@{<css>@}@{<encoding>@}@}@{<body>"; eprintf "@[";
   Arg.parse Config.args_default verify "corestar [options] <files>";
+  prof_phase "shutdown";
   printf "@}@}@?"; eprintf "@?";
   if not !all_ok then exit 1

@@ -121,7 +121,6 @@ let afs_of_sequents = function
 (* Should find some lvar that occurs only on the right and return some good
 candidates to which it might be equal. Dumb, for now: all (maximal) terms that
 occur in equalities. *)
-(* TODO: if the chosen lvar has an eq in f, then use only that *)
 let guess_instance e f =
   let get_lvars e =
     let vs = List.filter Expr.is_lvar (Expr.vars e) in
@@ -137,9 +136,26 @@ let guess_instance e f =
       & c2 () ) in
     get e;
     H.fold (fun x () xs -> x :: xs) h [] in
+  let rec get_other v f =
+    let is_v = Expr.cases ((=) v) (c2 false) in
+    let do_eq a b =
+      if is_v a then Some [b] else if is_v b then Some [a] else None in
+    let rec do_star = function
+      | [] -> None
+      | [e] -> get_other v e
+      | e :: es ->
+          (match get_other v e with None | Some [] -> do_star es | gs -> gs) in
+    Expr.match_ f
+      undefined
+      ( Expr.on_star do_star
+      & Expr.on_or (c1 (Some []))
+      & Expr.on_eq do_eq
+      & c2 None ) in
   try
     let v = StringSet.choose (StringSet.diff (get_lvars f) (get_lvars e)) in
-    let es = get_eq_args e in
+    let es = match get_other v f with
+      | None -> get_eq_args e
+      | Some gs -> gs in
     List.map (fun e -> (v, e)) es
   with Not_found -> []
 
@@ -213,7 +229,6 @@ let smt_pure_rule =
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
 
 (* ( H ⊢ C ) if ( H ⊢ x=e and H * x=e ⊢ C ) *)
-(* TODO(rg): activating this makes it spin forever. Why? *)
 (* TODO: If C is x=e, then don't apply this rule. *)
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
