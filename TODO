@@ -1,4 +1,3 @@
-- don't let subgoal equal goal; see rules; substitution, spatial parts match
 - there seems to be some sort of memory leak in z3/interface
 - test on problem similar to those of topstar
 - disjunctions in preconditions should probably lead to splitting the triple

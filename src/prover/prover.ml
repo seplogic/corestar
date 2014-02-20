@@ -12,12 +12,24 @@ type frame_and_antiframe =
 
 (* Helper functions for prover rules. *) (* {{{ *)
 
-let smt_is_valid a =
-  Smt.push ();
-  Smt.say (Expr.mk_not a);
-  let r = Smt.check_sat () = Smt.Unsat in
-  Smt.pop ();
-  r
+let smt_hit, smt_miss = ref 0, ref 0
+let smt_is_valid =
+  let cache = Hashtbl.create 0 in
+  fun a -> begin
+    try
+      let r = Hashtbl.find cache a in
+      incr smt_hit;
+      r
+    with Not_found -> begin
+      incr smt_miss;
+      Smt.push ();
+      Smt.say (Expr.mk_not a);
+      let r = Smt.check_sat () = Smt.Unsat in
+      Smt.pop ();
+      Hashtbl.add cache a r;
+      r
+    end
+  end
 
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
@@ -663,8 +675,6 @@ let wrap_calculus builtin f calculus =
   fun hypothesis conclusion ->
     f rules { Calculus.hypothesis; conclusion; frame = Expr.emp }
 
-(* TODO: For efficiency, this shouldn't use matching rules (or anything that
-looks like abduction). *)
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     if Expr.equal conclusion Expr.emp && Expr.is_pure hypothesis
@@ -702,4 +712,9 @@ let biabduct = wrap_calculus builtin_rules biabduct
 let is_inconsistent rules e =
   is_entailment rules e Expr.fls
 let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
+
+
+let pp_stats () =
+  fprintf logf "smt_hit %d@\n" !smt_hit;
+  fprintf logf "smt_miss %d@\n" !smt_miss
 (* }}} *)

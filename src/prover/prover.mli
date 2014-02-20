@@ -31,3 +31,6 @@ val mk_big_meet
   : Expression.t list -> Expression.t
 val normalize
   : Expression.t -> Expression.t
+
+(* For debug only. *)
+val pp_stats : unit -> unit

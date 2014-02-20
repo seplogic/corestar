@@ -661,17 +661,24 @@ end = struct
 
   (* [abstract], below, needs impredicative polymorphism. *)
   type ('x, 'xs) abs_collection =
-    { ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
+    { ac_name : string
+    ; ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
     ; ac_add : 'x -> 'xs -> 'xs
     ; ac_mk : unit -> 'xs }
 
   let abstract ac add_edge implies confs =
+    let tcnt, fcnt = ref 0, ref 0 in
+    let implies a b =
+      let r = implies a b in
+      if r then incr tcnt else incr fcnt;
+      r in
+
     let add_edges l c = List.iter (flip add_edge c) l in
     let partition add_ns (ys, ns) p xs =
       let f x (ys, ns) =
         if p x then (x :: ys, ns) else (ys, add_ns x ns) in
       ac.ac_fold f xs (ys, ns) in
-    let find p xs = fst (partition (fun _ _ -> ()) ([], ()) p xs) in
+    let find p xs = fst (partition (c2 ()) ([], ()) p xs) in
 
     let f c weakest = (* Warning x^2 *)
       let c_implies = find (implies c) weakest in (* c=> c_implies *)
@@ -684,7 +691,10 @@ end = struct
             ac.ac_add c not_implies_c
 	  end
         | r :: _ -> add_edge c r; weakest in
-    ac.ac_fold f confs (ac.ac_mk ())
+    let r = ac.ac_fold f confs (ac.ac_mk ()) in
+    if log log_exec then
+      fprintf logf "%s tcnt %d fcnt %d@\n" ac.ac_name !tcnt !fcnt;
+    r
 
   let implies_conf calculus v1 v2 = match CG.V.label v1, CG.V.label v2 with
     | G.ErrorConf, G.ErrorConf -> true
@@ -725,16 +735,26 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract_conf calculus confgraph =
-    abstract
-      { ac_fold = CS.fold
-      ; ac_add = (fun x xs -> CS.add xs x; xs)
-      ; ac_mk = (fun () -> CS.create 0) }
-      (CG.add_edge confgraph) (implies_conf calculus)
+  let abstract_conf =
+    let n = ref 0 in
+    fun calculus confgraph cs ->
+      (* Profiling says that without this trick we spend a lot of time
+      figuring out that there's nothing to abstract. *)
+      incr n;
+      if !n mod 100 <> 0
+      then cs
+      else
+        abstract
+          { ac_name = "confset"
+          ; ac_fold = CS.fold
+          ; ac_add = (fun x xs -> CS.add xs x; xs)
+          ; ac_mk = (fun () -> CS.create 0) }
+          (CG.add_edge confgraph) (implies_conf calculus) cs
   let abstract_triple calculus =
     printf "abstract_triple@\n";
     abstract
-      { ac_fold = List.fold_right
+      { ac_name = "triplelist"
+      ; ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
       (fun _ _ -> ()) (flip (implies_triple calculus))
