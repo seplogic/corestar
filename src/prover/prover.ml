@@ -119,8 +119,7 @@ let afs_of_sequents = function
       List.map f ss
 
 (* Should find some lvar that occurs only on the right and return some good
-candidates to which it might be equal. Dumb, for now: all (maximal) terms that
-occur in equalities. *)
+candidates to which it might be equal. *)
 let guess_instance e f =
   let get_lvars e =
     let vs = List.filter Expr.is_lvar (Expr.vars e) in
@@ -228,7 +227,7 @@ let smt_pure_rule =
   ; rule_apply =
     prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      (if smt_implies hypothesis conclusion
+      (if not (Expr.equal conclusion Expr.emp) && smt_implies hypothesis conclusion 
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
 
 (* ( H ⊢ C ) if ( H ⊢ x=e and H * x=e ⊢ C ) *)
@@ -245,7 +244,13 @@ let abduce_instance_rule =
         [ { Calculus.hypothesis = hypothesis; conclusion = eq; frame = Expr.emp }
         ; { Calculus.hypothesis = mk_star hypothesis eq; conclusion; frame } ]
       in
-      List.map mk gs) }
+      let rec is_eq e = Expr.match_ e
+        undefined
+        ( Expr.on_eq (c2 true)
+        & Expr.on_star (function [x] -> is_eq x | _ -> false)
+        & Expr.on_or (function [x] -> is_eq x | _ -> false)
+        & c2 false ) in
+      if is_eq conclusion then [] else List.map mk gs) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
@@ -257,7 +262,9 @@ let inline_pvars_rule =
       let sub_hyp = Expr.substitute subs hypothesis in
       let mk_eq (a, b) = Expr.mk_eq (Expr.mk_var a) b in
       let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
-      [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
+      if Expr.equal hyp hypothesis
+      then []
+      else [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -490,19 +497,23 @@ let spatial_id_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
-      if log log_prove then fprintf logf "hp: %a@,hs: %a@,cp: %a@,cs: %a"
+      if log log_prove then fprintf logf "hp: %a@ hs: %a@ cp: %a@ cs: %a"
 	Expr.pp hyp_pure Expr.pp hyp_spatial Expr.pp conc_pure Expr.pp conc_spatial;
-      if Expr.equal hyp_spatial conc_spatial (* should really be handled by matching *)
-      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]] else
-      let matches = find_existential_matches StringMap.empty (conc_spatial, hyp_spatial) in
-      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
-      let mk_goal m =
-	let b = StringMap.bindings m in
-	let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-	[ { Calculus.hypothesis = hyp_pure
-	  ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
-	  ; frame } ] in
-      List.map mk_goal matches) }
+      if Expr.equal hyp_spatial Expr.emp && Expr.equal conc_spatial Expr.emp
+        then []
+      else if Expr.equal hyp_spatial conc_spatial (* should really be handled by matching *)
+        then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
+      else begin
+        let matches = find_existential_matches StringMap.empty (conc_spatial, hyp_spatial) in
+        if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+        let mk_goal m =
+          let b = StringMap.bindings m in
+          let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
+          [ { Calculus.hypothesis = hyp_pure
+            ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
+            ; frame } ] in
+        List.map mk_goal matches
+      end) }
 
 let match_rule =
   { rule_name = "matching free variables"
@@ -619,7 +630,9 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
     if n = 0 then leaf else begin
       let process_rule r =
         if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
-        r.rule_apply goal in
+        let ess = r.rule_apply goal in
+        if safe then assert (List.for_all (List.for_all (not @@ (=) goal)) ess);
+        ess in
       let solve_subgoal = solve rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
