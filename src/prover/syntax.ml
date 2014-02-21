@@ -18,24 +18,18 @@ let expr_equal e1 e2 = Z3.AST.equal (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_exp
 
 (* {{{ strings stuff *)
 
-module StringHashMap = Hashtbl.Make(
-struct
-  type t = string
-  let equal = (=)
-  let hash = Hashtbl.hash
-end)
-let string_const_map = StringHashMap.create 0
+let string_const_map = StringHash.create 0
 let string_sort = Z3.Sort.mk_uninterpreted_s z3_ctx "String"
 
 let mk_string_const s =
-  try StringHashMap.find string_const_map s
+  try StringHash.find string_const_map s
   with Not_found ->
     let e = Z3.Expr.mk_const_s z3_ctx s string_sort in
-    StringHashMap.add string_const_map s e;
+    StringHash.add string_const_map s e;
     e
 
 let get_all_string_exprs () =
-  StringHashMap.fold (fun _ -> ListH.cons) string_const_map []
+  StringHash.fold (fun _ -> ListH.cons) string_const_map []
 
 (* }}} *)
 
