@@ -21,8 +21,9 @@ let fix_scc_limit = 1 lsl 2
 (* TODO: warn if there are special vars that remain in the result. *)
 let specialize_spec rets args xs =
   let f { Core.pre; post; modifies; in_vars; out_vars } =
-    { Core.pre = Z3.Expr.substitute pre in_vars args
-    ; post = Z3.Expr.substitute post out_vars rets
+    let subst_inout e = Z3.Expr.substitute (Z3.Expr.substitute e in_vars args) out_vars rets in
+    { Core.pre = subst_inout pre
+    ; post = subst_inout post
     ; modifies = rets @ modifies
     ; in_vars = []
     ; out_vars = [] } in
@@ -867,13 +868,14 @@ end = struct
       Some (get_stop_confs context procedure)
     end
 
-  let empty_triple =
+  (** the triple [out_vars] := {emp} () {emp} ([in_vars]) *)
+  let empty_triple in_vars out_vars =
     { Core.pre = Syntax.mk_emp; post = Syntax.mk_emp;
-      in_vars = []; out_vars = []; modifies = [] }
+      in_vars = in_vars; out_vars = out_vars; modifies = [] }
 
-  let spec_of post =
+  let spec_of post in_vars out_vars =
     let post = CoreOps.mk_assert post in
-    let nop = C.TripleSet.singleton empty_triple in
+    let nop = C.TripleSet.singleton (empty_triple in_vars out_vars) in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -884,10 +886,10 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_gen ask rules body post =
+  let update_gen ask rules body post in_vars out_vars =
     let ask = ask rules.C.calculus in
     let is_deadend = Prover.is_inconsistent rules.C.calculus in
-    let execute = execute ask is_deadend (spec_of post body.P.stop) in
+    let execute = execute ask is_deadend (spec_of post in_vars out_vars body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 
   let update_infer = update_gen abduct
@@ -931,10 +933,10 @@ end = struct
             let init = Syntax.ExprHashMap.create 0 in
             Syntax.ExprMap.iter (fun _ v -> Syntax.ExprHashMap.replace init v ()) pre_defs;
             Syntax.ExprHashMap.mem init in
-          let update = update triple.C.post in
+          let update = update triple.C.post triple.C.in_vars triple.C.out_vars in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let visible_defs =
-              let p v _ = Syntax.is_global v || (List.mem v procedure.C.proc_rets) in
+              let p v _ = Syntax.is_global v || (List.exists (Syntax.expr_equal v) procedure.C.proc_rets) in
               Syntax.ExprMap.filter p pvar_value in
             let pre_eqs = eqs_of_bindings (Syntax.ExprMap.bindings pre_defs) in
             let post_eqs =
@@ -980,7 +982,7 @@ end = struct
               fprintf logf "@[@{<h4>symexec inferring %s@}@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer rules body) in
-            let ts = empty_triple :: ts in
+            let ts = empty_triple  procedure.C.proc_params procedure.C.proc_rets :: ts in
             if log log_phase then
               fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in

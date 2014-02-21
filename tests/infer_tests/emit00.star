@@ -1,9 +1,9 @@
-procedure emit_$$ :
+procedure emit_$$(x):
   
 ?
-  call :=enqueue_$$(@parameter0:);
+  call :=enqueue_$$(x);
   call :=step_$$();
-  assign :={(($gstate!="error"))}(){(($gstate!="error"))}();
+  assign :={(($gstate!="error"))}(){(($gstate!="error"))}[]();
 procedure step_$$ :
   {(($gstate="error") * ($gq0_0=_q0_0) * ($gqsz="1"))}
   ($gqsz)
@@ -35,8 +35,7 @@ procedure step_$$ :
      * ($gstate="start") * ($gqsz="1"))}
   ($gqsz)
   {(($gstate="start") * ($gqsz="0"))}
-procedure enqueue_$$ :
+procedure enqueue_$$(x) :
   {($gqsz="0")}
   ($gqsz,$gq0_0)
-  {(($gq0_0=@parameter0:) * ($gqsz="1"))}
-
+  {(($gq0_0=x) * ($gqsz="1"))} [x]

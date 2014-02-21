@@ -1,6 +1,6 @@
 procedure emit_$$ :
 ?
-  call :=enqueue_$$(@parameter0:,@parameter1:);
+  call :=enqueue_$$(x,y);
   call :=step_$$();
   assign :={(($g_state!="HasNexterror"))}(){(($g_state!="HasNexterror"))}();
 
@@ -132,35 +132,35 @@ procedure step_$$ :
    *($g_qsz="1"))
   }
 
-procedure enqueue_$$ :
+procedure enqueue_$$(x,y) :
   {($g_qsz="0")}
   ($g_qsz,$g_q_0_0
   ,$g_q_0_1)
   {(($g_qsz="1")
-   *($g_q_0_0=@parameter0:)
-   *($g_q_0_1=@parameter1:))
-  }+{($g_qsz="1")}
+   *($g_q_0_0=x)
+   *($g_q_0_1=y))
+  }[x,y]+{($g_qsz="1")}
   ($g_qsz,$g_q_1_0
   ,$g_q_1_1)
   {(($g_qsz="2")
-   *($g_q_1_0=@parameter0:)
-   *($g_q_1_1=@parameter1:))
-  }
+   *($g_q_1_0=x)
+   *($g_q_1_1=y))
+  }[x,y]
 
 
-procedure HasNext.print$$java.util.Iterator$$void :
+procedure HasNext.print$$java.util.Iterator$$void(x) :
 ?
   call 
     :=emit_$$("call_$$_HasNext.print$$java.util.Iterator$$void"
-             ,@parameter0:);
-  call :=HasNext.print$$java.util.Iterator$$void_I(@parameter0:);
+             ,x);
+  call :=HasNext.print$$java.util.Iterator$$void_I(x);
   call :=emit_$$("return_$$_HasNext.print$$java.util.Iterator$$void");
-procedure HasNext.print$$java.util.Iterator$$void_I :
+procedure HasNext.print$$java.util.Iterator$$void_I(x) :
   
 ?
-  assign r0:={()}(){($ret_v0=@parameter0:)}();
+  assign r0:={()}(){/a/(a=x)}();
   call $temp:=java.util.Iterator.hasNext$$$$boolean();
-  assign $z0:={()}(){($ret_v0=$temp)}();
+  assign $z0:={()}(){/a/(a=$temp)}();
   goto gen_1,gen_2;
   label gen_1;
   assign :={()}(){($z0=0)}();
@@ -170,7 +170,7 @@ procedure HasNext.print$$java.util.Iterator$$void_I :
   call :=java.util.Iterator.next$$$$java.lang.Object();
   label label0;
   nop;
-procedure java.util.Iterator.hasNext$$$$boolean :
+procedure (b) := java.util.Iterator.hasNext$$$$boolean :
   
 ?
   call :=emit_$$("call_$$_java.util.Iterator.hasNext$$$$boolean");
@@ -181,8 +181,8 @@ procedure java.util.Iterator.next$$$$java.lang.Object :
   
 ?
   call :=emit_$$("call_$$_java.util.Iterator.next$$$$java.lang.Object");
-  call $ret_v0:=java.util.Iterator.next$$$$java.lang.Object_I();
+  call z:=java.util.Iterator.next$$$$java.lang.Object_I();
   call 
     :=emit_$$("return_$$_java.util.Iterator.next$$$$java.lang.Object");
-procedure java.util.Iterator.next$$$$java.lang.Object_I :
+procedure (a) := java.util.Iterator.next$$$$java.lang.Object_I :
 

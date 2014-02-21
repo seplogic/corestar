@@ -128,16 +128,15 @@ qidentifier:
   | QUESTIONMARK IDENTIFIER { "?" ^ $2 }
 
 binop:
-  | OP_DIV { "!corestar_div" }
-  | OP_MINUS { "!corestar_minus" }
-  | OP_PLUS { "!corestar_plus" }
+  | OP_MINUS { Z3.Arithmetic.mk_sub z3_ctx }
+  | OP_PLUS { Z3.Arithmetic.mk_add z3_ctx }
 ;
 
 cmpop:
-  | CMP_LE { "!corestar_le" }
-  | CMP_LT { "!corestar_lt" }
-  | CMP_GE { "!corestar_ge" }
-  | CMP_GT { "!corestar_gt" }
+  | CMP_LE { Z3.Arithmetic.mk_le z3_ctx }
+  | CMP_LT { Z3.Arithmetic.mk_lt z3_ctx }
+  | CMP_GE { Z3.Arithmetic.mk_ge z3_ctx }
+  | CMP_GT { Z3.Arithmetic.mk_gt z3_ctx }
 ;
 
 
@@ -164,7 +163,7 @@ lvariable_list:
 term:
   | lvariable { $1 }
   | identifier L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
-  | L_PAREN term binop term R_PAREN { mk_int_app $3 [$2; $4] }
+  | L_PAREN term binop term R_PAREN { $3 [$2; $4] }
   | STRING_CONSTANT { mk_string_const $1 }
   | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
 ;
@@ -187,7 +186,7 @@ formula:
   | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
   | term NOT_EQUALS term { Z3.Boolean.mk_distinct z3_ctx [$1; $3] }
   | term EQUALS term { Z3.Boolean.mk_eq z3_ctx $1 $3 }
-  | term cmpop term { mk_bool_app $2 [$1; $3] }
+  | term cmpop term { $2 $1 $3 }
   | qidentifier { mk_bool_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
 ;
@@ -199,16 +198,19 @@ modifies:
   | L_PAREN lvariable_list R_PAREN { $2 }
 ;
 
+/* FIXME: rubbish syntax */
 in_vars:
   | /* empty */ { [] }
   | L_BRACKET lvariable_list R_BRACKET { $2 }
 ;
 
+/* FIXME: rubbish syntax */
 out_vars:
   | /* empty */ { [] }
-  | DOT lvariable_list_ne DOT { $2 }
+  | OP_DIV lvariable_list_ne OP_DIV { $2 }
 ;
 
+/* FIXME: rubbish syntax */
 triple:
   | L_BRACE formula R_BRACE modifies L_BRACE out_vars formula R_BRACE in_vars
     { { Core.pre = $2; modifies = $4; post = $7; out_vars = $6; in_vars = $9 } }

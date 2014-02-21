@@ -8,7 +8,7 @@ end;
 procedure Test2:
 {emp}{emp} ?
 nop;
-assign x := {emp}{emp} [z] (y);
+assign x := {emp} () {/x/emp} [z] (y);
 label loop;
 call x := f((x+y), y);
 goto loop, and;
