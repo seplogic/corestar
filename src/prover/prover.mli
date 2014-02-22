@@ -31,3 +31,6 @@ val mk_big_meet
   : Z3.Expr.expr list -> Z3.Expr.expr
 val normalize
   : Z3.Expr.expr -> Z3.Expr.expr
+
+(* For debug only. *)
+val pp_stats : unit -> unit

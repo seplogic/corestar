@@ -18,3 +18,7 @@ type rule_schema =
   ; subgoal_pattern : sequent list }
 
 type t = rule_schema list
+
+let sequent_equal { frame = f1; hypothesis = h1; conclusion = c1 }
+    { frame = f2; hypothesis = h2; conclusion = c2 } =
+  Syntax.expr_equal f1 f2 && Syntax.expr_equal h1 h2 && Syntax.expr_equal c1 c2

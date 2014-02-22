@@ -13,12 +13,24 @@ type frame_and_antiframe =
 
 (* Helper functions for prover rules. *) (* {{{ *)
 
-let smt_is_valid a =
-  Smt.push ();
-  Smt.say (Z3.Boolean.mk_not z3_ctx a);
-  let r = Smt.check_sat () = Smt.Unsat in
-  Smt.pop ();
-  r
+let smt_hit, smt_miss = ref 0, ref 0
+let smt_is_valid =
+  let cache = Syntax.ExprHashMap.create 0 in
+  fun a -> begin
+    try
+      let r = Syntax.ExprHashMap.find cache a in
+      incr smt_hit;
+      r
+    with Not_found -> begin
+      incr smt_miss;
+      Smt.push ();
+      Smt.say (Z3.Boolean.mk_not z3_ctx a);
+      let r = Smt.check_sat () = Smt.Unsat in
+      Smt.pop ();
+      Syntax.ExprHashMap.add cache a r;
+      r
+    end
+  end
 
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
@@ -111,8 +123,7 @@ let afs_of_sequents = function
       List.map f ss
 
 (* Should find some lvar that occurs only on the right and return some good
-candidates to which it might be equal. Dumb, for now: all (maximal) terms that
-occur in equalities. *)
+candidates to which it might be equal. *)
 let guess_instance e f =
   let get_lvars e =
     let vs = List.filter Syntax.is_lvar (Syntax.vars e) in
@@ -122,13 +133,28 @@ let guess_instance e f =
     let rec get e =
       ( Syntax.on_big_star (List.iter get)
       & Syntax.on_or (List.iter get)
-      & Syntax.on_eq (fun a b -> Syntax.ExprHashSet.add h a; Syntax.ExprHashSet.add h b)
+      & Syntax.on_eq (fun a _ -> Syntax.ExprHashSet.add h a)
       & Syntax.on_app (c2 ()) ) e in
     get e;
     Syntax.ExprHashSet.fold (fun x xs -> x :: xs) h [] in
+  let rec get_other v f =
+    let is_v = Syntax.on_var ((=) v) & Syntax.on_app (c2 false) in
+    let do_eq a b =
+      if is_v a then Some [b] else if is_v b then Some [a] else None in
+    let rec do_star = function
+      | [] -> None
+      | [e] -> get_other v e
+      | e :: es ->
+          (match get_other v e with None | Some [] -> do_star es | gs -> gs) in
+    ( Syntax.on_big_star do_star
+      & Syntax.on_or (c1 (Some []))
+      & Syntax.on_eq do_eq
+      & Syntax.on_app (c2 None)) f in
   try
     let v = Syntax.ExprSet.choose (Syntax.ExprSet.diff (get_lvars f) (get_lvars e)) in
-    let es = get_eq_args e in
+    let es = match get_other v f with
+      | None -> get_eq_args e
+      | Some gs -> gs in
     List.map (fun e -> (v, e)) es
   with Not_found -> []
 
@@ -184,12 +210,14 @@ type named_rule =
 let id_rule =
   { rule_name = "identity axiom"
   ; rule_apply =
+    prof_fun1 "Prover.id_rule"
     (function { Calculus.hypothesis; conclusion; _ } ->
       if Syntax.expr_equal hypothesis conclusion then [[]] else []) }
 
 let or_rule =
   { rule_name = "or elimination"
   ; rule_apply =
+    prof_fun1 "Prover.or_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
       (Syntax.on_or (List.map mk_goal) & (c1 [])) conclusion) }
@@ -197,35 +225,45 @@ let or_rule =
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
   ; rule_apply =
+    prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      (if smt_implies hypothesis conclusion
+      (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion 
       then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]] else [])) }
 
-(* ( H ⊢ C ) if ( ⊢ x=e and H * x=e ⊢ C ) *)
-(* TODO(rg): activating this makes it spin forever. Why?*)
+(* ( H ⊢ C ) if ( H ⊢ x=e and H * x=e ⊢ C ) *)
+(* TODO: If C is x=e, then don't apply this rule. *)
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
   ; rule_apply =
+    prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let gs = guess_instance hypothesis conclusion in
       let mk (x, e) =
+        printf "XXX guess %a = %a@\n" Syntax.pp_expr x Syntax.pp_expr e;
         let eq = Z3.Boolean.mk_eq z3_ctx x e in
-        [ { Calculus.hypothesis = Syntax.mk_emp; conclusion = eq; frame = Syntax.mk_emp }
+        [ { Calculus.hypothesis = hypothesis; conclusion = eq; frame = Syntax.mk_emp }
         ; { Calculus.hypothesis = mk_star hypothesis eq; conclusion; frame } ]
       in
-      List.map mk gs) }
+      let rec is_eq e =
+        ( Syntax.on_eq (c2 true)
+        & Syntax.on_or (function [x] -> is_eq x | _ -> false)
+        & Syntax.on_app (c2 false)) e in
+      if is_eq conclusion then [] else List.map mk gs) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
   { rule_name = "substitution (of logical vars with program vars)"
   ; rule_apply =
+    prof_fun1 "Prover.inline_pvars_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs hypothesis in
       let (subees, subers) = List.split subs in
       let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
       let mk_eq (a, b) = Z3.Boolean.mk_eq z3_ctx a b in
       let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
-      [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
+      if Syntax.expr_equal hyp hypothesis
+      then []
+      else [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -257,6 +295,7 @@ let normalize =
     ; forbid_not Syntax.on_or
     ; forbid_not Syntax.on_star ] in
   List.fold_left (@@) id fs
+let normalize = prof_fun1 "Prover.normalize" normalize
 
 (* find_matches and helpers *) (* {{{ *)
 let unique_extractions l =
@@ -461,26 +500,33 @@ let find_existential_match = find_conversion Syntax.is_lvar
 let spatial_id_rule =
   { rule_name = "spatial parts match"
   ; rule_apply =
+    prof_fun1 "Prover.spatial_id_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
-      if log log_prove then fprintf logf "hp: %a@,hs: %a@,cp: %a@,cs: %a"
+      if log log_prove then fprintf logf "hp: %a@ hs: %a@ cp: %a@ cs: %a"
 	Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;
-      if Syntax.expr_equal hyp_spatial conc_spatial (* should really be handled by matching *)
-      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]] else
-      let matches = find_existential_matches Syntax.ExprMap.empty (conc_spatial, hyp_spatial) in
-      if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
-      let mk_goal m =
-	let b = Syntax.ExprMap.bindings m in
-	let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
-	[ { Calculus.hypothesis = hyp_pure
-	  ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
-	  ; frame } ] in
-      List.map mk_goal matches) }
+      if Syntax.expr_equal hyp_spatial Syntax.mk_emp
+	&& Syntax.expr_equal conc_spatial Syntax.mk_emp
+      then []
+      else if Syntax.expr_equal hyp_spatial conc_spatial (* should really be handled by matching *)
+        then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
+      else begin
+        let matches = find_existential_matches Syntax.ExprMap.empty (conc_spatial, hyp_spatial) in
+        if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+        let mk_goal m =
+          let b = Syntax.ExprMap.bindings m in
+          let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
+          [ { Calculus.hypothesis = hyp_pure
+            ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
+            ; frame } ] in
+        List.map mk_goal matches
+      end) }
 
 let match_rule =
   { rule_name = "matching free variables"
   ; rule_apply =
+    prof_fun1 "Prover.match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let matches =
 	  find_existential_matches Syntax.ExprMap.empty (conclusion, hypothesis) in
@@ -496,6 +542,7 @@ let match_rule =
 let match_subformula_rule =
   { rule_name = "matching subformula"
   ; rule_apply =
+    prof_fun1 "Prover.match_subformula_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let lo_name = "_leftover" in
       let leftover = Z3.Expr.mk_const_s z3_ctx lo_name (Z3.Boolean.mk_sort z3_ctx) in
@@ -540,23 +587,33 @@ let instantiate_sequent bs s =
   ; hypothesis = instantiate bs s.Calculus.hypothesis
   ; conclusion = instantiate bs s.Calculus.conclusion }
 
-let rules_of_calculus c =
+let builtin_rules =
+  [ id_rule
+  ; abduce_instance_rule
+  ; smt_pure_rule
+(*   ; or_rule *)
+  ; match_rule
+(*   ; match_subformula_rule *)
+  ; inline_pvars_rule
+  ; spatial_id_rule ]
+
+(* These are used for [is_entailment], which wouldn't benefit from instantiating
+lvars. *)
+let builtin_rules_noinst =
+  [ id_rule
+  ; smt_pure_rule
+  ; inline_pvars_rule
+  ; spatial_id_rule ]
+
+
+let rules_of_calculus builtin c =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
     List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
-    ; rule_apply = apply_rule_schema rs } in
-  id_rule
-  :: or_rule
-  :: smt_pure_rule
-  :: or_rule
-(*   :: abduce_instance_rule *)
-  :: match_rule
-  :: match_subformula_rule
-  :: inline_pvars_rule
-  :: spatial_id_rule
-  :: List.map to_rule c
+    ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs) } in
+  builtin @ List.map to_rule c
 
 
 (* }}} *)
@@ -575,14 +632,16 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
     { Calculus.frame = normalize frame
     ; hypothesis = normalize hypothesis
     ; conclusion = normalize conclusion } in
-  if log log_prove then fprintf logf "@{<summary>goal:@}@,@{<p>%a@}@," CalculusOps.pp_sequent goal;
+  if log log_prove then fprintf logf "@{<summary>goal@@%d:@} @{<p>%a@}@," n CalculusOps.pp_sequent goal;
   let leaf = ([goal], penalty n goal) in
   if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
         if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
-        r.rule_apply goal in
+        let ess = r.rule_apply goal in
+        if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
+        ess in
       let solve_subgoal = solve rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
@@ -590,16 +649,16 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
       choose_rule leaf rules
     end in
-  if log log_prove then fprintf logf "@{</details>@]";
+  if log log_prove then fprintf logf "@}@]@\n";
   result
 
 let solve_idfs min_depth max_depth rules penalty goal =
-  if log log_prove then fprintf logf "@,@[<2>@{<details>@{<summary>start idfs proving@}@\n";
+  if log log_prove then fprintf logf "@[<2>@{<details>@{<summary>start idfs proving@}@\n";
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve give_up succ fail min_depth in
-  if log log_prove then fprintf logf "@{</details>@]@,@?";
+  if log log_prove then fprintf logf "@}@]@\n@?";
   r
 
 (* }}} *)
@@ -608,13 +667,11 @@ let solve_idfs min_depth max_depth rules penalty goal =
 let min_depth = 2
 let max_depth = 3
 
-let wrap_calculus f calculus =
-  let rules = rules_of_calculus calculus in
+let wrap_calculus builtin f calculus =
+  let rules = rules_of_calculus builtin calculus in
   fun hypothesis conclusion ->
     f rules { Calculus.hypothesis; conclusion; frame = Syntax.mk_emp }
 
-(* TODO: For efficiency, this shouldn't use matching rules (or anything that
-looks like abduction). *)
 let is_entailment rules goal =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     if Syntax.expr_equal conclusion Syntax.mk_emp && Syntax.is_pure hypothesis
@@ -622,6 +679,7 @@ let is_entailment rules goal =
     else Backtrack.max_penalty in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
+let is_entailment = prof_fun2 "Prover.is_entailment" is_entailment
 
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
@@ -632,6 +690,7 @@ let infer_frame rules goal =
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
+let infer_frame = prof_fun2 "Prover.infer_frame" infer_frame
 
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
@@ -640,12 +699,19 @@ let biabduct rules goal =
     (n + 1) * (Syntax.size hyp_spatial + Syntax.size con_spatial) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
+let biabduct = prof_fun2 "Prover.biabduct" biabduct
 
-let is_entailment = wrap_calculus is_entailment
-let infer_frame = wrap_calculus infer_frame
-let biabduct = wrap_calculus biabduct
+let is_entailment = wrap_calculus builtin_rules_noinst is_entailment
+let infer_frame = wrap_calculus builtin_rules infer_frame
+let biabduct = wrap_calculus builtin_rules biabduct
 (* NOTE: [simplify] is defined in the beginning. *)
 
 let is_inconsistent rules e =
   is_entailment rules e (Z3.Boolean.mk_false z3_ctx)
+let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
+
+
+let pp_stats () =
+  fprintf logf "smt_hit %d@\n" !smt_hit;
+  fprintf logf "smt_miss %d@\n" !smt_miss
 (* }}} *)

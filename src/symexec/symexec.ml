@@ -667,17 +667,24 @@ end = struct
 
   (* [abstract], below, needs impredicative polymorphism. *)
   type ('x, 'xs) abs_collection =
-    { ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
+    { ac_name : string
+    ; ac_fold : 'acc. ('x -> 'acc -> 'acc) -> 'xs -> 'acc -> 'acc
     ; ac_add : 'x -> 'xs -> 'xs
     ; ac_mk : unit -> 'xs }
 
   let abstract ac add_edge implies confs =
+    let tcnt, fcnt = ref 0, ref 0 in
+    let implies a b =
+      let r = implies a b in
+      if r then incr tcnt else incr fcnt;
+      r in
+
     let add_edges l c = List.iter (flip add_edge c) l in
     let partition add_ns (ys, ns) p xs =
       let f x (ys, ns) =
         if p x then (x :: ys, ns) else (ys, add_ns x ns) in
       ac.ac_fold f xs (ys, ns) in
-    let find p xs = fst (partition (fun _ _ -> ()) ([], ()) p xs) in
+    let find p xs = fst (partition (c2 ()) ([], ()) p xs) in
 
     let f c weakest = (* Warning x^2 *)
       let c_implies = find (implies c) weakest in (* c=> c_implies *)
@@ -690,7 +697,10 @@ end = struct
             ac.ac_add c not_implies_c
 	  end
         | r :: _ -> add_edge c r; weakest in
-    ac.ac_fold f confs (ac.ac_mk ())
+    let r = ac.ac_fold f confs (ac.ac_mk ()) in
+    if log log_exec then
+      fprintf logf "%s tcnt %d fcnt %d@\n" ac.ac_name !tcnt !fcnt;
+    r
 
   let implies_conf calculus v1 v2 = match CG.V.label v1, CG.V.label v2 with
     | G.ErrorConf, G.ErrorConf -> true
@@ -709,6 +719,7 @@ end = struct
     let prove = Prover.infer_frame calculus in
     let check_final { Prover.frame; _ } = Syntax.is_pure frame in
     let check_intermediate { Prover.frame; _ } =
+      printf "XXX check_intermediate@\n";
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
       List.for_all (flip Syntax.ExprSet.mem t2m) t1.C.modifies
@@ -730,15 +741,26 @@ end = struct
 
      In this sense, implies (M1, H1) (M2, H2) actually checks
      [[(M2, H2)]] => [[(M1, H1)]]. *)
-  let abstract_conf calculus confgraph =
-    abstract
-      { ac_fold = CS.fold
-      ; ac_add = (fun x xs -> CS.add xs x; xs)
-      ; ac_mk = (fun () -> CS.create 0) }
-      (CG.add_edge confgraph) (implies_conf calculus)
+  let abstract_conf =
+    let n = ref 0 in
+    fun calculus confgraph cs ->
+      (* Profiling says that without this trick we spend a lot of time
+      figuring out that there's nothing to abstract. *)
+      incr n;
+      if !n mod 100 <> 0
+      then cs
+      else
+        abstract
+          { ac_name = "confset"
+          ; ac_fold = CS.fold
+          ; ac_add = (fun x xs -> CS.add xs x; xs)
+          ; ac_mk = (fun () -> CS.create 0) }
+          (CG.add_edge confgraph) (implies_conf calculus) cs
   let abstract_triple calculus =
+    printf "abstract_triple@\n";
     abstract
-      { ac_fold = List.fold_right
+      { ac_name = "triplelist"
+      ; ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
       (fun _ _ -> ()) (flip (implies_triple calculus))
@@ -819,7 +841,7 @@ end = struct
         List.iter (CS.remove remaining) cs;
         loop (cs :: css)
       else css in
-    let css = if CS.length starts = 0 then [] else  loop [] in
+    let css = if CS.length starts = 0 then [] else loop [] in
     if safe then List.iter (fun cs -> assert (cs <> [])) css;
     if log log_exec then begin
       let n = ref 0 in
@@ -829,7 +851,8 @@ end = struct
           !n
           (pp_list_sep "+" G.pp_configuration) cs in
       let css = List.map (List.map CG.V.label) css in
-      fprintf logf "@[<2>stop confs:@ %a@]@\n" (pp_list ppg) css
+      fprintf logf "@[<2>stop confs (%d):@ %a@]@\n@?"
+        (List.length css) (pp_list ppg) css
     end;
     css
 
@@ -971,9 +994,10 @@ end = struct
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
+          printf "XXX len(css) %d@\n" (option (-1) List.length css);
           let tss = option_map (List.map (List.map triple_of_conf)) css in
           let ts = option_map (List.map join_triples) tss in
-          if log log_phase then fprintf logf "@{</details>@?";
+          if log log_phase then fprintf logf "@}@?";
 	  ts in
         let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =
@@ -1101,10 +1125,12 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
+  prof_phase "preprocess for symexec";
   List.iter normalize_proc q.C.q_procs;
   if log log_exec then
     fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
   let q = map_procs mk_cfg q in
+  prof_phase "symexec";
   let r = interpret q in
   if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
   if log log_exec then fprintf logf "@]@\n@?";
