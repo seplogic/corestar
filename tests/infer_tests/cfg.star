@@ -1,14 +1,14 @@
 procedure Test1:
-{Emp}{Emp} ?
+{emp}{emp} ?
 nop;
 label loop;
 goto loop;
 end;
 
 procedure Test2:
-{Emp}{Emp} ?
+{emp}{emp} ?
 nop;
-assign x := {Emp}{Emp} (y);
+assign x := {emp}{emp} (y);
 label loop;
 call x := f((x+y), y);
 goto loop, and;

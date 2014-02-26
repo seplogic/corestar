@@ -218,6 +218,8 @@ let on_string_const f = on_tag "<string>" f
 let mk_int_const s = mk_1 "<int>" (mk_0 s)
 let on_int_const f = on_tag "<int>" f
 
+let is_pure_op op = Str.string_match pure_re op 0
+
 let rec is_pure e =
   let c0 x () = x in
   let terr _ = failwith "INTERNAL: should be formula, not term (sda8in)" in
@@ -231,7 +233,7 @@ let rec is_pure e =
   & on_not (fun e -> assert (is_pure e); true)
   & on_eq (c2 true)
   & on_neq (c2 true)
-  & fun op _ -> Str.string_match pure_re op 0)
+  & flip (c1 is_pure_op))
 
 (* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
 

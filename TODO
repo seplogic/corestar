@@ -1,5 +1,5 @@
-- there seems to be some sort of memory leak in z3/interface
 - test on problem similar to those of topstar
+- there seems to be some sort of memory leak in z3/interface
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
   (this is a soundness problem!)

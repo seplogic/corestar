@@ -130,9 +130,10 @@ let afs_of_sequents = function
         { frame; antiframe } in
       List.map f ss
 
-(* Should find some lvar that occurs only on the right and return some good
-candidates to which it might be equal. *)
-let guess_instance e f =
+(* Returns a list of expressions e' such that lvars(e*e') includes lvars(f).
+More importantly, each e' is supposed to be a good guess of how to instantiate
+the variables lvars(f)-lvars(e) such that e*e' ⊢ f. *)
+let guess_instances e f =
   let get_lvars e =
     let vs = List.filter Expr.is_lvar (Expr.vars e) in
     List.fold_right StringSet.add vs StringSet.empty in
@@ -147,28 +148,26 @@ let guess_instance e f =
       & c2 () ) in
     get e;
     H.fold (fun x () xs -> x :: xs) h [] in
-  let rec get_other v f =
+  let rec guess v f = (* finds g s.t. f contains v=g *)
     let is_v = Expr.cases ((=) v) (c2 false) in
     let do_eq a b =
-      if is_v a then Some [b] else if is_v b then Some [a] else None in
+      if is_v a then Some b else if is_v b then Some a else None in
     let rec do_star = function
       | [] -> None
-      | [e] -> get_other v e
-      | e :: es ->
-          (match get_other v e with None | Some [] -> do_star es | gs -> gs) in
+      | e :: es -> (match guess v e with None -> do_star es | g -> g) in
     Expr.match_ f
-      undefined
-      ( Expr.on_star do_star
-      & Expr.on_or (c1 (Some []))
-      & Expr.on_eq do_eq
-      & c2 None ) in
-  try
-    let v = StringSet.choose (StringSet.diff (get_lvars f) (get_lvars e)) in
-    let es = match get_other v f with
-      | None -> get_eq_args e
-      | Some gs -> gs in
-    List.map (fun e -> (v, e)) es
-  with Not_found -> []
+      undefined ( Expr.on_star do_star & Expr.on_eq do_eq & c2 None ) in
+  let collect_guess v (gs, ws) = match guess v f with
+    | None -> (gs, v :: ws)
+    | Some g -> ((v, g) :: gs, ws) in
+  let vs = StringSet.diff (get_lvars f) (get_lvars e) in
+  let vggs, vs = StringSet.fold collect_guess vs ([], []) in
+  let bgs = get_eq_args e in
+  let bgss = Misc.tuples (List.length vs) bgs in
+  let vbgss = List.map (List.combine vs) bgss in
+  let mk es =
+    mk_big_star (List.map (fun (v, e) -> Expr.mk_eq (Expr.mk_var v) e) es) in
+  List.map mk (List.map ((@) vggs) vbgss)
 
 let smt_implies e f = smt_is_valid (Expr.mk_or (Expr.mk_not e) f)
 
@@ -242,27 +241,19 @@ let smt_pure_rule =
       (if not (Expr.equal conclusion Expr.emp) && smt_implies hypothesis conclusion 
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
 
-(* ( H ⊢ C ) if ( H ⊢ x=e and H * x=e ⊢ C ) *)
-(* TODO: If C is x=e, then don't apply this rule. *)
+(* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
+I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H. *)
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
   ; rule_apply =
     prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let gs = guess_instance hypothesis conclusion in
-      let mk (x, e) =
-        printf "XXX guess %s = %a@\n" x Expr.pp e;
-        let eq = Expr.mk_eq (Expr.mk_var x) e in
-        [ { Calculus.hypothesis = hypothesis; conclusion = eq; frame = Expr.emp }
-        ; { Calculus.hypothesis = mk_star hypothesis eq; conclusion; frame } ]
-      in
-      let rec is_eq e = Expr.match_ e
-        undefined
-        ( Expr.on_eq (c2 true)
-        & Expr.on_star (function [x] -> is_eq x | _ -> false)
-        & Expr.on_or (function [x] -> is_eq x | _ -> false)
-        & c2 false ) in
-      if is_eq conclusion then [] else List.map mk gs) }
+      let _Is = guess_instances hypothesis conclusion in
+      let mk _I =
+        if Expr.equal _I Expr.emp then None else Some
+        [ { Calculus.hypothesis; conclusion = _I; frame = Expr.emp }
+        ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
+      in map_option mk _Is) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
@@ -665,10 +656,26 @@ let solve_idfs min_depth max_depth rules penalty goal =
   r
 
 (* }}} *)
+(* Penalty functions. *) (* {{{ *)
+
+let rec heap_size e = Expr.match_ e
+  undefined
+  ( Expr.on_emp (c1 0)
+  & Expr.on_eq (c2 0)
+  & Expr.on_fls (c1 0)
+  & Expr.on_neq (c2 0)
+  & Expr.on_not heap_size
+  & Expr.on_or (List.fold_left max 0 @@ List.map heap_size)
+  & Expr.on_star (List.fold_left (+) 0 @@ List.map heap_size)
+  & Expr.on_string_const undefined
+  & Expr.on_int_const undefined
+  & fun op _ -> if Expr.is_pure_op op then 0 else 1)
+
+(* }}} *)
 (* The top level interface. *) (* {{{ *)
 
 let min_depth = 2
-let max_depth = 3
+let max_depth = 6
 
 let wrap_calculus builtin f calculus =
   let rules = rules_of_calculus builtin calculus in
@@ -687,9 +694,7 @@ let is_entailment = prof_fun2 "Prover.is_entailment" is_entailment
 let infer_frame rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
-    then
-      let _, hyp_spatial = extract_pure_part hypothesis in
-      (n + 1) * (Expr.size hyp_spatial)
+    then (n + 1) * heap_size hypothesis
     else Backtrack.max_penalty in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
@@ -697,9 +702,7 @@ let infer_frame = prof_fun2 "Prover.infer_frame" infer_frame
 
 let biabduct rules goal =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
-    let _, hyp_spatial = extract_pure_part hypothesis in
-    let _, con_spatial = extract_pure_part conclusion in
-    (n + 1) * (Expr.size hyp_spatial + Expr.size con_spatial) in
+    (n + 1) * (heap_size hypothesis + heap_size conclusion) in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 let biabduct = prof_fun2 "Prover.biabduct" biabduct

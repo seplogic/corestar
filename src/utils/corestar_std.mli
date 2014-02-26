@@ -138,6 +138,9 @@ module ListH : sig
   (** Like in Haskell. *)
   val tails : 'a list -> 'a list list
 
+  (** Like in Haskell. *)
+  val replicate : int -> 'a -> 'a list
+
   val cons : 'a -> 'a list -> 'a list
   val split3 : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list
 

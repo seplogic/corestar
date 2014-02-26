@@ -123,6 +123,8 @@ module ListH = struct
     | []  -> [[]]
     | (_ :: xs) as t -> t :: tails xs
 
+  let rec replicate n x = if n = 0 then [] else x :: replicate (n - 1) x
+
   let cons x xs = x :: xs
 
   let split3 xs =

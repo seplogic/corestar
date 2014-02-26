@@ -122,6 +122,8 @@ let rec product = function
   | [] -> [[]]
   | xs :: xss -> List.map (fun (x,y)->x::y) (cross_product xs (product xss))
 
+let tuples n xs = product (ListH.replicate n xs)
+
 let fresh_int () =
   let n = ref (-1) in
   fun () -> incr n; assert (!n >= 0); !n (* checks for overflow *)

@@ -41,6 +41,7 @@ val is_tpat : var -> bool (* pattern that matches terms or formulas *)
 val is_vpat : var -> bool (* pattern that matches variables *)
 
 (* Predicates are pure if the star with "!". *)
+val is_pure_op : op -> bool
 val is_pure : t -> bool
 
 (* operations on formulas *)
