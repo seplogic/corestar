@@ -133,10 +133,13 @@ let normalize_proc proc =
   proc.C.proc_spec <- normalize_spec proc.C.proc_spec
 
 let join_triples ts =
+  printf "@[<2>(ENTER join_triples (%a)@]@\n"
+    (pp_list_sep "+" CoreOps.pp_triple) ts;
   let pre = Prover.mk_big_meet (List.map (fun t -> t.C.pre) ts) in
   let post = Prover.mk_big_or (List.map (fun t -> t.C.post) ts) in
   let modifies =
     Misc.remove_duplicates compare (ts >>= fun t -> t.C.modifies) in
+  printf "LEAVE join_triples)@\n";
   { C.pre; post; modifies }
 
 (* }}} *)
@@ -601,7 +604,7 @@ end = struct
   sufficient to demonically split on the frames Fk, and then angelically on the
   antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
   frame) pairs (Ak, Fk). *)
-  let execute_one_triple abduct is_deadend pre_conf triple =
+  let execute_one_triple abstract_afs abduct is_deadend pre_conf triple =
     if log log_exec then
       fprintf logf "@[<2>@{<p>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
@@ -612,6 +615,8 @@ end = struct
     let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
     let afs = abduct (mk_star pre_conf.G.current_heap def_eqs) pre in
     let branch afs =
+      let afs = abstract_afs afs in
+      (* TODO: distribute the pure part of antiframes to all demonic choices *)
       let mk_post_conf { Prover.antiframe = a; frame = f } =
         let post_defs = update_defs pre_defs vs post in
         let f = substitute_defs pre_defs f in
@@ -649,9 +654,9 @@ end = struct
     if log log_exec then fprintf logf "@}@]@,@?";
     r
 
-  let execute abduct is_deadend =
+  let execute abstract_afs abduct is_deadend =
     let execute_one_triple =
-      execute_one_triple abduct is_deadend in
+      execute_one_triple abstract_afs abduct is_deadend in
     fun spec_of pre_conf statement ->
       statement
       |> spec_of
@@ -757,7 +762,18 @@ end = struct
       ; ac_fold = List.fold_right
       ; ac_add = (fun x xs -> x :: xs)
       ; ac_mk = (fun () -> []) }
-      (fun _ _ -> ()) (flip (implies_triple calculus))
+      (fun _ _ -> ())
+      (flip (implies_triple calculus))
+
+  let abstract_afs calculus =
+    abstract
+      { ac_name = "antiframe_frame_pair_list"
+      ; ac_fold = List.fold_right
+      ; ac_add = ListH.cons
+      ; ac_mk = (fun () -> []) }
+      (c2 ())
+      (fun af1 af2 ->
+        Prover.is_entailment calculus af1.Prover.frame af2.Prover.frame)
 
   (* helpers for [prune_error_confs] {{{ *)
 
@@ -903,7 +919,8 @@ end = struct
   let update_gen ask rules body post =
     let ask = ask rules.C.calculus in
     let is_deadend = Prover.is_inconsistent rules.C.calculus in
-    let execute = execute ask is_deadend (spec_of post body.P.stop) in
+    let abstract_afs = abstract_afs rules.C.calculus in
+    let execute = execute abstract_afs ask is_deadend (spec_of post body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 
   let update_infer = update_gen abduct

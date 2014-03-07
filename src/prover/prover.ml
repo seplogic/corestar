@@ -81,6 +81,14 @@ let mk_big_or =
   let is_false = Expr.equal Expr.fls in
   ac_make Expr.fls Expr.mk_big_or @@ ac_simplify is_false Expr.on_or
 
+(* DBG
+let mk_big_or e =
+  printf "@[BEFORE %a@]@\n" (pp_list_sep "<||>" Expr.pp) e;
+  let e = mk_big_or e in
+  printf "@[AFTER %a@]@\n" Expr.pp e;
+  e
+*)
+
 let mk_star e1 e2 = mk_big_star [e1; e2]
 let mk_or e1 e2 = mk_big_or [e1; e2]
 
@@ -148,10 +156,15 @@ let guess_instances e f =
       & c2 () ) in
     get e;
     H.fold (fun x () xs -> x :: xs) h [] in
-  let rec guess v f = (* finds g s.t. f contains v=g *)
+  let rec guess v f = (* finds g s.t. f contains v=g and g is not lvar *)
     let is_v = Expr.cases ((=) v) (c2 false) in
+    let is_lvar = Expr.cases Expr.is_lvar (c2 false) in
     let do_eq a b =
-      if is_v a then Some b else if is_v b then Some a else None in
+      if is_v a && not (is_lvar b)
+      then Some b
+      else if is_v b && not (is_lvar a)
+      then Some a
+      else None in
     let rec do_star = function
       | [] -> None
       | e :: es -> (match guess v e with None -> do_star es | g -> g) in
@@ -169,7 +182,10 @@ let guess_instances e f =
     mk_big_star (List.map (fun (v, e) -> Expr.mk_eq (Expr.mk_var v) e) es) in
   List.map mk (List.map ((@) vggs) vbgss)
 
-let smt_implies e f = smt_is_valid (Expr.mk_or (Expr.mk_not e) f)
+let smt_implies e f =
+  Expr.is_pure e
+  && Expr.is_pure f
+  && smt_is_valid (Expr.mk_or (Expr.mk_not e) f)
 
 let shuffle ls = ls (* XXX *)
 
@@ -250,7 +266,8 @@ let abduce_instance_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let _Is = guess_instances hypothesis conclusion in
       let mk _I =
-        if Expr.equal _I Expr.emp then None else Some
+        if Expr.equal _I Expr.emp || Expr.equal _I conclusion then None else
+        Some
         [ { Calculus.hypothesis; conclusion = _I; frame = Expr.emp }
         ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
       in map_option mk _Is) }
