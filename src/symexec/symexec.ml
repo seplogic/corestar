@@ -1036,6 +1036,8 @@ end = struct
           let ts = lol_cat tss in
           let ts = option [] id ts in
           let new_ts =
+            (* TODO: each disjunct of the pre should be filtered using
+            is_inconsistent; but check it doesn't get too slow *)
             let f t = not (Prover.is_inconsistent rules.C.calculus t.C.pre) in
             List.filter f ts in
 	  (* Check if specifications are better. *)
