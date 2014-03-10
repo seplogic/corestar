@@ -43,7 +43,7 @@ let rec is_instantiation e =
    & Syntax.on_distinct chk_distinct
    & c1 false) e
 
-let is_true e =
+let is_emp e =
   (Syntax.on_emp (c1 true)
    & Syntax.on_eq Syntax.expr_equal
    & c1 false) e
@@ -72,11 +72,11 @@ let ac_make zero mk =
 (* Returns (pure, spatial) pair. *)
 let extract_pure_part e =
   let mk = ac_make Syntax.mk_emp Syntax.mk_big_star in
-  let xs, ys = ac_simplify_split is_true Syntax.on_big_star [e] in
+  let xs, ys = ac_simplify_split is_emp Syntax.on_big_star [e] in
   (mk xs, mk ys)
 
 let mk_big_star l =
-  (ac_make Syntax.mk_emp Syntax.mk_big_star @@ ac_simplify is_true Syntax.on_big_star) l
+  (ac_make Syntax.mk_emp Syntax.mk_big_star @@ ac_simplify is_emp Syntax.on_big_star) l
 
 let mk_big_or =
   ac_make (Z3.Boolean.mk_false z3_ctx) (Z3.Boolean.mk_or z3_ctx) @@

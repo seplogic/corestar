@@ -4,8 +4,6 @@
   (Jules: I don't really understand the difference!)
 - see if we want to use classical conjunction instead of * for pure parts
 - there seems to be some sort of memory leak in z3/interface
-- rename Prover.is_true to Prover.is_emp
-  (these are not the same for some coreStar users)
 - test on problem similar to those of topstar
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
@@ -19,10 +17,9 @@
 - port old tests
 - avoid using [mk_app] if there exists an alternative constructor
 
-- report bugs/feature requests to Z3 ocaml bindings:
-  - 
-
 - old todos, just for reference:
+  - rename Prover.is_true to Prover.is_emp
+    (these are not the same for some coreStar users)
   - add types to expressions (useful for talking to Z3)
   - add polymorphic sorts (equality, bvadd, bvconcat, etc)
   - sort checking for expressions (at build time)
