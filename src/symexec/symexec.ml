@@ -718,7 +718,6 @@ end = struct
     let prove = Prover.infer_frame calculus in
     let check_final { Prover.frame; _ } = Expr.is_pure frame in
     let check_intermediate { Prover.frame; _ } =
-      printf "XXX check_intermediate@\n";
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
       List.for_all (flip StringSet.mem t2m) t1.C.modifies
@@ -1003,7 +1002,6 @@ end = struct
             let name = procedure.C.proc_name in
             let pre = (substitute_defs pre_defs triple.C.pre, pre_defs) in
             interpret_flowgraph name update body pre in (* RLP: avoid sending name? *)
-          printf "XXX len(css) %d@\n" (option (-1) List.length css);
           let tss = option_map (List.map (List.map triple_of_conf)) css in
           let ts = option_map (List.map join_triples) tss in
           if log log_phase then fprintf logf "@}@?";

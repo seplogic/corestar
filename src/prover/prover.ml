@@ -190,42 +190,6 @@ let smt_implies e f =
 let shuffle ls = ls (* XXX *)
 
 let dbg_mc = ref 0
-
-(* HACK. To fix. Also, profiling showed this is extremely slow. *)
-let smt_abduce hypothesis conclusion =
-  if Expr.is_pure conclusion then begin
-    (* XXX: this is intuitionistic *)
-    let pure_hypothesis, _ = extract_pure_part hypothesis in
-    let rec shrink eqs =
-      printf "shrink %d@\n@?" (List.length eqs);
-(* DBG
-      incr dbg_mc;
-      printf "@[@<2>shrink %d@ %a@]@\n" !dbg_mc (pp_list_sep " * " Expr.pp) eqs;
-      Smt.log_comment (string_of_int !dbg_mc);
-      *)
-      if smt_implies (mk_big_star (pure_hypothesis :: eqs)) conclusion
-      then begin
-        let rec f xs y zs = match shrink (xs @ zs) with
-          | Some _ as r  -> r
-          | None -> (match zs with
-            | [] -> Some (Expr.mk_big_star eqs)
-            | z :: zs -> f (y :: xs) z zs) in
-        (match eqs with [] -> Some Expr.emp | x :: xs -> f [] x xs)
-      end else None in
-    let rec grow xs = function
-      | [] -> xs
-      | (y :: ys) as yys ->
-          printf "DBG grow, left %d@\n@?" (List.length yys);
-          if smt_implies (mk_big_star (pure_hypothesis :: y :: xs)) Expr.fls
-          then grow xs ys else grow (y :: xs) ys in
-    let cs = unfold Expr.on_star conclusion in
-    let r = if List.length cs > 10 then None else shrink (grow [] cs) in
-    (* DBG
-    (match r with
-    | Some e -> Smt.log_comment "here"; printf "@[<2>smt abduced@ %a@]@\n" Expr.pp e
-    | None -> ()); *)
-    r
-  end else None
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
@@ -350,6 +314,7 @@ type bindings = Expr.t StringMap.t
 
 let try_find x m = try Some (StringMap.find x m) with Not_found -> None
 
+(* TODO: Maybe rename to expr_cases2, or even Expr.cases2? *)
 let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
   let on_pvar pv = Expr.cases (on_pvar_var pv) (on_pvar_op pv) e in
   let on_pop po ps = Expr.cases (on_pop_var po ps) (on_pop_op po ps) e in
@@ -395,15 +360,21 @@ type match_result =
 *)
 
 let rec find_matches is_free can_be_op bs (p, e) =
+  printf "@[DBG find_matches@\np=(%a)@\ne=(%a)@]@\n" Expr.pp p Expr.pp e;
   let also_match = find_matches is_free can_be_op in
-  let bind pv =
+  let bind pv e =
     begin
       match try_find pv bs with
 	| None -> [Done (StringMap.add pv e bs)]
 	| Some oe -> if e = oe then [Done bs] else []
     end in
-  let on_pvar_var pv ev = if is_free pv then bind pv else if pv = ev then [Done bs] else [] in
-  let on_pvar_op pv o es = if can_be_op pv then bind pv else [] in
+  let on_pvar_var pv ev =
+    (* HACK: symmetric condition *probably* OK. *)
+    if pv = ev then [Done bs]
+    else if is_free pv then bind pv (Expr.mk_var ev)
+    else if is_free ev then bind ev (Expr.mk_var pv)
+    else [] in
+  let on_pvar_op pv o es = if can_be_op pv then bind pv e else [] in
   let on_pop_var _ _ _ = [] in
   let on_pop_op po ps o es =
     if po <> o then []
@@ -456,55 +427,66 @@ let rec find_matches is_free can_be_op bs (p, e) =
     | More (next_bs, next_pair) -> also_match next_bs next_pair in
   matches >>= process_match
 
-(*
-let rec find_some f = function
-  | [] -> None
-  | h :: t -> ( match f h with None -> find_some f t | x -> x )
+let expr_match_ops go e f =
+  cases_pat_exp
+    (fun v w -> invalid_arg ("expr_match_ops vv " ^ v ^ " and " ^ w))
+    (fun v o _ -> invalid_arg ("expr_match_ops vo " ^ v ^ " and " ^ o))
+    (fun o _ w -> invalid_arg ("expr_match_ops ov " ^ o ^ " and " ^ w))
+    go
+    (e, f)
 
-(* [can_convert} : var -> bool says if a variable can be instantiated *)
-let rec find_conversion can_convert bs (p, e) =
-  printf "@\nconvert (%a,%a)@\n" Expr.pp p Expr.pp e;
-  let bind pv =
-    printf "@\nTrying to bind %s to %a@\n" pv Expr.pp e;
-    match try_find pv bs with
-      | None -> Some (StringMap.add pv e bs)
-      | Some oe -> if e = oe then Some bs else None in
-  let on_pvar pv =
-    if can_convert pv
-    then Expr.cases (c1 (bind pv)) (c2 None) e
-    else if Expr.equal p e then Some bs else None in
-  let on_op po ps =
-    Expr.cases
-      (c1 None)
-      (fun o es -> if o <> po || List.length es <> List.length ps then None else
-	  let handle_comassoc _ _ =
-	    let rec inner bs = function
-	      | [], _ -> Some bs
-	      | ph :: pt, es ->
-		option
-		  None
-		  (fun (bs, rest_e) -> inner bs (pt, rest_e))
-		  (find_some
-		     (fun (ext_e,rest_e) -> option_map (fun m -> (m, rest_e))
-		       (find_conversion can_convert bs (ext_e, ph)))
-		     (unique_extractions es)) in
-	    inner bs (ps,es) in
-	  let handle_skew _ _ =
-	    let rec inner bs = function
-	    | [] -> Some bs
-	    | h :: t -> option None (flip inner t) (find_conversion can_convert bs h) in
-	    inner bs (List.combine ps es) in
-	  on_comassoc handle_comassoc handle_skew po ps
-      ) e in
-  Expr.cases on_pvar on_op p
-*)
+let match_args = expr_match_ops
+  (fun ep es fp fs ->
+    if ep <> fp then None
+    else let rec go eqs es fs = match es, fs with
+      | [], [] -> Some (mk_big_star eqs)
+      | [], _ | _, [] -> None
+      | e :: es, f :: fs ->
+          let eqs = if Expr.equal e f then eqs else Expr.mk_eq e f :: eqs in
+          go eqs es fs in
+      go [] es fs)
+
+(* Notations:
+    gs is an accumulator for subgoals found so far (any of them suffices)
+    hp is the pure part of the hypothesis -- doesn't change
+    cp is the pure part of the conclusion -- equalities are added to it
+    fs is an accumulator for the frames matched so far
+    nhs are the not matched parts of the hypothesis
+    ncs are the not matched parts of the conclusion
+    hs are the parts of the hypothesis not yet processed
+    cs are the parts of the conclusion not yet processed *)
+let rec list_spatial_matches gs hp cp fs nhs ncs hs cs = match hs, cs with
+  | [], [] ->
+      if fs <> []
+      then (* found some frame *)
+        { Calculus.frame = mk_big_star fs
+        ; hypothesis = mk_big_star (hp :: nhs)
+        ; conclusion = mk_big_star (cp :: ncs) }
+        :: gs
+      else gs
+  | [], cs -> list_spatial_matches gs hp cp fs nhs (cs @ ncs) [] []
+  | hs, [] -> list_spatial_matches gs hp cp fs (hs @ nhs) ncs [] []
+  | h :: hs, c :: cs ->
+      let gs = list_spatial_matches gs hp cp fs nhs (c :: ncs) (h :: hs) cs in
+      (* TODO: skip based on name, assuming sorting. *)
+      begin match match_args h c with
+        | None -> gs
+        | Some p ->
+            let cp = Expr.mk_star cp p in
+            if smt_is_valid (Expr.mk_not (Expr.mk_star hp cp))
+            then gs
+            else list_spatial_matches gs hp cp (h :: fs) nhs ncs hs cs
+      end
 
 (* interpret free variables as existential variables *)
 let find_existential_matches =
   find_matches Expr.is_lvar (c1 false)
 
-let find_existential_sub_matches leftover_var =
-  find_matches Expr.is_lvar ((=) leftover_var)
+let find_existential_sub_matches leftover_var bs (f, e) =
+  printf "DBG (start find_existential_sub_matches@\n";
+  let r = find_matches Expr.is_lvar ((=) leftover_var) bs (f, Expr.mk_star e Expr.emp) in
+  printf "DBG find_existential_sub_matches stop)";
+  r
 
 (*
 let find_existential_match = find_conversion Expr.is_lvar
@@ -552,32 +534,56 @@ let match_rule =
       List.map mk_goal matches) }
 
 let match_subformula_rule =
-  { rule_name = "matching subformula"
+  { rule_name = "matching spatial subformula"
   ; rule_apply =
     prof_fun1 "Prover.match_subformula_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let lo_name = "_leftover" in
-      let leftover = Expr.mk_var lo_name in
-      printf "leftover is lvar: %b" (Expr.is_lvar lo_name);
-      let enhanced_conc = Expr.mk_star leftover conclusion in
-      let matches =
-	find_existential_sub_matches lo_name StringMap.empty (enhanced_conc, hypothesis) in
-      if log log_prove then fprintf logf "@,trying to match %a and % a@," Expr.pp enhanced_conc Expr.pp hypothesis;
-      if log log_prove then
-	fprintf logf "@,@[<v 2>found %d matches:@,%a@,@]"
-	  (List.length matches)
-	  (pp_list_sep "\n" (fun f m -> fprintf f "[ %a ]" (pp_list_sep "; " (fun f (v,e) -> fprintf f "%s->%a" v Expr.pp e)) (StringMap.bindings m))) matches;
-      let mk_goal m =
-	let leftover_match = StringMap.find lo_name m in
-	if Expr.is_pure leftover_match then
-	  let m = StringMap.remove lo_name m in
-          let b = StringMap.bindings m in
-	  let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-	  [ [ { Calculus.hypothesis = hypothesis
-	    ; conclusion = mk_big_star (List.map mk_eq b)
-	    ; frame } ] ]
-	else [] in
-      matches >>= mk_goal) }
+      let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
+      let conc_pure, conc_spatial = extract_pure_part conclusion in
+      if Expr.equal Expr.emp conc_spatial
+      then [] else begin
+        let lo_name = "_leftover" in assert (Expr.is_lvar lo_name);
+        let leftover = Expr.mk_var lo_name in
+        let enhanced_conc = Expr.mk_star leftover conc_spatial in
+        let matches =
+          find_existential_sub_matches lo_name StringMap.empty (enhanced_conc, hyp_spatial) in
+        if log log_prove then
+          fprintf logf "@,trying to match %a and % a@,"
+            Expr.pp enhanced_conc Expr.pp hyp_spatial;
+        if log log_prove then
+          fprintf logf "@,@[<v 2>found %d matches:@,%a@,@]"
+            (List.length matches)
+            (pp_list_sep "\n" (fun f m -> fprintf f "[ %a ]" (pp_list_sep "; " (fun f (v,e) -> fprintf f "%s->%a" v Expr.pp e)) (StringMap.bindings m))) matches;
+        let mk_goal m =
+          let leftover_match = StringMap.find lo_name m in
+          [ [ { Calculus.hypothesis = mk_star leftover_match hyp_pure
+              ; conclusion = conc_pure
+              ; frame = mk_star frame conc_spatial } ] ] in
+        matches >>= mk_goal
+      end) }
+
+(* This is intended as a lightweight version of [match_subformula_rule]. *)
+let spatial_match_rule =
+  { rule_name = "spatial match (lightweight)"
+  ; rule_apply =
+    prof_fun1 "Prover.spatial_match_rule"
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      let hyp_pure, hs = ac_simplify_split is_true Expr.on_star [hypothesis] in
+      let conc_pure, cs = ac_simplify_split is_true Expr.on_star [conclusion] in
+      let hyp_pure = mk_big_star hyp_pure in
+      let conc_pure = mk_big_star conc_pure in
+(* TODO: Activate this once list_spatial_matches takes advantage of sorting.
+      let cmp =
+        (expr_match_ops
+          (fun o1 es1 o2 es2 ->
+            let oc = compare o1 o2 in
+            if oc <> 0
+            then oc
+            else compare (List.length es1) (List.length es2))) in
+      let hs = List.sort cmp hs in
+      let cs = List.sort cmp cs in *)
+      let gs = list_spatial_matches [] hyp_pure conc_pure [] [] [] hs cs in
+      List.map (fun x -> [x]) gs) }
 
 let find_pattern_matches = find_matches (c1 true) Expr.is_tpat
 
@@ -600,13 +606,14 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
+  ; spatial_match_rule (* should be before abduce_instance_rule *)
   ; abduce_instance_rule
+(*   ; spatial_id_rule *)
   ; smt_pure_rule
 (*   ; or_rule *)
-  ; match_rule
+(*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
-  ; inline_pvars_rule
-  ; spatial_id_rule ]
+  ; inline_pvars_rule ]
 
 (* These are used for [is_entailment], which wouldn't benefit from instantiating
 lvars. *)

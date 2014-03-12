@@ -24,7 +24,7 @@ end;
 
 procedure Test03:
 ?
-call f(y,"1");
-call f(y,"37");
+call f($g_x,"1");
+call f($g_x,"37");
 end;
 
