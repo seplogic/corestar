@@ -222,7 +222,9 @@ let smt_pure_rule =
       then [[{ Calculus.hypothesis; conclusion = Expr.emp; frame }]] else [])) }
 
 (* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
-I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H. *)
+I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
+TODO: This rule is wrongly matching lvars from the spatial part of the
+conclusion with terms from the pure part of the hypothesis. *)
 let abduce_instance_rule =
   { rule_name = "guess value of lvar that occurs only on rhs"
   ; rule_apply =
@@ -452,11 +454,11 @@ let match_args = expr_match_ops
     cp is the pure part of the conclusion -- equalities are added to it
     fs is an accumulator for the frames matched so far
     nhs are the not matched parts of the hypothesis
-    ncs are the not matched parts of the conclusion
     hs are the parts of the hypothesis not yet processed
     cs are the parts of the conclusion not yet processed *)
-let rec list_spatial_matches gs hp cp fs nhs ncs hs cs = match hs, cs with
-  | [], [] ->
+(* TODO: skip based on name, assuming sorting. *)
+let rec list_spatial_matches gs hp cp fs nhs hs cs = match hs, cs with
+  | [], ncs ->
       if fs <> []
       then (* found some frame *)
         { Calculus.frame = mk_big_star fs
@@ -464,19 +466,25 @@ let rec list_spatial_matches gs hp cp fs nhs ncs hs cs = match hs, cs with
         ; conclusion = mk_big_star (cp :: ncs) }
         :: gs
       else gs
-  | [], cs -> list_spatial_matches gs hp cp fs nhs (cs @ ncs) [] []
-  | hs, [] -> list_spatial_matches gs hp cp fs (hs @ nhs) ncs [] []
-  | h :: hs, c :: cs ->
-      let gs = list_spatial_matches gs hp cp fs nhs (c :: ncs) (h :: hs) cs in
-      (* TODO: skip based on name, assuming sorting. *)
-      begin match match_args h c with
-        | None -> gs
-        | Some p ->
-            let cp = Expr.mk_star cp p in
-            if smt_is_valid (Expr.mk_not (Expr.mk_star hp cp))
-            then gs
-            else list_spatial_matches gs hp cp (h :: fs) nhs ncs hs cs
-      end
+  | h :: hs, cs ->
+      let rec try_c gs ds = function
+        | [] -> list_spatial_matches gs hp cp fs (h :: nhs) hs cs
+        | c :: cs ->
+            let gs = (match match_args h c with
+              | None -> gs
+              | Some p ->
+                  let cp = Expr.mk_star cp p in
+                  if smt_is_valid (Expr.mk_not (Expr.mk_star hp cp))
+                  then gs
+                  else list_spatial_matches gs hp cp (h :: fs) nhs hs (ds @ cs)) in
+            try_c gs (c :: ds) cs in
+      try_c gs [] cs
+
+(*
+ m hypotheses
+ n conclusions
+ sum_k (n choose k) (m choose k) k!
+*)
 
 (* interpret free variables as existential variables *)
 let find_existential_matches =
@@ -568,6 +576,7 @@ let spatial_match_rule =
   ; rule_apply =
     prof_fun1 "Prover.spatial_match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
+      (* TODO: don't apply rule if hyp & conc have disjunctions. *)
       let hyp_pure, hs = ac_simplify_split is_true Expr.on_star [hypothesis] in
       let conc_pure, cs = ac_simplify_split is_true Expr.on_star [conclusion] in
       let hyp_pure = mk_big_star hyp_pure in
@@ -582,7 +591,7 @@ let spatial_match_rule =
             else compare (List.length es1) (List.length es2))) in
       let hs = List.sort cmp hs in
       let cs = List.sort cmp cs in *)
-      let gs = list_spatial_matches [] hyp_pure conc_pure [] [] [] hs cs in
+      let gs = list_spatial_matches [] hyp_pure conc_pure [] [] hs cs in
       List.map (fun x -> [x]) gs) }
 
 let find_pattern_matches = find_matches (c1 true) Expr.is_tpat
@@ -606,12 +615,12 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
-  ; spatial_match_rule (* should be before abduce_instance_rule *)
+(*   ; spatial_match_rule (* should be before abduce_instance_rule *) *)
   ; abduce_instance_rule
 (*   ; spatial_id_rule *)
   ; smt_pure_rule
 (*   ; or_rule *)
-(*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
+  ; match_rule (* XXX: subsumed by match_subformula_rule? *)
 (*   ; match_subformula_rule *)
   ; inline_pvars_rule ]
 
