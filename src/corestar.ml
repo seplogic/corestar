@@ -50,11 +50,16 @@ let verify fn =
     end
   end with Symexec.Fatal m -> eprintf "@[ERROR: %s@." m
 
-let () =
-  printf "@[@{<html>@{<head>@{<css>@}@{<encoding>@}@}@{<body>"; eprintf "@[";
-  Arg.parse Config.args_default verify "corestar [options] <files>";
+let finish_execution _ =
   prof_phase "shutdown";
   Prover.pp_stats ();
   prof_pp_stats ();
   printf "@}@}@?"; eprintf "@?";
-  if not !all_ok then exit 1
+  exit (if not !all_ok then 1 else 0)
+
+let () =
+  ignore (Sys.signal Sys.sigint (Sys.Signal_handle finish_execution));
+  printf "@[@{<html>@{<head>@{<css>@}@{<encoding>@}@}@{<body>"; eprintf "@[";
+  Arg.parse Config.args_default verify "corestar [options] <files>";
+  finish_execution 0
+

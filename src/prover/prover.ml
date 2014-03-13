@@ -148,11 +148,16 @@ let guess_instances e f =
   let get_eq_args e =
     let module H = Hashtbl.Make (Expr) in
     let h = H.create 0 in
+    let h_eq = H.create 0 in (* ∀x in h_eq, there is y in h s.t. x=y *)
+    let add a b =
+      if not (H.mem h_eq a || H.mem h_eq b) then H.replace h a ();
+      H.replace h_eq a (); H.replace h_eq b () in
     let rec get e = Expr.match_ e
       undefined (* shouldn't be a variable *)
       ( Expr.on_star (List.iter get)
       & Expr.on_or (List.iter get)
-      & Expr.on_eq (fun a _ -> H.replace h a ())
+      & Expr.on_eq add
+      & Expr.on_neq (fun a b -> add a a; add b b)
       & c2 () ) in
     get e;
     H.fold (fun x () xs -> x :: xs) h [] in
@@ -230,13 +235,16 @@ let abduce_instance_rule =
   ; rule_apply =
     prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let _Is = guess_instances hypothesis conclusion in
-      let mk _I =
-        if Expr.equal _I Expr.emp || Expr.equal _I conclusion then None else
-        Some
-        [ { Calculus.hypothesis; conclusion = _I; frame = Expr.emp }
-        ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
-      in map_option mk _Is) }
+      let is_or = Expr.cases (c1 false) (Expr.on_or (c1 true) & c2 false) in
+        if is_or conclusion then [] else begin
+        let _Is = guess_instances hypothesis conclusion in
+        let mk _I =
+          if Expr.equal _I Expr.emp || Expr.equal _I conclusion then None else
+          Some
+          [ { Calculus.hypothesis; conclusion = _I; frame = Expr.emp }
+          ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
+        in map_option mk _Is
+      end) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule =
@@ -620,7 +628,7 @@ let builtin_rules =
 (*   ; spatial_id_rule *)
   ; smt_pure_rule
 (*   ; or_rule *)
-  ; match_rule (* XXX: subsumed by match_subformula_rule? *)
+(*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
   ; inline_pvars_rule ]
 
