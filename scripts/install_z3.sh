@@ -11,7 +11,7 @@ if [ -z "$CORESTAR_HOME" ]; then
 fi
 
 SCRIPTS=$CORESTAR_HOME/scripts
-Z3_URL="http://www0.cs.ucl.ac.uk/staff/J.Villard/pub/z3-e79e1830180c926e231d3c1c6411566e70c0de46.zip"
+Z3_URL="http://www.doc.ic.ac.uk/~jvillar1/pub/z3-e79e1830180c926e231d3c1c6411566e70c0de46.zip"
 Z3_ZIP="z3.zip"
 TMP=$(mktemp -d)
 
