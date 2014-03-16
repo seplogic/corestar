@@ -5,9 +5,10 @@ open Debug
 open Format
 
 module C = Core
-module Expr = Expression
 module G = Cfg
 module P = Cfg.Procedure
+
+let z3_ctx = Syntax.z3_ctx
 
 exception Fatal of string
 
@@ -17,42 +18,36 @@ let fix_scc_limit = 1 lsl 2
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
 
-let substitute_list var ts e =
-  let p i t = (var i, t) in
-  Expr.substitute (ListH.mapi p ts) e
-
-let substitute_args = substitute_list CoreOps.parameter
-let substitute_rets = substitute_list CoreOps.return
-
 (* TODO: warn if there are special vars that remain in the result. *)
 let specialize_spec rets args xs =
-  let ret_terms = List.map Expr.mk_var rets in
-  let f { Core.pre; post; modifies } =
-    { Core.pre = substitute_args args pre
-    ; post = substitute_args args (substitute_rets ret_terms post)
-    ; modifies = rets @ modifies } in
+  let f { Core.pre; post; modifies; in_vars; out_vars } =
+    let subst_inout e = Z3.Expr.substitute (Z3.Expr.substitute e in_vars args) out_vars rets in
+    { Core.pre = subst_inout pre
+    ; post = subst_inout post
+    ; modifies = rets @ modifies
+    ; in_vars = []
+    ; out_vars = [] } in
   C.TripleSet.map f xs
 
 let mk_big_star = Prover.mk_big_star
 let mk_star = Prover.mk_star
 
-let freshen_triple { C.pre; post; modifies } =
-  let h = StringHash.create 0 in
+let freshen_triple { C.pre; post; modifies; in_vars; out_vars } =
+  let h = Syntax.ExprHashMap.create 0 in
   let rec freshen_expr e =
-    let var v = if not (Expr.is_lvar v) then Expr.mk_var v else begin
-      try StringHash.find h v
+    let var v = if not (Syntax.is_lvar v) then v else begin
+      try Syntax.ExprHashMap.find h v
       with Not_found ->
-        (let w = Expr.mk_var (Expr.freshen v) in StringHash.add h v w; w)
+        (let w = Syntax.freshen v in Syntax.ExprHashMap.add h v w; w)
     end in
-    Expr.cases var (Expr.recurse freshen_expr) e in
-  { C.pre = freshen_expr pre; post = freshen_expr post; modifies }
+    (Syntax.on_var var & Syntax.on_app (Syntax.recurse freshen_expr)) e in
+  { C.pre = freshen_expr pre; post = freshen_expr post; modifies; in_vars; out_vars }
 
-let c2 x _ _ = x
-let simplify_triple ({ C.pre; post; modifies } as t1) =
-  let module H = Hashtbl.Make (Expr) in
+let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
+  let module H = Hashtbl.Make (Syntax.HashableExpr) in
 
   let dbg_eq f (a, b) =
-    fprintf f "@[%a=%a@]" Expr.pp a Expr.pp b in
+    fprintf f "@[%a=%a@]" Syntax.pp_expr a Syntax.pp_expr b in
   let dbg_eqs f eqs =
     fprintf f "@[<2>(eqs@ @[%a@])@]" (pp_list_sep " * " dbg_eq) eqs in
 (*  let dbg_reps f rs =
@@ -61,20 +56,20 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
   let rec get_eqs is_ok e =
     let eq a b = if is_ok a || is_ok b then [(a, b)] else [] in
     let star es = es >>= get_eqs is_ok in
-    Expr.cases undefined (Expr.on_eq eq & Expr.on_star star & c2 []) e in
+    (Syntax.on_eq eq & Syntax.on_big_star star & c1 []) e in
   let rec get_lvars e =
-    let var v = if Expr.is_lvar v then [Expr.mk_var v] else [] in
-    Expr.cases var (fun _ es -> es >>= get_lvars) e in
-  let is_ve p e = Expr.cases p (c2 false) e in
-  let is_lvar = is_ve Expr.is_lvar in
-  let is_pvar = is_ve Expr.is_pvar in
+    let var v = if Syntax.is_lvar v then [v] else [] in
+    (Syntax.on_var var & Syntax.on_app (fun _ es -> es >>= get_lvars)) e in
+  let is_ve p e = Syntax.on_var p (c1 false) e in
+  let is_lvar = is_ve Syntax.is_lvar in
+  let is_pvar = is_ve Syntax.is_pvar in
   let is_var e = is_lvar e || is_pvar e in
   let get_reps e =
     let h = H.create 0 in
     let eqs = get_eqs is_var e in
     let rec find e =
       let f = (try H.find h e with Not_found -> e) in
-      let f = if Expr.equal e f then e else find f in
+      let f = if Syntax.expr_equal e f then e else find f in
       H.replace h e f; f in
     let union (a, b) =
       let a, b = find a, find b in
@@ -100,32 +95,34 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
     List.fold_left f [] ys in
   let ls = common (get_lvars pre) (get_lvars post) in
   let mk_subst rep =
-    H.fold (fun e f ss -> if is_lvar e then (e, f) :: ss else ss) rep [] in
-  let pre_subst, post_subst = mk_subst pre_reps, mk_subst post_reps in
-  let pre = Expr.substitute_gen pre_subst pre in
-  let post = Expr.substitute_gen post_subst post in
+    H.fold (fun e f (subees,subers) ->
+      if is_lvar e then (e::subees, f::subers) else (subees, subers)) rep ([],[]) in
+  let (pre_subees, pre_subers) = mk_subst pre_reps in
+  let (post_subees, post_subers) = mk_subst post_reps in
+  let pre = Z3.Expr.substitute pre pre_subees pre_subers in
+  let post = Z3.Expr.substitute post post_subees post_subers in
   let lvar_eqs rep =
-    let f v = (try [Expr.mk_eq v (H.find rep v)] with Not_found -> []) in
+    let f v = (try [Z3.Boolean.mk_eq z3_ctx v (H.find rep v)] with Not_found -> []) in
     ls >>= f in
   let pre = mk_big_star (pre :: lvar_eqs pre_reps) in
   let post = mk_big_star (post :: lvar_eqs post_reps) in
   let pre = Prover.normalize pre in
   let post = Prover.normalize post in
-  let t2 = { C.pre; post; modifies } in
+  let t2 = { C.pre; post; modifies; in_vars; out_vars } in
   printf "@[<2>(simplify_triple@ @[(%a)→(%a)@]@\npre_subst@ %a\
       @\npost_subst@ %a@\ncommon_pre@ %a@\ncommon_post@ %a@])@\n"
     CoreOps.pp_triple t1
     CoreOps.pp_triple t2
-    dbg_eqs pre_subst
-    dbg_eqs post_subst
-    (pp_list_sep " * " Expr.pp) (lvar_eqs pre_reps)
-    (pp_list_sep " * " Expr.pp) (lvar_eqs post_reps)
+    dbg_eqs (List.combine pre_subees pre_subers)
+    dbg_eqs (List.combine post_subees post_subers)
+    (pp_list_sep " * " Syntax.pp_expr) (lvar_eqs pre_reps)
+    (pp_list_sep " * " Syntax.pp_expr) (lvar_eqs post_reps)
     ;
   t2
 
-let normalize { C.pre; post; modifies } =
+let normalize { C.pre; post; modifies; in_vars; out_vars } =
   let f = Prover.normalize in
-  { C.pre = f pre; post = f post; modifies = modifies }
+  { C.pre = f pre; post = f post; modifies = modifies; in_vars; out_vars }
 
 let normalize_spec = C.TripleSet.map normalize
 
@@ -138,9 +135,14 @@ let join_triples ts =
   let pre = Prover.mk_big_meet (List.map (fun t -> t.C.pre) ts) in
   let post = Prover.mk_big_or (List.map (fun t -> t.C.post) ts) in
   let modifies =
-    Misc.remove_duplicates compare (ts >>= fun t -> t.C.modifies) in
-  printf "LEAVE join_triples)@\n";
-  { C.pre; post; modifies }
+    Misc.remove_duplicates Syntax.expr_compare (ts >>= fun t -> t.C.modifies) in
+  let in_vars =
+    List.fold_left (fun ivs t -> match ivs with None -> Some t.C.in_vars | Some ivss -> assert (t.C.in_vars = ivss); ivs) None ts in
+  let out_vars =
+    List.fold_left (fun ovs t -> match ovs with None -> Some t.C.out_vars | Some ovss -> assert (t.C.out_vars = ovss); ovs) None ts in
+  let in_vars = match in_vars with None -> [] | Some a -> a in
+  let out_vars = match out_vars with None -> [] | Some a -> a in
+  { C.pre; post; modifies; in_vars; out_vars }
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
@@ -199,14 +201,16 @@ let mic_add_edges r labels succ =
 
 (* }}} *)
 
-let mk_intermediate_cfg cs =
+let mk_intermediate_cfg params ret_vars cs =
   let g = CfgH.create () in
   let start, stop, succ = mic_create_vertices g cs in
   let labels = mic_hash_labels g in
   let r =
     { ProcedureH.cfg = g
     ; ProcedureH.start = start
-    ; ProcedureH.stop = stop } in
+    ; ProcedureH.stop = stop
+    ; ProcedureH.parameters = params
+    ; ProcedureH.return_vars = ret_vars } in
   mic_add_edges r labels succ;
   r
 
@@ -237,7 +241,7 @@ let sc_add_edges cfg nv s_cfg v =
 
 (* }}} *)
 
-let simplify_cfg { ProcedureH.cfg; start; stop } =
+let simplify_cfg { ProcedureH.cfg; start; stop; parameters; return_vars } =
   let s_cfg = G.Cfg.create () in
   let nv = HVHashtbl.create 1 in (* old vertex -> new vertex *)
   let add_vertex v =
@@ -249,7 +253,9 @@ let simplify_cfg { ProcedureH.cfg; start; stop } =
   CfgH.iter_vertex (sc_add_edges cfg nv s_cfg) cfg;
   { P.cfg = s_cfg
   ; start = HVHashtbl.find nv start
-  ; stop = HVHashtbl.find nv stop }
+  ; stop = HVHashtbl.find nv stop
+  ; parameters
+  ; return_vars }
 
 (* POST: Only abstraction nodes have in-degree bigger than 1. *)
 let insert_abstraction_nodes p =
@@ -274,7 +280,7 @@ let output_cfgH n g =
 
 let mk_cfg q =
   let n = q.C.proc_name in
-  let g = option_map mk_intermediate_cfg q.C.proc_body in
+  let g = option_map (mk_intermediate_cfg  q.C.proc_params q.C.proc_rets) q.C.proc_body in
   if !Config.verbosity >= 3 then
     option () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
@@ -497,7 +503,7 @@ end = struct
     let conf =
       let ok_conf =
         { G.current_heap = pre_formula
-        ; missing_heap = Expr.emp
+        ; missing_heap = Syntax.mk_emp
         ; pvar_value = pre_defs } in
       (*   TODO:   G.check_ok_configuration ok_conf; *)
       CG.V.create (G.OkConf (ok_conf, G.Demonic)) in
@@ -518,12 +524,12 @@ end = struct
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
             let cp_formula f =
-              let vs = List.filter Expr.is_pvar (Expr.vars f) in
-              List.fold_right StringSet.add vs in
+              let vs = List.filter Syntax.is_pvar (Syntax.vars f) in
+              List.fold_right Syntax.ExprSet.add vs in
             acc |> cp_formula pre |> cp_formula post in
           C.TripleSet.fold cp_triple spec acc
     in
-    StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
+    Syntax.ExprSet.elements (G.Cfg.fold_vertex cp_vertex fg Syntax.ExprSet.empty)
 
   let collect_modified_vars fg =
     let cp_vertex v acc = match G.Cfg.V.label v with
@@ -531,13 +537,14 @@ end = struct
       | G.Call_cfg _ ->
           failwith "INTERNAL: calls should be removed by [inline_call_specs]"
       | G.Spec_cfg spec ->
-          let cm_triple t = List.fold_right StringSet.add t.C.modifies in
+          let cm_triple t = List.fold_right Syntax.ExprSet.add t.C.modifies in
           C.TripleSet.fold cm_triple spec acc in
-    StringSet.elements (G.Cfg.fold_vertex cp_vertex fg StringSet.empty)
+    Syntax.ExprSet.elements (G.Cfg.fold_vertex cp_vertex fg Syntax.ExprSet.empty)
 
   (* TODO: More efficient? *)
-  let substitute_defs ds =
-    Expr.substitute (StringMap.bindings ds)
+  let substitute_defs ds e =
+    let (subees, subers) = List.split (Syntax.ExprMap.bindings ds) in
+    Z3.Expr.substitute e subees subers
 
   (* If we execute a statement that has [post] as a postcondition, and modifies
   the variables in [vs], then the pre-state [pre_defs] is modified as follows:
@@ -550,48 +557,46 @@ end = struct
   exception Done
   let update_defs pre_defs vs post =
     let is_v =
-      flip StringSet.mem (List.fold_right StringSet.add vs StringSet.empty) in
-    let is_ve = Expr.cases is_v (fun _ _ -> false) in
-    let vs_of = List.filter is_v @@ Expr.vars in
+      flip Syntax.ExprSet.mem (List.fold_right Syntax.ExprSet.add vs Syntax.ExprSet.empty) in
+    let vs_of = List.filter is_v @@ Syntax.vars in
     let rec get_pdefs pdefs e =
       let eq pdefs a b =
-        let va, vb = is_ve a, is_ve b in
+        let va, vb = is_v a, is_v b in
         if va || vb then begin
-          let v, e = if va then Expr.bk_var a, b else Expr.bk_var b, a in
-          let ds = (try StringMap.find v pdefs with Not_found -> []) in
-          StringMap.add v ((e, vs_of e) :: ds) pdefs
+          let v, e = if va then a, b else b, a in
+          let ds = (try Syntax.ExprMap.find v pdefs with Not_found -> []) in
+          Syntax.ExprMap.add v ((e, vs_of e) :: ds) pdefs
         end else pdefs in
-      Expr.cases undefined
-        ( Expr.on_eq (eq pdefs)
-        & Expr.on_star (List.fold_left get_pdefs pdefs)
-        & (fun _ _ -> pdefs) )
+      ( Syntax.on_eq (eq pdefs)
+        & Syntax.on_big_star (List.fold_left get_pdefs pdefs)
+        & (fun _ -> pdefs) )
         e in
-    let pdefs = get_pdefs StringMap.empty post in
-    let post_defs = ref (List.fold_right StringMap.remove vs pre_defs) in
-    let seen = HashSet.create 0 in
-    let rec define v = if not (HashSet.mem seen v) then begin
-      HashSet.add seen v;
+    let pdefs = get_pdefs Syntax.ExprMap.empty post in
+    let post_defs = ref (List.fold_right Syntax.ExprMap.remove vs pre_defs) in
+    let seen = Syntax.ExprHashSet.create 0 in
+    let rec define v = if not (Syntax.ExprHashSet.mem seen v) then begin
+      Syntax.ExprHashSet.add seen v;
       let process_eq (e, ws) =
         List.iter define ws;
-        if List.for_all (flip StringMap.mem !post_defs) ws then begin
+        if List.for_all (flip Syntax.ExprMap.mem !post_defs) ws then begin
           let e = substitute_defs !post_defs e in
-          post_defs := StringMap.add v e !post_defs;
+          post_defs := Syntax.ExprMap.add v e !post_defs;
           raise Done
         end
       in
-      let eqs = (try StringMap.find v pdefs with Not_found -> []) in
+      let eqs = (try Syntax.ExprMap.find v pdefs with Not_found -> []) in
       (try List.iter process_eq eqs with Done -> ())
     end in
     List.iter define vs;
     (* TODO: Below, no attempt is made to minimize the number of fresh vars. *)
-    let mk_fresh v = if not (StringMap.mem v !post_defs) then
-      post_defs := StringMap.add v (Expr.mk_var (Expr.freshen v)) !post_defs in
+    let mk_fresh v = if not (Syntax.ExprMap.mem v !post_defs) then
+      post_defs := Syntax.ExprMap.add v (Syntax.freshen v) !post_defs in
     List.iter mk_fresh vs;
     !post_defs
 
   let eqs_of_bindings ds =
-    let mk_eq (v, e) = Expr.mk_eq (Expr.mk_var v) e in
-    ds |> List.map mk_eq |> mk_big_star
+    let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
+    ds |> List.map mk_eq |> Syntax.mk_big_star
 
   (* helpers for [execute_one_triple] *) (* {{{ *)
 
@@ -612,7 +617,7 @@ end = struct
     let { C.pre; post; modifies } = triple in
     let vs = modifies in
     let pre_defs = pre_conf.G.pvar_value in
-    let def_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
+    let def_eqs = eqs_of_bindings (Syntax.ExprMap.bindings pre_defs) in
     let afs = abduct (mk_star pre_conf.G.current_heap def_eqs) pre in
     let branch afs =
       let afs = abstract_afs afs in
@@ -623,7 +628,7 @@ end = struct
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
         let h = Prover.normalize (mk_star post f) in
-        let hs = Expr.match_ h undefined (Expr.on_or id & c2 [h]) in
+        let hs = (Syntax.on_or id & Syntax.on_app (c2 [h])) h in
         let missing_heap = mk_star pre_conf.G.missing_heap a in
         let mk current_heap =
           { G.current_heap; missing_heap; pvar_value = post_defs } in
@@ -638,7 +643,7 @@ end = struct
       let keep_conf { G.missing_heap; current_heap; pvar_value } =
         let current_heap =
           mk_star
-            current_heap (eqs_of_bindings (StringMap.bindings pvar_value)) in
+            current_heap (eqs_of_bindings (Syntax.ExprMap.bindings pvar_value)) in
         not (is_deadend missing_heap) && not (is_deadend current_heap) in
       afs
         >>= mk_post_conf
@@ -707,20 +712,20 @@ end = struct
     | G.OkConf ( { G.current_heap = c1; missing_heap = m1; pvar_value = b1 }, _)
     , G.OkConf ( { G.current_heap = c2; missing_heap = m2; pvar_value = b2 }, _)
       ->
-        let eqs b = eqs_of_bindings (StringMap.bindings b) in
+        let eqs b = eqs_of_bindings (Syntax.ExprMap.bindings b) in
         let c1 = mk_star c1 (eqs b1) in
         let c2 = mk_star c2 (eqs b2) in
         Prover.is_entailment calculus c1 c2
         && Prover.is_entailment calculus m2 m1
 
   let implies_triple calculus t1 t2 =
-    let t2m = List.fold_right StringSet.add t2.C.modifies StringSet.empty in
+    let t2m = List.fold_right Syntax.ExprSet.add t2.C.modifies Syntax.ExprSet.empty in
     let prove = Prover.infer_frame calculus in
-    let check_final { Prover.frame; _ } = Expr.is_pure frame in
+    let check_final { Prover.frame; _ } = Syntax.is_pure frame in
     let check_intermediate { Prover.frame; _ } =
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
-      List.for_all (flip StringSet.mem t2m) t1.C.modifies
+      List.for_all (flip Syntax.ExprSet.mem t2m) t1.C.modifies
       && List.exists check_intermediate (prove t2.C.pre t1.C.pre) in
     if log log_exec then begin
       fprintf logf "@[<2>implies_triple: %b@ @[%a@ =?=> %a@]@]@\n"
@@ -900,11 +905,14 @@ end = struct
       Some (get_stop_confs context procedure)
     end
 
-  let empty_triple = { Core.pre = Expr.emp; post = Expr.emp; modifies = [] }
+  (** the triple [out_vars] := {emp} () {emp} ([in_vars]) *)
+  let empty_triple in_vars out_vars =
+    { Core.pre = Syntax.mk_emp; post = Syntax.mk_emp;
+      in_vars = in_vars; out_vars = out_vars; modifies = [] }
 
-  let spec_of post =
+  let spec_of post in_vars out_vars =
     let post = CoreOps.mk_assert post in
-    let nop = C.TripleSet.singleton empty_triple in
+    let nop = C.TripleSet.singleton (empty_triple in_vars out_vars) in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -915,11 +923,12 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_gen ask rules body post =
+  let update_gen ask rules body post in_vars out_vars =
     let ask = ask rules.C.calculus in
     let is_deadend = Prover.is_inconsistent rules.C.calculus in
     let abstract_afs = abstract_afs rules.C.calculus in
-    let execute = execute abstract_afs ask is_deadend (spec_of post body.P.stop) in
+    let execute = execute
+      abstract_afs ask is_deadend (spec_of post in_vars out_vars body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 
   let update_infer = update_gen abduct
@@ -953,50 +962,49 @@ end = struct
           fprintf logf "@{<details>@[@{<summary>Interpreting procedure body: %s@}@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let mvars = collect_modified_vars body.P.cfg in
-        let mvars_global = List.filter CoreOps.is_global mvars in
+        let mvars_global = List.filter Syntax.is_global mvars in
         let pvars = collect_pvars body.P.cfg in
         let process_triple update triple =
           if log log_phase then
             fprintf logf "@{<details>@[@{<summary>Processing triple: %a@}@\n@]@?" CoreOps.pp_triple triple;
-          let pre_defs = update_defs StringMap.empty pvars triple.C.pre in
+          let pre_defs = update_defs Syntax.ExprMap.empty pvars triple.C.pre in
           let is_init_value =
-            let module H = Hashtbl.Make (Expr) in
-            let init = H.create 0 in
-            StringMap.iter (fun _ v -> H.replace init v ()) pre_defs;
-            H.mem init in
-          let update = update triple.C.post in
+            let init = Syntax.ExprHashMap.create 0 in
+            Syntax.ExprMap.iter (fun _ v -> Syntax.ExprHashMap.replace init v ()) pre_defs;
+            Syntax.ExprHashMap.mem init in
+          let update = update triple.C.post triple.C.in_vars triple.C.out_vars in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let visible_defs =
-              let p v _ = CoreOps.is_global v || CoreOps.is_return v in
-              StringMap.filter p pvar_value in
-            let pre_eqs = eqs_of_bindings (StringMap.bindings pre_defs) in
+              let p v _ = Syntax.is_global v || (List.exists (Syntax.expr_equal v) procedure.C.proc_rets) in
+              Syntax.ExprMap.filter p pvar_value in
+            let pre_eqs = eqs_of_bindings (Syntax.ExprMap.bindings pre_defs) in
             let post_eqs =
               (* TODO(rgrig): Fix. This is horrible code. *)
-              let module H = Hashtbl.Make (Expr) in
+              let module H = Hashtbl.Make (Syntax.HashableExpr) in
               let h = H.create 0 in
               let add e x =
                 let xs = (try H.find h e with Not_found -> []) in
                 H.replace h e (x :: xs) in
-              StringMap.iter (flip add) visible_defs;
+              Syntax.ExprMap.iter (flip add) visible_defs;
               let rec is_init e =
                 is_init_value e ||
-                Expr.cases (c1 false) (c1 & List.for_all is_init) e in
+                  (Syntax.on_app (c1 & List.for_all is_init)) e in
               let get_classes e xs ess =
-                let es = List.map Expr.mk_var xs in
-                let es = if is_init e then e :: es else es in
+                let es = if is_init e then e :: xs else xs in
                 es :: ess in
               let ess = H.fold get_classes h [] in
-              let add_eq eqs e1 e2 = Expr.mk_eq e1 e2 :: eqs in
+              let add_eq eqs e1 e2 = Z3.Boolean.mk_eq z3_ctx e1 e2 :: eqs in
               let eqs = List.fold_left (Misc.fold_pairs add_eq) [] ess in
               mk_big_star eqs in
-            let post_subst =
-              let f v e xs = (e, Expr.mk_var v) :: xs in
-              StringMap.fold f visible_defs [] in
-            let current_heap = Expr.substitute_gen post_subst current_heap in
+	    (* substitute expressions for their associated visible variable *)
+	    let (subers, subees) = List.split (Syntax.ExprMap.bindings visible_defs) in
+            let current_heap = Z3.Expr.substitute current_heap subees subers in
             (* TODO: what if lvars remain after the above substitutions? *)
             simplify_triple
               { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
               ; post = mk_star current_heap post_eqs
+	      ; in_vars = triple.C.in_vars
+	      ; out_vars = triple.C.out_vars
               ; modifies = mvars_global } in
           let css =
             let name = procedure.C.proc_name in
@@ -1013,7 +1021,7 @@ end = struct
               fprintf logf "@[@{<h4>symexec inferring %s@}@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer rules body) in
-            let ts = empty_triple :: ts in
+            let ts = empty_triple  procedure.C.proc_params procedure.C.proc_rets :: ts in
             if log log_phase then
               fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
@@ -1063,8 +1071,8 @@ end = struct
 	else begin (* checking, not inferring *)
           let modifies_ok t =
             let ms =
-              List.fold_right StringSet.add t.C.modifies StringSet.empty in
-            List.for_all (flip StringSet.mem ms) mvars in
+              List.fold_right Syntax.ExprSet.add t.C.modifies Syntax.ExprSet.empty in
+            List.for_all (flip Syntax.ExprSet.mem ms) mvars in
           let ok =
             List.for_all (option false ((<>) [])) tss
             && C.TripleSet.for_all modifies_ok procedure.C.proc_spec in

@@ -9,8 +9,8 @@ TODO: check that patterns are bound in concrete if used in abstract
 TODO: add side-conditions (see where clauses in examples)
 *)
 type rule_schema =
-  { concrete_pattern : Expression.t
-  ; abstract_pattern : Expression.t }
+  { concrete_pattern : Z3.Expr.expr
+  ; abstract_pattern : Z3.Expr.expr }
 
 
 type t = rule_schema list

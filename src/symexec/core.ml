@@ -11,23 +11,25 @@
       LICENSE.txt
  ********************************************************)
 
-module Expr = Expression
+type args_out = Z3.Expr.expr list
+type args_in = Z3.Expr.expr list
 
-type args_out = string list
-type args_in = Expr.t list
-
-type triple = { pre : Expr.t; post : Expr.t; modifies : args_out }
+type triple = { pre : Z3.Expr.expr; post : Z3.Expr.expr;
+		in_vars : args_in; out_vars : args_in;
+		modifies : args_out }
 
 module TripleSet = HashSet.Make (struct
   type t = triple
 
   let equal a b =
-    Expr.equal a.pre b.pre
-    && Expr.equal a.post b.post
+    Syntax.expr_equal a.pre b.pre
+    && Syntax.expr_equal a.post b.post
+    && a.in_vars = b.in_vars
+    && a.out_vars = b.out_vars
     && a.modifies = b.modifies
 
-  let hash { pre; post; modifies } =
-    ((Expr.hash pre * 31) + Expr.hash post) * 31 + Hashtbl.hash modifies
+  let hash { pre; post; in_vars; out_vars; modifies } =
+    ((Z3.AST.hash (Z3.Expr.ast_of_expr pre) * 31) + Z3.AST.hash (Z3.Expr.ast_of_expr post)) * 31 + Hashtbl.hash in_vars + Hashtbl.hash out_vars + Hashtbl.hash modifies
 end)
 
 type spec = TripleSet.t
@@ -50,6 +52,8 @@ type 'body procedure =
   ; mutable proc_spec : spec
   ; proc_ok : bool
   ; proc_body : 'body option
+  ; proc_params : Z3.Expr.expr list
+  ; proc_rets : Z3.Expr.expr list
   ; proc_rules : rules }
 
 type assignment =

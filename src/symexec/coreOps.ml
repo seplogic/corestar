@@ -15,16 +15,14 @@ open Core
 open Corestar_std
 open Format
 
-module Expr = Expression
-
-let pp_args_out = pp_list_sep "," pp_string
-let pp_args_in = pp_list_sep "," Expr.pp
+let pp_args_out = pp_list_sep "," Syntax.pp_expr
+let pp_args_in = pp_list_sep "," Syntax.pp_expr
 
 let pp_triple f { pre; post; modifies } =
   fprintf f "@[{%a}@]@,@[(%a)@]@,@[{%a}@]"
-    Expr.pp pre
-    (pp_list_sep "," pp_string) modifies
-    Expr.pp post
+    Syntax.pp_expr pre
+    (pp_list_sep "," Syntax.pp_expr) modifies
+    Syntax.pp_expr post
 
 let pp_spec f ts = pp_list_sep "+" pp_triple f (TripleSet.elements ts)
 
@@ -64,16 +62,6 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
     (pp_list pp_ast_procedure) q_procs
     pp_rules q_rules
 
-(* TODO: simpler names for args/rets. *)
-let return n = Printf.sprintf "$ret_v%d" n
-let parameter n = Printf.sprintf "@parameter%d:" n
-
-let global_prefix = "$g"
-
-let is_parameter = StringH.starts_with "@parameter"
-let is_return = StringH.starts_with "$ret"
-let is_global = StringH.starts_with global_prefix
-
 let empty_ast_question =
   { q_procs = []
   ; q_globals = []
@@ -94,6 +82,6 @@ let refines_spec logic spec1 spec2 =
     spec2
 
 let mk_assume f =
-  TripleSet.singleton { pre = Expr.emp; post = f; modifies = [] }
+  TripleSet.singleton { pre = Syntax.mk_emp; post = f; modifies = []; in_vars = []; out_vars = [] }
 let mk_assert f =
-  TripleSet.singleton { pre = f; post = f; modifies = [] }
+  TripleSet.singleton { pre = f; post = f; modifies = []; in_vars = []; out_vars = [] }

@@ -27,16 +27,6 @@ val pp_rules : rules pretty_printer
 val pp_ast_question : ast_question pretty_printer
 
 
-(** {2 Special variable names} *)
-val return : int -> Expression.var
-val parameter : int -> Expression.var
-
-val global_prefix : string
-
-val is_parameter : string -> bool
-val is_return : string -> bool
-val is_global : string -> bool
-
 (** {2 Useful constants} *)
 val empty_ast_question : ast_question
 
@@ -46,5 +36,5 @@ val refines_triple : triple refinement_check
 val refines_spec : spec refinement_check
 
 (** {2 Construct simple specs} *)
-val mk_assume : Expression.t -> spec
-val mk_assert : Expression.t -> spec
+val mk_assume : Z3.Expr.expr -> spec
+val mk_assert : Z3.Expr.expr -> spec

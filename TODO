@@ -1,3 +1,9 @@
+- check that the number of arguments of functions/specs match
+  otherwise Z3 will throw an exception later and that's ugly
+- see if we want to use Z3 variables instead of constants
+  (Jules: I don't really understand the difference!)
+- see if we want to use classical conjunction instead of * for pure parts
+- there seems to be some sort of memory leak in z3/interface
 - test on problem similar to those of topstar
 - there seems to be some sort of memory leak in z3/interface
 - disjunctions in preconditions should probably lead to splitting the triple
@@ -7,15 +13,17 @@
   (should also lead to a better inconsistency check)
 - proper treatement of global variables
 - scoping for variables in expression; that is, quantifiers
-- add types to expressions (useful for talking to Z3)
-- add polymorphic sorts (equality, bvadd, bvconcat, etc)
-- sort checking for expressions (at build time)
 - add 'where' sidecondition (instantiate with matching)
 - apply (equivalence) rewrite rules on side-conditions
 - port old tests
 - avoid using [mk_app] if there exists an alternative constructor
 
 - old todos, just for reference:
+  - rename Prover.is_true to Prover.is_emp
+    (these are not the same for some coreStar users)
+  - add types to expressions (useful for talking to Z3)
+  - add polymorphic sorts (equality, bvadd, bvconcat, etc)
+  - sort checking for expressions (at build time)
   - fix bug in treatment of constructors for frame inference:
     constants (aka constructors) from the obligation should be assumed
     distinct from the other constructors that appear in the assumption
