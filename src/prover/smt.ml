@@ -87,3 +87,11 @@ let check_sat () =
 
 let push () = Z3.Solver.push z3_solver
 let pop () = Z3.Solver.pop z3_solver 1
+
+(** returns [true] if the formula is known to be valid in the current context. Might return [false] even if the formula is valid. *)
+let is_valid e =
+  push ();
+  say (Z3.Boolean.mk_not z3_ctx e);
+  match check_sat () with
+  | Unsat -> true
+  | _ -> false

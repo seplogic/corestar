@@ -190,9 +190,9 @@ let dbg_mc = ref 0
 (* Prover rules, including those provided by the user. *) (* {{{ *)
 type named_rule =
   { rule_name : string (* For debug *)
+  (** If ([rule_apply] [x]) is [[a;b];[c]], then a and b together are sufficient
+  to prove [x], and so is c alone. *)
   ; rule_apply : Calculus.sequent -> Calculus.sequent list list }
-  (* If (rule_apply x) is [[a;b];[c]], then a and b together are sufficient
-  to prove x, and so is c alone. *)
 
 let id_rule =
   { rule_name = "identity axiom"
@@ -687,7 +687,10 @@ let builtin_rules_noinst =
 let rules_of_calculus builtin c =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
-    List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m in
+    let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
+    if Smt.is_valid side_cond then
+      List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m
+    else [] in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs) } in
@@ -716,7 +719,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
-        if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
+	if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
         let ess = r.rule_apply goal in
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
         ess in

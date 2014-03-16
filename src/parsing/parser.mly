@@ -266,6 +266,7 @@ calculus_rule:
     calculus_sidecondition
     IF sequent_list SEMICOLON
     { { Calculus.schema_name = $2
+      ; side_condition = $5
       ; goal_pattern = $4
       ; subgoal_pattern = $7 } }
 ;
@@ -278,7 +279,7 @@ sequent:
 ;
 
 calculus_sidecondition:
-  | /* empty for now, TODO */ { () }
+  | /* empty for now, TODO */ { Z3.Boolean.mk_true z3_ctx }
 ;
 
 sequent_list:
