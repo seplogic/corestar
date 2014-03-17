@@ -62,8 +62,9 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
     (pp_list pp_ast_procedure) q_procs
     pp_rules q_rules
 
-let empty_ast_question =
-  { q_procs = []
+let empty_ast_question ctx =
+  { q_syntax_context = ctx
+  ; q_procs = []
   ; q_globals = []
   ; q_rules = { calculus = []; abstraction = [] }
   ; q_infer = false
@@ -71,17 +72,17 @@ let empty_ast_question =
 
 type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 
-let refines_triple calculus triple1 triple2 =
+let refines_triple ctx calculus triple1 triple2 =
   (* NOTE: [infer_frame], unlike [is_entailment], instantiates lvars. *)
-  let ( => ) a b = Prover.infer_frame calculus a b <> [] in
+  let ( => ) a b = Prover.infer_frame ctx calculus a b <> [] in
   (triple2.pre => triple1.pre) && (triple1.post => triple2.post)
 
-let refines_spec logic spec1 spec2 =
+let refines_spec ctx logic spec1 spec2 =
   TripleSet.for_all
-    (fun t2 -> TripleSet.exists (fun t1 -> refines_triple logic t1 t2) spec1)
+    (fun t2 -> TripleSet.exists (fun t1 -> refines_triple ctx logic t1 t2) spec1)
     spec2
 
-let mk_assume f =
-  TripleSet.singleton { pre = Syntax.mk_emp; post = f; modifies = []; in_vars = []; out_vars = [] }
+let mk_assume ctx f =
+  TripleSet.singleton { pre = Syntax.mk_emp ctx; post = f; modifies = []; in_vars = []; out_vars = [] }
 let mk_assert f =
   TripleSet.singleton { pre = f; post = f; modifies = []; in_vars = []; out_vars = [] }

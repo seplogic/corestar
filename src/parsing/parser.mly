@@ -1,6 +1,6 @@
 /********************************************************
    This file is part of coreStar
-	src/parsing/jparser.mly
+	src/parsing/parser.mly
    Release
         $Release$
    Version
@@ -33,7 +33,8 @@ let message prefix text =
 let parse_error = message "E"
 let parse_warning = message "W"
 
-let z3_ctx = Syntax.z3_ctx
+let ctx = Parser_utils.ctx
+let z3_ctx = Syntax.z3_context ctx
 
 let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
 let bool_sort = Z3.Boolean.mk_sort z3_ctx
@@ -50,7 +51,7 @@ let mk_bool_app op args =
   Z3.Expr.mk_app z3_ctx fdecl args
 
 let mk_string_const s =
-  ignore (Syntax.mk_string_const s);
+  ignore (Syntax.mk_string_const ctx s);
   Z3.Expr.mk_const_s z3_ctx s int_sort
 
 
@@ -177,15 +178,15 @@ term_list:
 ;
 
 formula:
-  | /* empty */ { Syntax.mk_emp }
-  | EMP { Syntax.mk_emp }
-  | FALSE { Z3.Boolean.mk_false z3_ctx }
+  | /* empty */ { Syntax.mk_emp ctx }
+  | EMP { Syntax.mk_emp ctx }
+  | FALSE { Syntax.mk_false ctx }
   | BANG identifier L_PAREN term_list R_PAREN { mk_bool_app ("!"^$2) $4 }
   | identifier L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
-  | formula MULT formula { Syntax.mk_star $1 $3 }
-  | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
-  | term NOT_EQUALS term { Z3.Boolean.mk_distinct z3_ctx [$1; $3] }
-  | term EQUALS term { Z3.Boolean.mk_eq z3_ctx $1 $3 }
+  | formula MULT formula { Syntax.mk_star ctx $1 $3 }
+  | formula OROR formula { Syntax.mk_or ctx $1 $3 }
+  | term NOT_EQUALS term { Syntax.mk_distinct ctx [$1; $3] }
+  | term EQUALS term { Syntax.mk_eq ctx $1 $3 }
   | term cmpop term { $2 $1 $3 }
   | qidentifier { mk_bool_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
@@ -273,7 +274,7 @@ calculus_rule:
 
 sequent:
   | formula VDASH formula
-    { { Calculus.frame = Syntax.mk_emp
+    { { Calculus.frame = Syntax.mk_emp ctx
       ; hypothesis = $1
       ; conclusion = $3 } }
 ;

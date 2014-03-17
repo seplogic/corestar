@@ -144,7 +144,7 @@ let prof_stop c =
   Hashtbl.remove prof_start_of_c c;
   let ts = (try Hashtbl.find prof_time_of_c c with Not_found -> []) in
   Hashtbl.replace prof_time_of_c c (t2 -. t1 :: ts)
-let prof_pp_stats () =
+let prof_print_stats () =
   let pp_float f = fprintf f "%.03f" in
   let stats =
     let sum = List.fold_left (+.) 0.0 in
