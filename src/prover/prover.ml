@@ -881,7 +881,7 @@ let is_inconsistent rules e =
 let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 
-let pp_stats () =
+let print_stats () =
   fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
   fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
 (* }}} *)
