@@ -51,8 +51,8 @@ let verify fn =
 
 let finish_execution _ =
   prof_phase "shutdown";
-  Prover.pp_stats ();
-  prof_pp_stats ();
+  Prover.print_stats ();
+  prof_print_stats ();
   printf "@}@}@?"; eprintf "@?";
   exit (if not !all_ok then 1 else 0)
 

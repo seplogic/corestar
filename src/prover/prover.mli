@@ -33,4 +33,4 @@ val normalize
   : Z3.Expr.expr -> Z3.Expr.expr
 
 (* For debug only. *)
-val pp_stats : unit -> unit
+val print_stats : unit -> unit
