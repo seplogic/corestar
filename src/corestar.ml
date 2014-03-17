@@ -9,7 +9,7 @@ module PA = ParserAst
 
 (* NOTE: The lists of rules, procedures, etc, in the result are
 reversed compared to the argument. *)
-let question_of_entries xs =
+let question_of_entries ctx xs =
   let add_abstraction r q =
     let q_rules = q.C.q_rules in let abstraction = q_rules.C.abstraction in
     let abstraction = r :: abstraction in
@@ -24,7 +24,7 @@ let question_of_entries xs =
     | PA.Global xs -> { q with C.q_globals = xs @ q.C.q_globals }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
   let z =
-    { CoreOps.empty_ast_question with C.q_infer = !Config.use_abduction } in
+    { (CoreOps.empty_ast_question ctx) with C.q_infer = !Config.use_abduction } in
   List.fold_left f z xs
 
 let path = System.getenv_dirlist (System.getenv "COREPATH")
@@ -33,7 +33,7 @@ let parse fn = System.parse_file Parser.file Lexer.token fn "core"
 let load fn =
   prof_phase "parse";
   let xs = Load.load ~path parse fn in
-  let q = question_of_entries (List.rev xs) in
+  let q = question_of_entries Parser_utils.ctx (List.rev xs) in
   { q with C.q_name = fn }
 
 let all_ok = ref true

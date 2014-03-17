@@ -72,7 +72,8 @@ type statement =
 type ast_procedure = statement list procedure
 
 type 'proc question =
-  { q_procs : 'proc list
+  { q_syntax_context : Syntax.context
+  ; q_procs : 'proc list
   ; q_globals : string list
   ; q_rules : rules
   ; q_infer : bool  (* [true] means do bi-abduction *)

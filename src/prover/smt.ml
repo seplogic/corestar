@@ -6,11 +6,7 @@ type check_sat_response = Sat | Unsat | Unknown
 
 let log_comment s = if log log_smt then Z3.Log.append ("; "^s^"\n")
 
-let z3_ctx = Syntax.z3_ctx
-
-let z3_solver = Z3.Solver.mk_simple_solver z3_ctx
-
-let smt_listen () =
+let smt_listen z3_solver =
 (*   printf "EXECUTING Z3@\n@?"; *)
   let r = Z3.Solver.check z3_solver [] in
 (*   printf "REVIVING Z3@\n@?"; *)
@@ -41,26 +37,27 @@ let rewrite f g e =
    conjunction (afaict Z3 doesn't distinguish between symbols with the
    same name & type!). We could also write [rewrite] above differently
    so as to be able to use Boolean.mk_and in [rewrite_star_to_and]. *)
-let and_func_decl =
+let and_func_decl z3_ctx =
   let a = Z3.Expr.mk_const_s z3_ctx "a" (Z3.Boolean.mk_sort z3_ctx) in
   let b = Z3.Expr.mk_const_s z3_ctx "b" (Z3.Boolean.mk_sort z3_ctx) in
   let e = Z3.Boolean.mk_and z3_ctx [a; b] in
   Z3.Expr.get_func_decl e
 
 (** rewrite_star_to_and [e] replaces occurences of "*" in [e] with the boolean conjunction "and" *)
-let rewrite_star_to_and = rewrite Syntax.star and_func_decl
+let rewrite_star_to_and ctx = rewrite (Syntax.star ctx) (and_func_decl (Syntax.z3_context ctx))
 
 (** say [e] tells Z3 to assert [e] (assert is a keyword) *)
 (* TODO: Assert that e is pure? But perhaps sometimes we *want* to send stars to Z3. *)
-let say e =
+let say ctx e =
   (* Format.fprintf logf "SMT: previous kernel: %s@." (Z3.Solver.to_string z3_solver); *)
   (* Format.fprintf logf "SMT: saying %a, translated to %a@." Syntax.pp_expr e Syntax.pp_expr (rewrite_star_to_and e); *)
-  Z3.Solver.add z3_solver [rewrite_star_to_and e];
+  Z3.Solver.add (Syntax.z3_solver ctx) [rewrite_star_to_and ctx e];
   (* Format.fprintf logf "SMT: new kernel: %s@." (Z3.Solver.to_string z3_solver); *)
   ()
 
 (* Jules: TOFIX: we don't use this and it's complicated... oh well, it might be useful at some point or for front-ends. *)
-let define_fun sm vs st tm  =
+let define_fun ctx sm vs st tm  =
+  let z3_ctx = Syntax.z3_context ctx in
   let psorts = List.map snd vs in
   let params = List.map (fun (v,s) -> Z3.Expr.mk_const_s z3_ctx v s) vs in
   let fdecl = Z3.FuncDecl.mk_func_decl_s z3_ctx sm psorts st in
@@ -73,25 +70,17 @@ let define_fun sm vs st tm  =
       []   (* no nopatterns *)
       None (* quantifier_id *)
       None (* skolem_id *) in
-  say (Z3.Quantifier.expr_of_quantifier quantified_def)
+  say ctx (Z3.Quantifier.expr_of_quantifier quantified_def)
 
-let check_sat () =
+let check_sat ctx =
   (* TODO: Handle (distinct ...) efficiently. In particular, only add
      distinct for strings that actually appear in the current goal and
      assumptions. *)
   let ss = Syntax.get_all_string_exprs () in
   (* Z3 segfaults if we use mk_distinct with < 2 elements *)
   if List.length ss > 1 then
-    say (Z3.Boolean.mk_distinct z3_ctx ss);
-  smt_listen ()
+    say ctx (Z3.Boolean.mk_distinct (Syntax.z3_context ctx) ss);
+  smt_listen (Syntax.z3_solver ctx)
 
-let push () = Z3.Solver.push z3_solver
-let pop () = Z3.Solver.pop z3_solver 1
-
-(** returns [true] if the formula is known to be valid in the current context. Might return [false] even if the formula is valid. *)
-let is_valid e =
-  push ();
-  say (Z3.Boolean.mk_not z3_ctx e);
-  match check_sat () with
-  | Unsat -> true
-  | _ -> false
+let push ctx = Z3.Solver.push (Syntax.z3_solver ctx)
+let pop ctx = Z3.Solver.pop (Syntax.z3_solver ctx) 1
