@@ -34,7 +34,7 @@ let smt_is_valid ctx =
 let rec is_instantiation ctx e =
 (*   printf "oops@\n@?"; *)
   let chk_eq f1 f2 = Syntax.is_lvar f1 || Syntax.is_lvar f2 in
-  let chk_distinct f = List.fold_left (fun b e -> b || Syntax.is_lvar e) true f in
+  let chk_distinct f = List.exists Syntax.is_lvar f in
   (Syntax.on_emp ctx (c1 true)
    & Syntax.on_star ctx (fun a b -> is_instantiation ctx a && is_instantiation ctx b)
    & Syntax.on_eq chk_eq
