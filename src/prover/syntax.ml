@@ -12,10 +12,11 @@ type func_decl = Z3.FuncDecl.func_decl
 
 let mk_context () =
   (* Z3 initialisation *)
-  (* we must open any log file before creating any context *)
-  if not (Z3.Log.open_ "smt.corestar.log") then
-    failwith "SMT logging is enabled but Z3 could not open smt.corestar.log.";
-  Z3.Log.append (Z3.Version.to_string);
+  if log log_smt then (
+    (* we must open any log file before creating any context *)
+    if not (Z3.Log.open_ "smt.corestar.log") then
+      failwith "SMT logging is enabled but Z3 could not open smt.corestar.log.";
+    Z3.Log.append (Z3.Version.to_string));
   let z3_ctx = Z3.mk_context !Config.z3_options in
   let z3_solver = Z3.Solver.mk_simple_solver z3_ctx in
   { z3 = z3_ctx
