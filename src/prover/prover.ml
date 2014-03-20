@@ -35,12 +35,11 @@ let smt_is_valid =
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
 (*   printf "oops@\n@?"; *)
-  let chk_eq f1 f2 = Syntax.is_lvar f1 || Syntax.is_lvar f2 in
-  let chk_distinct f = List.fold_left (fun b e -> b || Syntax.is_lvar e) true f in
+  let has_lvar = List.exists Syntax.is_lvar in
   (Syntax.on_emp (c1 true)
    & Syntax.on_star (fun a b -> is_instantiation a && is_instantiation b)
-   & Syntax.on_eq chk_eq
-   & Syntax.on_distinct chk_distinct
+   & Syntax.on_eq (fun a b -> has_lvar [a; b])
+   & Syntax.on_distinct has_lvar
    & c1 false) e
 
 let is_emp e =
@@ -248,13 +247,17 @@ let inline_pvars_rule =
     prof_fun1 "Prover.inline_pvars_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs hypothesis in
-      let (subees, subers) = List.split subs in
-      let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
-      let mk_eq (a, b) = Z3.Boolean.mk_eq z3_ctx a b in
-      let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
-      if Syntax.expr_equal hyp hypothesis
+      let p f (x, y) = fprintf f "[%a->%a]" Syntax.pp_expr x Syntax.pp_expr y in
+      printf "@[<2>%a@]@\n" (pp_list_sep " " p) subs;
+      if subs = []
       then []
-      else [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
+      else begin
+        let (subees, subers) = List.split subs in
+        let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
+        let mk_eq (a, b) = Z3.Boolean.mk_eq z3_ctx a b in
+        let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
+        [[{ Calculus.hypothesis = hyp; conclusion; frame}]]
+      end ) }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -673,14 +676,15 @@ let builtin_rules =
 (*   ; or_rule *)
 (*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
-  ; inline_pvars_rule ]
+(*   ; inline_pvars_rule *)
+  ]
 
 (* These are used for [is_entailment], which wouldn't benefit from instantiating
 lvars. *)
 let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
-  ; inline_pvars_rule
+(*   ; inline_pvars_rule *)
   ; spatial_id_rule ]
 
 

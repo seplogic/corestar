@@ -142,7 +142,9 @@ let join_triples ts =
     List.fold_left (fun ovs t -> match ovs with None -> Some t.C.out_vars | Some ovss -> assert (t.C.out_vars = ovss); ovs) None ts in
   let in_vars = match in_vars with None -> [] | Some a -> a in
   let out_vars = match out_vars with None -> [] | Some a -> a in
+  printf "LEAVE join_triples)@\n";
   { C.pre; post; modifies; in_vars; out_vars }
+
 
 (* }}} *)
 (* graph operations *) (* {{{ *)
