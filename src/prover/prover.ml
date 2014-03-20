@@ -240,6 +240,17 @@ let abduce_instance_rule ctx =
         in map_option mk _Is
       end) }
 
+(* returns [true] if [v] appears at least twice in [e] *)
+let appears_twice e v =
+  let rec check f =
+    let is_v =
+      let n = ref 0 in
+      fun ff ->
+	if Syntax.expr_equal v ff then incr n;
+	!n >= 2 in
+    is_v f || Syntax.on_app (fun _ xs -> List.exists check xs) f in
+  check e
+
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
 let inline_pvars_rule ctx =
   { rule_name = "substitution (of logical vars with program vars)"
@@ -247,13 +258,16 @@ let inline_pvars_rule ctx =
     prof_fun1 "Prover.inline_pvars_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs ctx hypothesis in
+      let subs = List.filter (appears_twice hypothesis @@ fst) subs in
       let (subees, subers) = List.split subs in
-      let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
-      let mk_eq (a, b) = Syntax.mk_eq ctx a b in
-      let hyp = mk_big_star ctx (sub_hyp :: List.map mk_eq subs) in
-      if Syntax.expr_equal hyp hypothesis
-      then []
-      else [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
+      if subees = [] then []
+      else
+	let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
+	let mk_eq (a, b) = Syntax.mk_eq ctx a b in
+	let hyp = mk_big_star ctx (sub_hyp :: List.map mk_eq subs) in
+	if Syntax.expr_equal hyp hypothesis
+	then []
+	else [[{ Calculus.hypothesis = hyp; conclusion; frame}]]) }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
 The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
