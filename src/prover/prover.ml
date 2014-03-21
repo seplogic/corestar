@@ -47,10 +47,9 @@ let is_emp e =
    & Syntax.on_eq Syntax.expr_equal
    & c1 false) e
 
-let rec unfold on e =
-  (Syntax.on_var (c1 [e])
-   & (on (ListH.concatMap (unfold on)) & c1 [e]))
-    e
+let rec unfold on e = (on (ListH.concatMap (unfold on)) & c1 [e]) e
+
+let on_star_nary f = Syntax.on_star (fun a b -> f [a; b])
 
 (* Removes zero, and removes repetitions of pure parts.
 Returns (pure, spatial) pair. *)
@@ -71,11 +70,11 @@ let ac_make zero mk =
 (* Returns (pure, spatial) pair. *)
 let extract_pure_part e =
   let mk = ac_make Syntax.mk_emp Syntax.mk_big_star in
-  let xs, ys = ac_simplify_split is_emp Syntax.on_big_star [e] in
+  let xs, ys = ac_simplify_split is_emp on_star_nary [e] in
   (mk xs, mk ys)
 
 let mk_big_star l =
-  (ac_make Syntax.mk_emp Syntax.mk_big_star @@ ac_simplify is_emp Syntax.on_big_star) l
+  (ac_make Syntax.mk_emp Syntax.mk_big_star @@ ac_simplify is_emp on_star_nary) l
 
 let mk_big_or =
   ac_make (Z3.Boolean.mk_false z3_ctx) (Z3.Boolean.mk_or z3_ctx) @@
@@ -113,8 +112,8 @@ let find_lvar_pvar_subs e =
 	else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
 	else l)
     & (c1 l) in
-  let get_subs = List.fold_left add_if_good [] in
-  (Syntax.on_big_star get_subs (fun _ -> [])) e
+  let es = unfold on_star_nary e in
+  List.fold_left add_if_good [] es
 
 (* at least twice *)
 let occurs_twice e v =
@@ -156,7 +155,7 @@ let guess_instances e f =
       if not (H.mem h_eq a || H.mem h_eq b) then H.add h a;
       H.add h_eq a; H.add h_eq b in
     let rec get e =
-      ( Syntax.on_big_star (List.iter get)
+      ( Syntax.on_star (fun a b -> get a; get b)
       & Syntax.on_or (List.iter get)
       & Syntax.on_eq add
       & Syntax.on_distinct (List.iter (fun x -> add x x))
@@ -171,10 +170,8 @@ let guess_instances e f =
       else if is_v b && not (Syntax.is_lvar a)
       then Some a
       else None in
-    let rec do_star = function
-      | [] -> None
-      | e :: es -> (match guess v e with None -> do_star es | g -> g) in
-    ( Syntax.on_big_star do_star
+    let do_star a b = match guess v a with None -> guess v b | g -> g in
+    ( Syntax.on_star do_star
     & Syntax.on_eq do_eq
     & Syntax.on_app (c2 None)) f in
   let collect_guess v (gs, ws) = match guess v f with
@@ -283,7 +280,7 @@ let normalize =
       (Syntax.on_not c0 & c1 ne) e in
     (Syntax.on_not negate & c1 e) e in
   let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) *)
-    let ess = List.map (unfold Syntax.on_or) (unfold Syntax.on_big_star e) in
+    let ess = List.map (unfold Syntax.on_or) (unfold on_star_nary e) in
     let fss = Misc.product ess in
     let r f = if Syntax.expr_equal f e then f else star_below_or f in
     let fs = List.map (r @@ mk_big_star) fss in
@@ -349,7 +346,7 @@ let on_pair f a b = f [a; b]
 *)
 
 let on_comassoc handle_comassoc handle_skew e =
-  ( Syntax.on_big_star handle_comassoc
+  ( on_star_nary handle_comassoc
   & Syntax.on_or handle_comassoc
 (*
   & Expr.on_eq (on_pair handle_comassoc)
@@ -642,8 +639,8 @@ let spatial_match_rule =
     prof_fun1 "Prover.spatial_match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       (* TODO: don't apply rule if hyp & conc have disjunctions. *)
-      let hyp_pure, hs = ac_simplify_split is_emp Syntax.on_big_star [hypothesis] in
-      let conc_pure, cs = ac_simplify_split is_emp Syntax.on_big_star [conclusion] in
+      let hyp_pure, hs = ac_simplify_split is_emp on_star_nary [hypothesis] in
+      let conc_pure, cs = ac_simplify_split is_emp on_star_nary [conclusion] in
       let hyp_pure = mk_big_star hyp_pure in
       let conc_pure = mk_big_star conc_pure in
 (* TODO: Activate this once list_spatial_matches takes advantage of sorting.
@@ -765,7 +762,7 @@ let rec heap_size e =
   if Syntax.is_pure e then 0 else
   ( Syntax.on_not heap_size
   & Syntax.on_or (List.fold_left max 0 @@ List.map heap_size)
-  & Syntax.on_big_star (List.fold_left (+) 0 @@ List.map heap_size)
+  & Syntax.on_star (fun a b -> heap_size a + heap_size b)
   & c1 1) e
 
 (* }}} *)

@@ -92,7 +92,6 @@ val on_star : 'a app_eval_2
 (** if [e] is of the form "e1 * (e2 * (... * en))" where en is not
     itself of the form "en' * en''", call [f] on the list [e1; e2; ...;
     en] *)
-val on_big_star : 'a app_eval_n
 val on_string_const : (string -> 'a) -> 'a app_eval
 val on_int_const : (int -> 'a) -> 'a app_eval
 val on_op : Z3.FuncDecl.func_decl -> 'a app_eval_n

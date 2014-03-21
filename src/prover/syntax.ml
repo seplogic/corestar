@@ -7,9 +7,9 @@ type var = string
 (** Z3 initialisation *)
 let z3_ctx =
   (* we must open any log file before creating any context *)
-  if not (Z3.Log.open_ "smt.corestar.log") then
+  if log log_smt && not (Z3.Log.open_ "smt.corestar.log") then
     failwith "SMT logging is enabled but Z3 could not open smt.corestar.log.";
-  Z3.Log.append (Z3.Version.to_string);
+  if log log_smt then Z3.Log.append (Z3.Version.to_string);
   Z3.mk_context !Config.z3_options
 
 (* This should really be in the Z3 bindings? *)
@@ -198,15 +198,6 @@ let mk_big_star es =
 
 let on_emp f = on_0 emp f
 let on_star f = on_2 star f
-(** if [e] is of the form "e1 * (e2 * (... * en))" where en is not
-    itself of the form "en' * en''", call [f] on the list [e1; e2; ...;
-    en] else call [g e]*)
-let on_big_star f g e =
-  let rec descend_in_stars l =
-    on_star (fun e1 e2 -> descend_in_stars (e1::l) e2)
-    & (fun e -> if l = [] then g e else f (List.rev (e::l))) in
-  descend_in_stars [] e
-
 let on_false f = on_filter_0 Z3.Expr.is_false f
 let on_or f = on_filter Z3.Expr.is_or f
 let on_not f = on_filter_1 Z3.Expr.is_not f
@@ -232,7 +223,7 @@ let rec is_pure e =
   & on_var terr
   & on_emp (c0 true)
   & on_false (c0 true)
-  & on_big_star (List.for_all is_pure)
+  & on_star (fun a b -> is_pure a && is_pure b)
   & on_or (List.for_all is_pure)
   & on_not (fun e -> assert (is_pure e); true)
   & on_eq (c2 true)

@@ -55,8 +55,8 @@ let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
 *)
   let rec get_eqs is_ok e =
     let eq a b = if is_ok a || is_ok b then [(a, b)] else [] in
-    let star es = es >>= get_eqs is_ok in
-    (Syntax.on_eq eq & Syntax.on_big_star star & c1 []) e in
+    let star a b = get_eqs is_ok a @ get_eqs is_ok b in
+    (Syntax.on_eq eq & Syntax.on_star star & c1 []) e in
   let rec get_lvars e =
     let var v = if Syntax.is_lvar v then [v] else [] in
     (Syntax.on_var var & Syntax.on_app (fun _ es -> es >>= get_lvars)) e in
@@ -562,17 +562,18 @@ end = struct
       flip Syntax.ExprSet.mem (List.fold_right Syntax.ExprSet.add vs Syntax.ExprSet.empty) in
     let vs_of = List.filter is_v @@ Syntax.vars in
     let rec get_pdefs pdefs e =
-      let eq pdefs a b =
+      let eq a b =
         let va, vb = is_v a, is_v b in
         if va || vb then begin
           let v, e = if va then a, b else b, a in
           let ds = (try Syntax.ExprMap.find v pdefs with Not_found -> []) in
           Syntax.ExprMap.add v ((e, vs_of e) :: ds) pdefs
         end else pdefs in
-      ( Syntax.on_eq (eq pdefs)
-        & Syntax.on_big_star (List.fold_left get_pdefs pdefs)
-        & (fun _ -> pdefs) )
-        e in
+      let star a b = get_pdefs (get_pdefs pdefs a) b in
+      ( Syntax.on_eq eq
+      & Syntax.on_star star
+      & c1 pdefs )
+      e in
     let pdefs = get_pdefs Syntax.ExprMap.empty post in
     let post_defs = ref (List.fold_right Syntax.ExprMap.remove vs pre_defs) in
     let seen = Syntax.ExprHashSet.create 0 in
