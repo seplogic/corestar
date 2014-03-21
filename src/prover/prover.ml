@@ -116,6 +116,17 @@ let find_lvar_pvar_subs e =
   let get_subs = List.fold_left add_if_good [] in
   (Syntax.on_big_star get_subs (fun _ -> [])) e
 
+(* at least twice *)
+let occurs_twice e v =
+  let is_v =
+    let n = ref 0 in
+    fun f ->
+      if Syntax.expr_equal v f then incr n;
+      !n >= 2 in
+  let rec check f =
+    is_v f || Syntax.on_app (fun _ -> List.exists check) f in
+  check e
+
 (* Handles ss=[],
 and caries over the pure parts of the antiframe into the frame. *)
 let afs_of_sequents = function
@@ -247,6 +258,7 @@ let inline_pvars_rule =
     prof_fun1 "Prover.inline_pvars_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let subs = find_lvar_pvar_subs hypothesis in
+      let subs = List.filter (occurs_twice hypothesis @@ fst) subs in
       let p f (x, y) = fprintf f "[%a->%a]" Syntax.pp_expr x Syntax.pp_expr y in
       printf "@[<2>%a@]@\n" (pp_list_sep " " p) subs;
       if subs = []
@@ -676,7 +688,7 @@ let builtin_rules =
 (*   ; or_rule *)
 (*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
-(*   ; inline_pvars_rule *)
+  ; inline_pvars_rule
   ]
 
 (* These are used for [is_entailment], which wouldn't benefit from instantiating
@@ -684,7 +696,7 @@ lvars. *)
 let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
-(*   ; inline_pvars_rule *)
+  ; inline_pvars_rule
   ; spatial_id_rule ]
 
 

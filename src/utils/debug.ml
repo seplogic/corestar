@@ -153,7 +153,6 @@ let prof_pp_stats () =
     ; "cnt", float_of_int @@ List.length
     ; "avg", (fun ts -> sum ts /. float_of_int (List.length ts))
     ] in
-  let pp (n, f) c ts = fprintf logf "@[<2>%s %s %a@]@\n" c n f ts in
   let pp_categ (n, f) =
     let xs = Hashtbl.fold (fun c ts xs -> (f ts, c) :: xs) prof_time_of_c [] in
     let xs = List.sort compare xs in
