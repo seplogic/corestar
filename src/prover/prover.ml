@@ -195,18 +195,25 @@ let shuffle ls = ls (* XXX *)
 let dbg_mc = ref 0
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
+exception Disproved
 type named_rule =
   { rule_name : string (* For debug *)
-  (** If ([rule_apply] [x]) is [[a;b];[c]], then a and b together are sufficient
-  to prove [x], and so is c alone. *)
+  (** If (rule_apply x) is [[a;b];[c]], then a and b together are
+  sufficient to prove x, and so is c alone. In particular, [[]] means
+  that x was discharged, and [] means that this rule doesn't apply. If the rule
+  manages to disprove x, then it should raise Disproved. *)
   ; rule_apply : Calculus.sequent -> Calculus.sequent list list }
+let goal_discharged = [[]]
+let rule_notapplicable = []
 
 let id_rule =
   { rule_name = "identity axiom"
   ; rule_apply =
     prof_fun1 "Prover.id_rule"
     (function { Calculus.hypothesis; conclusion; _ } ->
-      if Syntax.expr_equal hypothesis conclusion then [[]] else []) }
+      if Syntax.expr_equal hypothesis conclusion
+      then goal_discharged
+      else rule_notapplicable ) }
 
 let or_rule =
   { rule_name = "or elimination"
@@ -222,7 +229,8 @@ let smt_pure_rule =
     prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion 
-      then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]] else [])) }
+      then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]]
+      else rule_notapplicable )) }
 
 (* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
 I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
@@ -237,7 +245,7 @@ let abduce_instance_rule =
         ( Syntax.on_var (c1 false)
         & Syntax.on_or (c1 true)
         & Syntax.on_app (c2 false)) in
-      if is_or conclusion then [] else begin
+      if is_or conclusion then rule_notapplicable else begin
         let _Is = guess_instances hypothesis conclusion in
         let mk _I =
           if Syntax.expr_equal _I Syntax.mk_emp || Syntax.expr_equal _I conclusion
@@ -259,7 +267,7 @@ let inline_pvars_rule =
       let p f (x, y) = fprintf f "[%a->%a]" Syntax.pp_expr x Syntax.pp_expr y in
       printf "@[<2>%a@]@\n" (pp_list_sep " " p) subs;
       if subs = []
-      then []
+      then rule_notapplicable
       else begin
         let (subees, subers) = List.split subs in
         let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
@@ -567,7 +575,7 @@ let spatial_id_rule =
 	Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;
       if Syntax.expr_equal hyp_spatial Syntax.mk_emp
 	&& Syntax.expr_equal conc_spatial Syntax.mk_emp
-      then []
+      then rule_notapplicable
       else if Syntax.expr_equal hyp_spatial conc_spatial (* should really be handled by matching *)
         then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
       else begin
@@ -606,7 +614,7 @@ let match_subformula_rule =
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
       if Syntax.expr_equal Syntax.mk_emp conc_spatial
-      then [] else begin
+      then rule_notapplicable else begin
         let lo_name = "_leftover" in
         let leftover = Syntax.mk_lvar lo_name in
         let enhanced_conc = Syntax.mk_star leftover conc_spatial in
@@ -702,8 +710,10 @@ let rules_of_calculus builtin c =
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
     let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
     if Smt.is_valid side_cond then
-      List.map (fun bs -> List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern) m
-    else [] in
+      let try_one bs =
+        List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
+      List.map try_one m
+    else rule_notapplicable in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
     ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs) } in
@@ -741,7 +751,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
       let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
       let choose_rule =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
-      choose_rule leaf rules
+      try choose_rule leaf rules with Disproved -> leaf
     end in
   if log log_prove then fprintf logf "@}@]@\n";
   result
@@ -804,7 +814,6 @@ let biabduct = prof_fun2 "Prover.biabduct" biabduct
 let is_entailment = wrap_calculus builtin_rules_noinst is_entailment
 let infer_frame = wrap_calculus builtin_rules infer_frame
 let biabduct = wrap_calculus builtin_rules biabduct
-(* NOTE: [simplify] is defined in the beginning. *)
 
 let is_inconsistent rules e =
   is_entailment rules e (Z3.Boolean.mk_false z3_ctx)

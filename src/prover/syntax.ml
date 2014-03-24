@@ -183,6 +183,7 @@ let mk_gvar v = assert (is_global_name v); mk_var v
 let mk_lvar v = assert (is_lvar_name v); mk_var v
 
 let mk_emp = Z3.FuncDecl.apply emp []
+let mk_false = Z3.Boolean.mk_false z3_ctx
 let mk_eq a b = Z3.Boolean.mk_eq z3_ctx a b
 let mk_or a b = Z3.Boolean.mk_or z3_ctx [a; b]
 let mk_not a = Z3.Boolean.mk_not z3_ctx a

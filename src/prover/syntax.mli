@@ -63,6 +63,7 @@ val mk_lvar : var -> Z3.Expr.expr
 
 val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_emp : Z3.Expr.expr
+val mk_false : Z3.Expr.expr
 val mk_eq : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_not :Z3.Expr.expr -> Z3.Expr.expr
 val mk_or : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
