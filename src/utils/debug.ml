@@ -147,8 +147,7 @@ let prof_stop c =
 let prof_pp_stats () =
   let stats =
     let sum = List.fold_left (+.) 0.0 in
-    [ (* "times", pp_list_sep " " pp_float
-    ; *) "max", List.fold_left max 0.0
+    [ "max", List.fold_left max 0.0
     ; "total", sum
     ; "cnt", float_of_int @@ List.length
     ; "avg", (fun ts -> sum ts /. float_of_int (List.length ts))
@@ -159,8 +158,15 @@ let prof_pp_stats () =
     List.iter (fun (v, c) -> fprintf logf "%s %s %.03f@\n" n c v) xs;
     fprintf logf "@\n" in
   List.iter pp_categ stats
-let prof_fun1 c f x = prof_start c; let r = f x in prof_stop c; r
-let prof_fun2 c f x y = prof_start c; let r = f x y in prof_stop c; r
-let prof_fun3 c f x y z = prof_start c; let r = f x y z in prof_stop c; r
+
+let prof_fun1 c f x =
+  prof_start c;
+  try let r = f x in
+    (prof_stop c; r)
+  with e ->
+    (prof_stop c; raise e)
+let prof_fun2 c f x y = prof_fun1 c (uncurry f) (x, y)
+let prof_fun3 c f x y = prof_fun2 c (uncurry f) (x, y)
+
 
 (* }}} *)

@@ -106,13 +106,13 @@ let rec add_index
   match xs with  | []     ->  []
                  | y::ys  ->  ( (y,i) :: (add_index ys (i+1)) )
 
-let memo2 f =
+let memo f =
   let cache = Hashtbl.create 101 in
-  fun x y ->
-    try Hashtbl.find cache (x, y)
+  fun g x ->
+    try Hashtbl.find cache x
     with Not_found ->
-      let r = f x y in
-      (Hashtbl.add cache (x, y) r; r)
+      let r = f g x in
+      (Hashtbl.add cache x r; r)
 
 let cross_product l1 l2 =
   let product l v2 = List.map (fun v1 -> (v1, v2)) l in

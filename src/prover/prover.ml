@@ -139,14 +139,16 @@ let afs_of_sequents = function
         { frame; antiframe } in
       List.map f ss
 
+let get_lvars e =
+  let module VS = Syntax.ExprSet in
+  let vs = List.filter Syntax.is_lvar (Syntax.vars e) in
+  List.fold_right VS.add vs VS.empty
+
 (* Returns a list of expressions e' such that lvars(e*e') includes lvars(f).
 More importantly, each e' is supposed to be a good guess of how to instantiate
 the variables lvars(f)-lvars(e) such that e*e' ⊢ f. *)
 let guess_instances e f =
   let module VS = Syntax.ExprSet in
-  let get_lvars e =
-    let vs = List.filter Syntax.is_lvar (Syntax.vars e) in
-    List.fold_right VS.add vs VS.empty in
   let get_eq_args e =
     let module H = Syntax.ExprHashSet in
     let h = H.create 0 in
@@ -190,12 +192,52 @@ let smt_implies e f =
   && Syntax.is_pure f
   && smt_is_valid (Syntax.mk_or (Syntax.mk_not e) f)
 
-let shuffle ls = ls (* XXX *)
+(* [smt_disprove_query] and helpers *) (* {{{ *)
+exception Disproved
+
+let disproved_hit, disproved_miss = ref 0, ref 0
+module ExprPairMap = Hashtbl.Make (struct
+  type t = Syntax.HashableExpr.t * Syntax.HashableExpr.t
+  let equal (x1, y1) (x2, y2) =
+    Syntax.HashableExpr.equal x1 x2 && Syntax.HashableExpr.equal y1 y2
+  let hash (x, y) = Syntax.HashableExpr.hash x + Syntax.HashableExpr.hash y
+end)
+let disproved_cache = ExprPairMap.create 0
+
+(* Raises [Disproved] when  (forall x (exists y (e(x)->f(x,y)))) is unsat. *)
+let smt_disprove_query e f =
+  let module VS = Syntax.ExprSet in
+  try
+    if ExprPairMap.find disproved_cache (e, f)
+    then (incr disproved_hit; raise Disproved)
+  with Not_found -> begin
+    incr disproved_miss;
+    let vars e = List.fold_right VS.add (Syntax.vars e) VS.empty in
+    let ys = VS.diff (get_lvars f) (get_lvars e) in
+    let xs = VS.diff (VS.union (vars e) (vars f)) ys in
+    let xs, ys = VS.elements xs, VS.elements ys in
+    let q =
+      let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
+      let quant mk xs b =
+        let r = mk Syntax.z3_ctx xs b None [] [] None None in
+        Z3.Quantifier.expr_of_quantifier r in
+      let forall = quant Z3.Quantifier.mk_forall_const in
+      let exists = quant Z3.Quantifier.mk_exists_const in
+      forall xs (exists ys (implies e f)) in
+    Smt.push ();
+(*     fprintf logf "@[<2>(DBG say %a)@]@\n@?" Syntax.pp_expr q; *)
+    Smt.say q;
+    let r = Smt.check_sat () in
+    Smt.pop ();
+    ExprPairMap.add disproved_cache (e, f) (r = Smt.Unsat);
+    if r = Smt.Unsat then raise Disproved
+  end
+
+(* }}} *)
 
 let dbg_mc = ref 0
 (* }}} *)
 (* Prover rules, including those provided by the user. *) (* {{{ *)
-exception Disproved
 type named_rule =
   { rule_name : string (* For debug *)
   (** If (rule_apply x) is [[a;b];[c]], then a and b together are
@@ -228,7 +270,7 @@ let smt_pure_rule =
   ; rule_apply =
     prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion 
+      (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]]
       else rule_notapplicable )) }
 
@@ -254,6 +296,19 @@ let abduce_instance_rule =
           [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
           ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
         in map_option mk _Is
+      end) }
+
+let smt_disprove =
+  { rule_name = "SMT disprove"
+  ; rule_apply =
+    prof_fun1 "Prover.smt_disprove"
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      if not (Syntax.is_pure hypothesis)
+      then rule_notapplicable
+      else begin
+        let conclusion, _ = extract_pure_part conclusion in
+        smt_disprove_query hypothesis conclusion;
+        rule_notapplicable
       end) }
 
 (* TODO(rg): I don't understand why this rule isn't too specific. *)
@@ -690,6 +745,7 @@ let builtin_rules =
   ; abduce_instance_rule
 (*   ; spatial_id_rule *)
   ; smt_pure_rule
+(*   ; smt_disprove *)
 (*   ; or_rule *)
 (*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
@@ -701,6 +757,7 @@ lvars. *)
 let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
+(*   ; smt_disprove *)
   ; inline_pvars_rule
   ; spatial_id_rule ]
 
@@ -709,7 +766,7 @@ let rules_of_calculus builtin c =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
     let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
-    if Smt.is_valid side_cond then
+    if smt_is_valid side_cond then
       let try_one bs =
         List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
       List.map try_one m
@@ -751,7 +808,11 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
       let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
       let choose_rule =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
-      try choose_rule leaf rules with Disproved -> leaf
+      try choose_rule leaf rules
+      with Disproved -> begin
+        if log log_prove then fprintf logf "disproved@\n";
+        leaf
+      end
     end in
   if log log_prove then fprintf logf "@}@]@\n";
   result
@@ -821,6 +882,6 @@ let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 
 let pp_stats () =
-  fprintf logf "smt_hit %d@\n" !smt_hit;
-  fprintf logf "smt_miss %d@\n" !smt_miss
+  fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
+  fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
 (* }}} *)

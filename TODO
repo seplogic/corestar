@@ -1,6 +1,4 @@
-- change prover loop to allow rules that say: ‘this can't be proved’
 - use Z3 to help with instantiating lvars that occur only in conclusion
-- get rid of Smt.rewrite_star_to_and
 - change syntax for named parameters
 - make it faster
 - check that the number of arguments of functions/specs match

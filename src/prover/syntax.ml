@@ -48,21 +48,35 @@ let is_global_name v = StringH.starts_with global_prefix v
 let is_tpat_name p = Str.string_match tpat_re p 0
 let is_vpat_name p = Str.string_match vpat_re p 0
 
+(* Workaround for Z3 interface.
+  NOTE: Also be careful with [Z3.Expr.get_func_decl]. It's somewhat impossible
+  to ensure it won't throw, so better to catch Z3Native.Exception everywhere
+  [get_func_decl] is called. *)
+let z3_is is e = (* HUGE HACK *)
+  try is e with Z3native.Exception _ -> false
+let z3_is_false = z3_is Z3.Expr.is_false
+let z3_is_or = z3_is Z3.Expr.is_or
+let z3_is_not = z3_is Z3.Expr.is_not
+let z3_is_eq = z3_is Z3.Expr.is_eq
+let z3_is_distinct = z3_is Z3.Expr.is_distinct
+let z3_is_const = z3_is Z3.Expr.is_const
+
 (* watch out for code duplication below (is_var and is_const) *)
-let is_pvar v = Z3.Expr.is_const v && is_pvar_name (Z3.Expr.to_string v)
-let is_lvar v = Z3.Expr.is_const v && is_lvar_name (Z3.Expr.to_string v)
-let is_global v = Z3.Expr.is_const v && is_global_name (Z3.Expr.to_string v)
-let is_tpat p = Z3.Expr.is_const p && is_tpat_name (Z3.Expr.to_string p)
-let is_vpat p = Z3.Expr.is_const p && is_vpat_name (Z3.Expr.to_string p)
+let is_pvar v = z3_is_const v && is_pvar_name (Z3.Expr.to_string v)
+let is_lvar v = z3_is_const v && is_lvar_name (Z3.Expr.to_string v)
+let is_global v = z3_is_const v && is_global_name (Z3.Expr.to_string v)
+let is_tpat p = z3_is_const p && is_tpat_name (Z3.Expr.to_string p)
+let is_vpat p = z3_is_const p && is_vpat_name (Z3.Expr.to_string p)
 
 (* caution: code-duplication for optimisation purposes! *)
-let is_var v = Z3.Expr.is_const v &&
+let is_var v =
+  z3_is_const v &&
   (is_pvar_name (Z3.Expr.to_string v)
    || is_lvar_name (Z3.Expr.to_string v)
    || is_global_name (Z3.Expr.to_string v)
    || is_tpat_name (Z3.Expr.to_string v)
    || is_vpat_name (Z3.Expr.to_string v))
-let is_const v = Z3.Expr.is_const v && not
+let is_const v = z3_is_const v && not
   (is_pvar_name (Z3.Expr.to_string v)
    || is_lvar_name (Z3.Expr.to_string v)
    || is_global_name (Z3.Expr.to_string v)
@@ -79,12 +93,21 @@ type 'a app_eval_n = (Z3.Expr.expr list -> 'a) -> 'a app_eval
 places in the codebase, because that is bug-prone. *)
 let on_const fconst fapp e = if is_const e then fconst e else fapp e
 let on_var f g e = if is_var e then f e else g e
+
+(* TODO: This is *not* a catch all case. it should have a continuation. *)
 let on_app f e = f (Z3.Expr.get_func_decl e) (Z3.Expr.get_args e)
 
-let on_op op_ref f g e =
-  let op = Z3.Expr.get_func_decl e in
-  if Z3.FuncDecl.equal op op_ref then f (Z3.Expr.get_args e)
+(* TODO: perhaps unfold more: variables, type of quant. *)
+let on_quantifier f g e =
+  if Z3.AST.is_quantifier (Z3.Expr.ast_of_expr e)
+  then f (Z3.Quantifier.get_body (Z3.Quantifier.quantifier_of_expr e))
   else g e
+
+let on_op op_ref f g e =
+  let b =
+    try Z3.FuncDecl.equal op_ref (Z3.Expr.get_func_decl e)
+    with Z3native.Exception _ -> false in
+  if b then f (Z3.Expr.get_args e) else g e
 let on_0 op_ref f =
   let f = function
     | [] -> f ()
@@ -101,7 +124,8 @@ let on_2 op_ref f =
     | _ -> failwith ("INTERNAL: "^ (Z3.FuncDecl.to_string op_ref) ^ " should have arity 2" ) in
   on_op op_ref f
 
-let on_filter filt f g e = if filt e then f (Z3.Expr.get_args e) else g e
+let on_filter filt f g e =
+  if filt e then f (Z3.Expr.get_args e) else g e
 let on_filter_0 filt f g e =
   let f = function
     | [] -> f ()
@@ -119,7 +143,7 @@ let on_filter_2 filt f g e =
   on_filter filt f g e
 
 let on_const_of_sort sort sort_transform f g e =
-  if Z3.Expr.is_const e && Z3.Sort.equal (Z3.Expr.get_sort e) sort
+  if z3_is_const e && (Z3.Sort.equal (Z3.Expr.get_sort e) sort)
   then f (sort_transform e)
   else g e
 
@@ -197,28 +221,33 @@ let mk_big_star es =
   | [e] -> e (* these two cases to avoid introducing too many spurious stars *)
   | e::tl -> List.fold_left mk_star e tl
 
+
 let on_emp f = on_0 emp f
 let on_star f = on_2 star f
-let on_false f = on_filter_0 Z3.Expr.is_false f
-let on_or f = on_filter Z3.Expr.is_or f
-let on_not f = on_filter_1 Z3.Expr.is_not f
-let on_eq f = on_filter_2 Z3.Expr.is_eq f
-let on_distinct f = on_filter Z3.Expr.is_distinct f
+let on_false f = on_filter_0 z3_is_false f
+let on_or f = on_filter z3_is_or f
+let on_not f = on_filter_1 z3_is_not f
+let on_eq f = on_filter_2 z3_is_eq f
+let on_distinct f = on_filter z3_is_distinct f
 
-let on_string_const f = on_const_of_sort string_sort Z3.Expr.to_string f
+let on_string_const f =
+  on_const_of_sort string_sort Z3.Expr.to_string f
 
 let on_int_const f =
   on_const_of_sort (Z3.Arithmetic.Integer.mk_sort z3_ctx) Z3.Arithmetic.Integer.get_int f
 
 let is_pure_op e =
-  Str.string_match
-    pure_re
-    (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e)))
-    0
+  try
+    Str.string_match
+      pure_re
+      (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e)))
+      0
+  with Z3native.Exception _ -> false
 
+(* TODO: This is now rather slow because Smt.check_sat calls it often. Cache it.*)
 let rec is_pure e =
   let c0 x () = x in
-  let terr _ = failwith "INTERNAL: should be formula, not term" in
+  let terr _ = failwith "INTERNAL: should be formula, not term (fuw3irj)" in
   ( on_string_const terr
   & on_int_const terr
   & on_var terr
@@ -229,6 +258,7 @@ let rec is_pure e =
   & on_not (fun e -> assert (is_pure e); true)
   & on_eq (c2 true)
   & on_distinct (c1 true)
+  & on_quantifier is_pure
   & is_pure_op ) e
 
 (* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
