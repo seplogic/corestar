@@ -21,7 +21,7 @@ let fix_scc_limit = 1 lsl 2
 (* TODO: warn if there are special vars that remain in the result. *)
 let specialize_spec rets args xs =
   let f { Core.pre; post; modifies; in_vars; out_vars } =
-    let subst_inout e = Z3.Expr.substitute (Z3.Expr.substitute e in_vars args) out_vars rets in
+    let subst_inout e = Z3.Expr.substitute e (in_vars@out_vars) (args@rets) in
     { Core.pre = subst_inout pre
     ; post = subst_inout post
     ; modifies = rets @ modifies

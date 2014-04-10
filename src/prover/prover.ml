@@ -161,11 +161,11 @@ let guess_instances e f =
       & Syntax.on_or (List.iter get)
       & Syntax.on_eq add
       & Syntax.on_distinct (List.iter (fun x -> add x x))
-      & Syntax.on_app (c2 ())) e in
+      & c1 ()) e in
     get e;
     H.fold ListH.cons h [] in
   let rec guess v f = (* finds g s.t. f contains v=g and g is not lvar *)
-    let is_v = Syntax.on_var (Syntax.expr_equal v) & Syntax.on_app (c2 false) in
+    let is_v = Syntax.expr_equal v in
     let do_eq a b =
       if is_v a && not (Syntax.is_lvar b)
       then Some b
@@ -175,7 +175,7 @@ let guess_instances e f =
     let do_star a b = match guess v a with None -> guess v b | g -> g in
     ( Syntax.on_star do_star
     & Syntax.on_eq do_eq
-    & Syntax.on_app (c2 None)) f in
+    & c1 None) f in
   let collect_guess v (gs, ws) = match guess v f with
     | None -> (gs, v :: ws)
     | Some g -> ((v, g) :: gs, ws) in
@@ -283,10 +283,7 @@ let abduce_instance_rule =
   ; rule_apply =
     prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let is_or =
-        ( Syntax.on_var (c1 false)
-        & Syntax.on_or (c1 true)
-        & Syntax.on_app (c2 false)) in
+      let is_or = Z3.Expr.is_or in
       if is_or conclusion then rule_notapplicable else begin
         let _Is = guess_instances hypothesis conclusion in
         let mk _I =
@@ -336,12 +333,9 @@ The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
 let normalize =
   let rec not_not e =
-    let e = (Syntax.on_var (c1 e)
-             & Syntax.on_app (Syntax.recurse not_not)) e in
-    let negate e =
-      let ne = Z3.Boolean.mk_not z3_ctx e in
-      (Syntax.on_not c0 & c1 ne) e in
-    (Syntax.on_not negate & c1 e) e in
+    let e = Syntax.on_app (Syntax.recurse not_not) e in
+    (Syntax.on_not (Syntax.on_not c0 & (c1 e))
+     & c0) e in
   let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) *)
     let ess = List.map (unfold Syntax.on_or) (unfold on_star_nary e) in
     let fss = Misc.product ess in
