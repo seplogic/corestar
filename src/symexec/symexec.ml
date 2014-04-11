@@ -1145,6 +1145,8 @@ With abduction, at least one triple has to be OK for the function to be OK.
 For a list of functions, all functions have to be OK.
 *)
 let verify q =
+  prof_phase "well-formedness checks";
+  CoreOps.check_well_formed q;
   prof_phase "preprocess for symexec";
   List.iter normalize_proc q.C.q_procs;
   if log log_exec then

@@ -38,3 +38,6 @@ val refines_spec : spec refinement_check
 (** {2 Construct simple specs} *)
 val mk_assume : Z3.Expr.expr -> spec
 val mk_assert : Z3.Expr.expr -> spec
+
+(** {2 Checks} *)
+val check_well_formed : ast_question -> unit

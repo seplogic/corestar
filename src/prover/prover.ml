@@ -757,7 +757,7 @@ lvars. *)
 let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
-(*   ; smt_disprove *)
+  ; smt_disprove
   ; inline_pvars_rule
   ; spatial_id_rule ]
 
