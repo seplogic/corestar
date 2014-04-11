@@ -42,7 +42,7 @@ val is_lvar : Z3.Expr.expr -> bool
 val is_tpat : Z3.Expr.expr -> bool
 val is_vpat : Z3.Expr.expr -> bool
 
-(* Predicates are pure if the star with "!". *)
+(* Predicates are pure if they start with "!". *)
 val is_pure : Z3.Expr.expr -> bool
 
 (* operations on formulas *)
@@ -73,8 +73,6 @@ val mk_star : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
    whether [op] is a star or not. Similarly for the other [on_*]
    functions. In other modules, you should prefer to use these instead of
    mentioning strings. *)
-(* [match_] is the same as [cases], except for argument
-   order. *)
 type 'a app_eval = (Z3.Expr.expr -> 'a) -> (Z3.Expr.expr -> 'a)
 type 'a app_eval_0 = (unit -> 'a) -> 'a app_eval
 type 'a app_eval_1 = (Z3.Expr.expr -> 'a) -> 'a app_eval
