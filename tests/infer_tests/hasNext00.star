@@ -1,4 +1,4 @@
-procedure emit_$$ :
+procedure emit_$$ (x, y):
 ?
   call :=enqueue_$$(x,y);
   call :=step_$$();
@@ -174,9 +174,10 @@ procedure (b) := java.util.Iterator.hasNext$$$$boolean :
   
 ?
   call :=emit_$$("call_$$_java.util.Iterator.hasNext$$$$boolean");
-  call $ret_v0:=java.util.Iterator.hasNext$$$$boolean_I();
+  call b:=java.util.Iterator.hasNext$$$$boolean_I();
   call :=emit_$$("return_$$_java.util.Iterator.hasNext$$$$boolean");
-procedure java.util.Iterator.hasNext$$$$boolean_I :
+procedure (b) := java.util.Iterator.hasNext$$$$boolean_I :
+  {}(){}
 procedure java.util.Iterator.next$$$$java.lang.Object :
   
 ?

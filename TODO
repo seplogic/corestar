@@ -1,8 +1,6 @@
 - use Z3 to help with instantiating lvars that occur only in conclusion
 - change syntax for named parameters
 - make it faster
-- check that the number of arguments of functions/specs match
-  otherwise Z3 will throw an exception later and that's ugly
 - test on problem similar to those of topstar
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking

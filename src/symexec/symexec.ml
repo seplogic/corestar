@@ -18,13 +18,20 @@ let fix_scc_limit = 1 lsl 2
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
 
-(* TODO: warn if there are special vars that remain in the result. *)
+(* Warning: If actuals/formals have different lengths, then it makes them equal.
+See [CoreOps.check_well_formed] for an explanation. *)
 let specialize_spec rets args xs =
   let f { Core.pre; post; modifies; in_vars; out_vars } =
-    let subst_inout e = Z3.Expr.substitute e (in_vars@out_vars) (args@rets) in
-    { Core.pre = subst_inout pre
-    ; post = subst_inout post
-    ; modifies = rets @ modifies
+    let rec mk_same_len (vs', fs') = function
+      | _, [] -> (List.rev vs', List.rev fs')
+      | [], f :: fs -> mk_same_len (Syntax.freshen f :: vs', f :: fs') ([], fs)
+      | v :: vs, f :: fs -> mk_same_len (v :: vs', f :: fs') (vs, fs) in
+    let args', in_vars' = mk_same_len ([], []) (args, in_vars) in
+    let rets', out_vars' = mk_same_len ([], []) (rets, out_vars) in
+    let subst e = Z3.Expr.substitute e (in_vars'@out_vars') (args'@rets') in
+    { Core.pre = subst pre
+    ; post = subst post
+    ; modifies = rets @ modifies (* old rets, so it havocs extra returns *)
     ; in_vars = []
     ; out_vars = [] } in
   C.TripleSet.map f xs
@@ -40,7 +47,7 @@ let freshen_triple { C.pre; post; modifies; in_vars; out_vars } =
       with Not_found ->
         (let w = Syntax.freshen v in Syntax.ExprHashMap.add h v w; w)
     end in
-    (Syntax.on_var var & Syntax.on_app (Syntax.recurse freshen_expr)) e in
+    (Syntax.on_var var & Syntax.recurse freshen_expr) e in
   { C.pre = freshen_expr pre; post = freshen_expr post; modifies; in_vars; out_vars }
 
 let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
@@ -136,12 +143,18 @@ let join_triples ts =
   let post = Prover.mk_big_or (List.map (fun t -> t.C.post) ts) in
   let modifies =
     Misc.remove_duplicates Syntax.expr_compare (ts >>= fun t -> t.C.modifies) in
-  let in_vars =
-    List.fold_left (fun ivs t -> match ivs with None -> Some t.C.in_vars | Some ivss -> assert (t.C.in_vars = ivss); ivs) None ts in
-  let out_vars =
-    List.fold_left (fun ovs t -> match ovs with None -> Some t.C.out_vars | Some ovss -> assert (t.C.out_vars = ovss); ovs) None ts in
-  let in_vars = match in_vars with None -> [] | Some a -> a in
-  let out_vars = match out_vars with None -> [] | Some a -> a in
+  let get_vars extract =
+    let same xs ys =
+      try List.for_all2 Syntax.expr_equal xs ys
+      with Invalid_argument _ -> false in
+    let all_equal = function
+      | [] -> true
+      | x :: xs -> List.for_all (same x) xs in
+    let vars = List.map extract ts in
+    assert (all_equal vars);
+    (match vars with [] -> [] | vars :: _ -> vars) in
+  let in_vars = get_vars (fun t -> t.C.in_vars) in
+  let out_vars = get_vars (fun t -> t.C.out_vars) in
   printf "LEAVE join_triples)@\n";
   { C.pre; post; modifies; in_vars; out_vars }
 
@@ -1146,15 +1159,16 @@ For a list of functions, all functions have to be OK.
 *)
 let verify q =
   prof_phase "well-formedness checks";
-  CoreOps.check_well_formed q;
-  prof_phase "preprocess for symexec";
-  List.iter normalize_proc q.C.q_procs;
-  if log log_exec then
-    fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
-  let q = map_procs mk_cfg q in
-  prof_phase "symexec";
-  let r = interpret q in
-  if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
-  if log log_exec then fprintf logf "@]@\n@?";
-  r
+  CoreOps.is_well_formed q && begin
+    prof_phase "preprocess for symexec";
+    List.iter normalize_proc q.C.q_procs;
+    if log log_exec then
+      fprintf logf "@[<2>@{<details>@{<summary>got question@}@\n%a@}@?" CoreOps.pp_ast_question q;
+    let q = map_procs mk_cfg q in
+    prof_phase "symexec";
+    let r = interpret q in
+    if q.C.q_infer && !Config.verbosity >= 1 then print_specs q.C.q_procs;
+    if log log_exec then fprintf logf "@]@\n@?";
+    r
+  end
 (* }}} *)

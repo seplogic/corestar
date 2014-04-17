@@ -147,7 +147,7 @@ let on_const_of_sort sort sort_transform f g e =
   then f (sort_transform e)
   else g e
 
-let recurse f op es = Z3.FuncDecl.apply op (List.map f es)
+let recurse f = on_app (fun op es -> Z3.FuncDecl.apply op (List.map f es))
 
 (** int_of_bool *)
 let iob b = if b then 1 else 0
@@ -201,19 +201,21 @@ let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
 let star = Z3.FuncDecl.mk_func_decl_s z3_ctx "*" [bool_sort; bool_sort] bool_sort
 
 let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
+let mk_int_const x = Z3.Arithmetic.Integer.mk_const_s z3_ctx x
+
 let mk_var v = Z3.Expr.mk_const_s z3_ctx v int_sort
 let mk_pvar v = assert (is_pvar_name v); mk_var v
 let mk_gvar v = assert (is_global_name v); mk_var v
 let mk_lvar v = assert (is_lvar_name v); mk_var v
 
+let mk_distinct = Z3.Boolean.mk_distinct z3_ctx
 let mk_emp = Z3.FuncDecl.apply emp []
-let mk_false = Z3.Boolean.mk_false z3_ctx
 let mk_eq a b = Z3.Boolean.mk_eq z3_ctx a b
-let mk_or a b = Z3.Boolean.mk_or z3_ctx [a; b]
+let mk_false = Z3.Boolean.mk_false z3_ctx
 let mk_not a = Z3.Boolean.mk_not z3_ctx a
+let mk_or a b = Z3.Boolean.mk_or z3_ctx [a; b]
 let mk_star a b = mk_2 star a b
 
-(* TODO: Move mk_big_star and on_big_star to Prover. *)
 let mk_big_star es =
   let es = List.sort expr_compare es in
   match es with

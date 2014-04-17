@@ -184,8 +184,8 @@ formula:
   | identifier L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
   | formula MULT formula { Syntax.mk_star $1 $3 }
   | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
-  | term NOT_EQUALS term { Z3.Boolean.mk_distinct z3_ctx [$1; $3] }
-  | term EQUALS term { Z3.Boolean.mk_eq z3_ctx $1 $3 }
+  | term NOT_EQUALS term { Syntax.mk_distinct [$1; $3] }
+  | term EQUALS term { Syntax.mk_eq $1 $3 }
   | term cmpop term { $2 $1 $3 }
   | qidentifier { mk_bool_var $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }

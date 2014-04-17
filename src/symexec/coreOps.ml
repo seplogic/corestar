@@ -86,9 +86,7 @@ let mk_assume f =
 let mk_assert f =
   TripleSet.singleton { pre = f; post = f; modifies = []; in_vars = []; out_vars = [] }
 
-(* Helpers for [check_well_formed]. *) (* {{{ *)
-
-exception Not_well_formed
+(* Helpers for [is_well_formed]. *) (* {{{ *)
 
 let compute_sigs ok ps =
   let h = StringHash.create 0 in
@@ -101,20 +99,26 @@ let compute_sigs ok ps =
   List.iter one_sig ps;
   StringHash.find h
 
+(* WARNING: The warning message depends on which of xs&ys is shorter. See also
+the comment on [is_well_formed].*)
 let check_sorts_match ok loc inout m xs ys =
   let rec f n = function
     | [], [] -> ()
     | x :: xs, y :: ys ->
         if not (Z3.Sort.equal (Z3.Expr.get_sort x) (Z3.Expr.get_sort y)) then
-          (eprintf "%s:%s %d: %s@\n" loc inout n m; ok := false);
+          (eprintf "E:%s:%s %d: %s@\n@?" loc inout n m; ok := false);
         f (n + 1) (xs, ys)
-    | _ -> (eprintf "%s:%s length mismatch: %s@\n" loc inout m; ok := false) in
+    | xs, [] ->
+        eprintf "W:%s:%s: %d ignored %ss@\n@?" loc m (List.length xs) inout
+    | [], ys ->
+        eprintf "W:%s:%s: %d havocked %ss@\n@?" loc m (List.length ys) inout
+  in
   f 0 (xs, ys)
 
 let check_spec ok loc m (args, rets) spec =
   let check_triple t =
     check_sorts_match ok loc "arg" m args t.in_vars;
-    check_sorts_match ok loc "ret" m rets t.out_vars in
+    check_sorts_match ok loc "ret" m t.out_vars rets in
   TripleSet.iter check_triple spec
 
 let check_proc_specs ok sigs p =
@@ -128,7 +132,7 @@ let check_statements ok sigs p =
     try
       let p_params, p_rets = sigs call_name in
       let m = sprintf "bad call to %s" call_name in
-      check_sorts_match ok p.proc_name "arg" m p_params call_args;
+      check_sorts_match ok p.proc_name "arg" m call_args p_params;
       check_sorts_match ok p.proc_name "ret" m p_rets call_rets
     with Not_found -> begin
       eprintf "%s called from %s, but not defined@\n" call_name p.proc_name;
@@ -145,10 +149,20 @@ let check_statements ok sigs p =
 
 (* }}} *)
 
-let check_well_formed q =
+(* Well-formed means that the sorts match at call sites. If the number of
+arguments/returns does not match, then the program is still considered
+well-formed, but a warning is printed. If the program is not well-formed, an
+error is printed.
+
+Here's what happens when the number of arguments/returns is mismatched:
+  - more actual arguments -> they get ignored
+  - more formal arguments -> they are havocked (uninitialized)
+  - more actual returns -> they are havoked
+  - more formal returns -> they get ignored *)
+let is_well_formed q =
   let ok = ref true in
   let sigs = compute_sigs ok q.q_procs in
   List.iter (check_proc_specs ok sigs) q.q_procs;
   List.iter (check_statements ok sigs) q.q_procs;
-  if not !ok then raise Not_well_formed
+  !ok
 

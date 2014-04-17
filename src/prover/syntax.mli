@@ -1,9 +1,16 @@
 open Corestar_std
 
+(* TODO: We want mk_star, mk_big_star, mk_or, mk_big_or here.
+We don't want on_big_star here because it's slow; but we have one in Prover. *)
+
 type var = string
 
 (** the global Z3 context *)
 val z3_ctx : Z3.context
+
+(* int operations *) (* TODO: Not clear if we want these here. *)
+val mk_int_const : string -> Z3.Expr.expr
+val int_sort : Z3.Sort.sort
 
 (* string operations *)
 val mk_string_const : string -> Z3.Expr.expr (* with side-effects! *)
@@ -62,9 +69,10 @@ val mk_gvar : var -> Z3.Expr.expr
 val mk_lvar : var -> Z3.Expr.expr
 
 val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
+val mk_distinct : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_emp : Z3.Expr.expr
-val mk_false : Z3.Expr.expr
 val mk_eq : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
+val mk_false : Z3.Expr.expr
 val mk_not :Z3.Expr.expr -> Z3.Expr.expr
 val mk_or : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_star : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
@@ -96,5 +104,5 @@ val on_int_const : (int -> 'a) -> 'a app_eval
 val on_op : Z3.FuncDecl.func_decl -> 'a app_eval_n
 
 (* Example: let rec f e = cases (fun _->false) (recurse f) *)
-val recurse : (Z3.Expr.expr -> Z3.Expr.expr) -> (Z3.FuncDecl.func_decl -> Z3.Expr.expr list -> Z3.Expr.expr)
+val recurse : (Z3.Expr.expr -> Z3.Expr.expr) -> (Z3.Expr.expr -> Z3.Expr.expr)
 val pp_expr : Z3.Expr.expr pretty_printer

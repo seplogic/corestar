@@ -333,7 +333,7 @@ The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
 and "not". *)
 let normalize =
   let rec not_not e =
-    let e = Syntax.on_app (Syntax.recurse not_not) e in
+    let e = Syntax.recurse not_not e in
     (Syntax.on_not (Syntax.on_not c0 & (c1 e))
      & c0) e in
   let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) *)

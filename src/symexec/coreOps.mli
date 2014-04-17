@@ -40,4 +40,4 @@ val mk_assume : Z3.Expr.expr -> spec
 val mk_assert : Z3.Expr.expr -> spec
 
 (** {2 Checks} *)
-val check_well_formed : ast_question -> unit
+val is_well_formed : ast_question -> bool
