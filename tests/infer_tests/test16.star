@@ -5,5 +5,5 @@ procedure Test16:
 end;
 
 procedure step:
-  { $g_state = "a" } { $g_state = "b" }
-  { $g_state = "b" } { $g_state = "c" }
+  { @state = "a" } { @state = "b" }
+  { @state = "b" } { @state = "c" }

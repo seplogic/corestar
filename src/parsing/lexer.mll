@@ -82,8 +82,6 @@ let  alpha_char = ['a' - 'z'] | ['A' - 'Z']
 
 let  simple_id_char = alpha_char | dec_digit | '_' | '.' | '$'
 
-let  first_id_char = alpha_char | '_' | '$'
-
 let  line_comment = "//" not_cr_lf*
 
 let  blank = (' ' | '\009')+
@@ -92,11 +90,13 @@ let  ignored_helper = (blank | line_comment)+
 
 let  newline = ('\013' | '\010' | "\010\013")
 
-let  at_identifier =
-      '@' (simple_id_char | ':')*
-
-let identifier =
-      first_id_char simple_id_char*
+let plidentifier = '%' simple_id_char*
+let pgidentifier = '@' simple_id_char*
+let lidentifier = '_' simple_id_char*
+let tpidentifier = '?' simple_id_char*
+let vpidentifier = '^' simple_id_char*
+let pureidentifier = '!' simple_id_char*
+let identifier = alpha_char simple_id_char*
 
 let integer = '0' | ['1'-'9'] ['0'-'9']*
 
@@ -131,10 +131,13 @@ rule token = parse
   | "." { DOT }
   | eof { EOF }
 
-  (* Both at_identifer and identifer should produce IDENTIFIER *)
-  | at_identifier as s { kwd_or_else (IDENTIFIER s) s }
+  | plidentifier as s { PLIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | pgidentifier as s { PGIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | lidentifier as s { LIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | tpidentifier as s { TPIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | vpidentifier as s { VPIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | pureidentifier as s { PUREIDENTIFIER (String.sub s 1 (String.length s - 1)) }
   | identifier as s { kwd_or_else (IDENTIFIER s) s }
-
   (* Lexing integers and strings according to SMT-LIB 2.0. *)
   | integer as s { INT_CONSTANT s }
   | '"' { nest lexbuf; STRING_CONSTANT (lex_string (Buffer.create 0) lexbuf) }

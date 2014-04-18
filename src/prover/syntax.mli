@@ -3,14 +3,19 @@ open Corestar_std
 (* TODO: We want mk_star, mk_big_star, mk_or, mk_big_or here.
 We don't want on_big_star here because it's slow; but we have one in Prover. *)
 
-type var = string
+type var
 
 (** the global Z3 context *)
 val z3_ctx : Z3.context
 
 (* int operations *) (* TODO: Not clear if we want these here. *)
-val mk_int_const : string -> Z3.Expr.expr
 val int_sort : Z3.Sort.sort
+val mk_int_const : string -> Z3.Expr.expr
+val mk_int_plvar : string -> Z3.Expr.expr
+val mk_int_pgvar : string -> Z3.Expr.expr
+val mk_int_lvar : string -> Z3.Expr.expr
+val mk_int_tpat : string -> Z3.Expr.expr
+val mk_int_vpat : string -> Z3.Expr.expr
 
 (* string operations *)
 val mk_string_const : string -> Z3.Expr.expr (* with side-effects! *)
@@ -39,15 +44,18 @@ val freshen : Z3.Expr.expr -> Z3.Expr.expr
   x is a program variable
   _x is a logical variable *)
 val is_pvar_name : var -> bool (* program variable *)
-val is_global_name : var -> bool (* global variables *)
+val is_plvar_name : var -> bool (* program local variable *)
+val is_pgvar_name : var -> bool (* program global variables *)
 val is_lvar_name : var -> bool (* logical variable *)
 val is_tpat_name : var -> bool (* pattern that matches terms or formulas *)
 val is_vpat_name : var -> bool (* pattern that matches variables *)
 val is_pvar : Z3.Expr.expr -> bool
-val is_global : Z3.Expr.expr -> bool (* to deprecate *)
+val is_plvar : Z3.Expr.expr -> bool
+val is_pgvar : Z3.Expr.expr -> bool
 val is_lvar : Z3.Expr.expr -> bool
 val is_tpat : Z3.Expr.expr -> bool
 val is_vpat : Z3.Expr.expr -> bool
+val var_name : var -> string
 
 (* Predicates are pure if they start with "!". *)
 val is_pure : Z3.Expr.expr -> bool
@@ -64,9 +72,17 @@ val mk_2 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val emp : Z3.FuncDecl.func_decl
 val star : Z3.FuncDecl.func_decl
 
-val mk_pvar : var -> Z3.Expr.expr
-val mk_gvar : var -> Z3.Expr.expr
-val mk_lvar : var -> Z3.Expr.expr
+val mk_plvar : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_pgvar : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_tpat : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_vpat : Z3.Sort.sort -> string -> Z3.Expr.expr
+
+val mk_bool_plvar : string -> Z3.Expr.expr
+val mk_bool_pgvar : string -> Z3.Expr.expr
+val mk_bool_lvar : string -> Z3.Expr.expr
+val mk_bool_tpat : string -> Z3.Expr.expr
+val mk_bool_vpat : string -> Z3.Expr.expr
 
 val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_distinct : Z3.Expr.expr list -> Z3.Expr.expr

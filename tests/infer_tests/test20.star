@@ -1,23 +1,23 @@
 // Tests for angelic-vs-demonic splits.
 
-// Should infer: { @parameter0: == 4 } { $ret_v0 == 5 || $ret_v0 == 6 }
-procedure OneDemonicSplit:
+// Should infer: { %x == 4 } { %y == 5 || %y == 6 }
+procedure (%y) := OneDemonicSplit(%x):
 ?
   goto l1, l2, l3;
-  label l1; call $ret_v0 := p1(@parameter0:); goto done;
-  label l2; call $ret_v0 := p2(@parameter0:); goto done;
-  label l3; call $ret_v0 := p3(@parameter0:); goto done;
+  label l1; call %y := p1(%x); goto done;
+  label l2; call %y := p2(%x); goto done;
+  label l3; call %y := p3(%x); goto done;
   label done;
 
 // Should infer the same as for p123.
-procedure OneAngelicSplit:
+procedure (%y) := OneAngelicSplit(%x):
 ?
-  call $ret_v0 := p123(@parameter0:);
+  call %y := p123(%x);
 
-procedure p1: { @parameter0: = 1 || @parameter0: = 4 }(){ $ret_v0 = 5 }
-procedure p2: { @parameter0: = 2 || @parameter0: = 4 }(){ $ret_v0 = 5 }
-procedure p3: { @parameter0: = 3 || @parameter0: = 4 }(){ $ret_v0 = 6 }
-procedure p123:
-  { @parameter0: = 1 || @parameter0: = 4 } () { $ret_v0 = 5 }
-  { @parameter0: = 2 || @parameter0: = 4 } () { $ret_v0 = 5 }
-  { @parameter0: = 3 || @parameter0: = 4 } () { $ret_v0 = 6 }
+procedure (%y) := p1(%x): { %x = 1 || %x = 4 }(){ %y = 5 }
+procedure (%y) := p2(%x): { %x = 2 || %x = 4 }(){ %y = 5 }
+procedure (%y) := p3(%x): { %x = 3 || %x = 4 }(){ %y = 6 }
+procedure (%y) := p123(%x):
+  { %x = 1 || %x = 4 } () { %y = 5 }
+  { %x = 2 || %x = 4 } () { %y = 5 }
+  { %x = 3 || %x = 4 } () { %y = 6 }

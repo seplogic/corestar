@@ -36,19 +36,21 @@ let get_all_string_exprs () =
 (* }}} *)
 
 
-(* TODO: these should be parameterisable *)
-let pvar_re = Str.regexp "[@%$]" (* TODO: I'd prefer just [a-z]. *)
-let lvar_re = Str.regexp "_"
-let tpat_re = Str.regexp "\\?"
-let vpat_re = Str.regexp "_" (* TODO: lval/vpat confusion? *)
-let pure_re = Str.regexp "!"
-let global_prefix = "$g"
+let plvar_char = '%'
+let pgvar_char = '@'
+let lvar_char = '_'
+let tpat_char = '?'
+let vpat_char = '^'
+let pure_char = '!'
 
-let is_pvar_name v = Str.string_match pvar_re v 0
-let is_lvar_name v = Str.string_match lvar_re v 0
-let is_global_name v = StringH.starts_with global_prefix v
-let is_tpat_name p = Str.string_match tpat_re p 0
-let is_vpat_name p = Str.string_match vpat_re p 0
+let is_pgvar_name v = v.[0] = pgvar_char
+let is_plvar_name v = v.[0] = plvar_char
+let is_pvar_name v = v.[0] = plvar_char || v.[0] = pgvar_char
+let is_lvar_name v = v.[0] = lvar_char
+let is_tpat_name p = p.[0] = tpat_char
+let is_vpat_name p = p.[0] = vpat_char
+
+let var_name v = String.sub v 1 (String.length v - 1)
 
 (* Workaround for Z3 interface.
   NOTE: Also be careful with [Z3.Expr.get_func_decl]. It's somewhat impossible
@@ -65,8 +67,9 @@ let z3_is_const = z3_is Z3.Expr.is_const
 
 (* watch out for code duplication below (is_var and is_const) *)
 let is_pvar v = z3_is_const v && is_pvar_name (Z3.Expr.to_string v)
+let is_plvar v = z3_is_const v && is_plvar_name (Z3.Expr.to_string v)
+let is_pgvar v = z3_is_const v && is_plvar_name (Z3.Expr.to_string v)
 let is_lvar v = z3_is_const v && is_lvar_name (Z3.Expr.to_string v)
-let is_global v = z3_is_const v && is_global_name (Z3.Expr.to_string v)
 let is_tpat p = z3_is_const p && is_tpat_name (Z3.Expr.to_string p)
 let is_vpat p = z3_is_const p && is_vpat_name (Z3.Expr.to_string p)
 
@@ -75,13 +78,11 @@ let is_var v =
   z3_is_const v &&
   (is_pvar_name (Z3.Expr.to_string v)
    || is_lvar_name (Z3.Expr.to_string v)
-   || is_global_name (Z3.Expr.to_string v)
    || is_tpat_name (Z3.Expr.to_string v)
    || is_vpat_name (Z3.Expr.to_string v))
 let is_const v = z3_is_const v && not
   (is_pvar_name (Z3.Expr.to_string v)
    || is_lvar_name (Z3.Expr.to_string v)
-   || is_global_name (Z3.Expr.to_string v)
    || is_tpat_name (Z3.Expr.to_string v)
    || is_vpat_name (Z3.Expr.to_string v))
 
@@ -202,12 +203,25 @@ let mk_2 op a b = Z3.FuncDecl.apply op [a; b]
 let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
 let star = Z3.FuncDecl.mk_func_decl_s z3_ctx "*" [bool_sort; bool_sort] bool_sort
 
-let mk_int_const x = Z3.Arithmetic.Integer.mk_const_s z3_ctx x
+let mk_var s v = Z3.Expr.mk_const_s z3_ctx v s
+let mk_plvar s v = mk_var s (String.make 1 plvar_char ^ v)
+let mk_pgvar s v = mk_var s (String.make 1 pgvar_char ^ v)
+let mk_lvar s v = mk_var s (String.make 1 lvar_char ^ v)
+let mk_tpat s v = mk_var s (String.make 1 tpat_char ^ v)
+let mk_vpat s v = mk_var s (String.make 1 vpat_char ^ v)
 
-let mk_var v = Z3.Expr.mk_const_s z3_ctx v int_sort
-let mk_pvar v = assert (is_pvar_name v); mk_var v
-let mk_gvar v = assert (is_global_name v); mk_var v
-let mk_lvar v = assert (is_lvar_name v); mk_var v
+let mk_bool_plvar v = mk_plvar bool_sort v
+let mk_bool_pgvar v = mk_pgvar bool_sort v
+let mk_bool_lvar v = mk_lvar bool_sort v
+let mk_bool_tpat v = mk_tpat bool_sort v
+let mk_bool_vpat v = mk_vpat bool_sort v
+
+let mk_int_const x = Z3.Arithmetic.Integer.mk_const_s z3_ctx x
+let mk_int_plvar v = mk_plvar int_sort v
+let mk_int_pgvar v = mk_pgvar int_sort v
+let mk_int_lvar v = mk_lvar int_sort v
+let mk_int_tpat v = mk_tpat int_sort v
+let mk_int_vpat v = mk_vpat int_sort v
 
 let mk_distinct = Z3.Boolean.mk_distinct z3_ctx
 let mk_emp = Z3.FuncDecl.apply emp []
@@ -241,10 +255,7 @@ let on_int_const f =
 
 let is_pure_op e =
   try
-    Str.string_match
-      pure_re
-      (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e)))
-      0
+    (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e))).[0] = pure_char
   with Z3native.Exception _ -> false
 
 (* TODO: This is now rather slow because Smt.check_sat calls it often. Cache it.*)

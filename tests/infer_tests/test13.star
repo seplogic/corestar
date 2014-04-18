@@ -4,4 +4,4 @@ procedure Test13:
 end;
 
 procedure step:
-  { $g_state = "a" } ($g_state) { $g_state = "b" }
+  { @state = "a" } (@state) { @state = "b" }

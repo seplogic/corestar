@@ -1,189 +1,189 @@
-procedure emit_$$ (x, y):
+procedure emit_$$ (%x, %y):
 ?
-  call :=enqueue_$$(x,y);
+  call :=enqueue_$$(%x,%y);
   call :=step_$$();
-  assign :={(($g_state!="HasNexterror"))}(){(($g_state!="HasNexterror"))}();
+  assign :={((@state!="HasNexterror"))}(){((@state!="HasNexterror"))}();
 
 procedure step_$$ :
   // loop/skip on "start"
-  {(($g_qsz="2")
-    *($g_q_1_1=_q_1_1)
-    *($g_rI=_rI_0)
-    *($g_q_1_0=_q_1_0)
-    *($g_state="HasNextstart")
-    *($g_q_0_1=_q_0_1)
-    *($g_q_0_0=_q_0_0))
+  {((@qsz="2")
+    *(@q_1_1=_q_1_1)
+    *(@rI=_rI_0)
+    *(@q_1_0=_q_1_0)
+    *(@state="HasNextstart")
+    *(@q_0_1=_q_0_1)
+    *(@q_0_0=_q_0_0))
    }
-  ($g_qsz,$g_q_0_1
-  ,$g_q_0_0)
-  {(($g_state="HasNextstart")
-   *($g_rI=_rI_0)
-   *($g_q_0_1=_q_1_1)
-   *($g_q_0_0=_q_1_0)
-   *($g_qsz="1"))
+  (@qsz,@q_0_1
+  ,@q_0_0)
+  {((@state="HasNextstart")
+   *(@rI=_rI_0)
+   *(@q_0_1=_q_1_1)
+   *(@q_0_0=_q_1_0)
+   *(@qsz="1"))
   }
   // skip on "invalid"
-  +{((($g_rI=_rI_0)*($g_qsz="2")
-     *($g_q_0_0=_q_0_0)
-     *($g_q_0_1=_q_0_1)
-     *($g_q_1_0=_q_1_0)
-     *($g_q_1_1=_q_1_1)
-     *($g_state="HasNextinvalid")
+  +{(((@rI=_rI_0)*(@qsz="2")
+     *(@q_0_0=_q_0_0)
+     *(@q_0_1=_q_0_1)
+     *(@q_1_0=_q_1_0)
+     *(@q_1_1=_q_1_1)
+     *(@state="HasNextinvalid")
      *(_rI_1_1=_rI_0))
-    ||(($g_q_0_0=_q_0_0)
-      *($g_q_1_1=0)
-      *($g_q_0_1=_q_0_1)
-      *($g_rI=_rI_0)
-      *($g_state="HasNextinvalid")
-      *($g_q_1_0=_q_1_0)
-      *($g_qsz="2")
-      *($g_q_1_1=_q_1_1)
+    ||((@q_0_0=_q_0_0)
+      *(@q_1_1=0)
+      *(@q_0_1=_q_0_1)
+      *(@rI=_rI_0)
+      *(@state="HasNextinvalid")
+      *(@q_1_0=_q_1_0)
+      *(@qsz="2")
+      *(@q_1_1=_q_1_1)
       *(_rI_1_1=_rI_0))
-    ||(($g_q_0_1!=_rI_0)
-      *($g_q_0_0=_q_0_0)
-      *($g_q_0_1=_q_0_1)
-      *($g_rI=_rI_0)
-      *($g_state="HasNextinvalid")
-      *($g_q_1_0=_q_1_0)
-      *($g_q_1_1=_q_1_1)
-      *($g_qsz="2")
+    ||((@q_0_1!=_rI_0)
+      *(@q_0_0=_q_0_0)
+      *(@q_0_1=_q_0_1)
+      *(@rI=_rI_0)
+      *(@state="HasNextinvalid")
+      *(@q_1_0=_q_1_0)
+      *(@q_1_1=_q_1_1)
+      *(@qsz="2")
       *(_rI_1_1=_rI_0))
-    ||(($g_rI=_rI_0)
-      *($g_state="HasNextinvalid")
-      *($g_q_0_1!=_rI_0)
-      *($g_q_1_1=0)
-      *($g_q_1_1=_q_1_1)
-      *($g_q_0_1=_q_0_1)
-      *($g_qsz="2")
-      *($g_q_1_0=_q_1_0)
-      *($g_q_0_0=_q_0_0)
+    ||((@rI=_rI_0)
+      *(@state="HasNextinvalid")
+      *(@q_0_1!=_rI_0)
+      *(@q_1_1=0)
+      *(@q_1_1=_q_1_1)
+      *(@q_0_1=_q_0_1)
+      *(@qsz="2")
+      *(@q_1_0=_q_1_0)
+      *(@q_0_0=_q_0_0)
       *(_rI_1_1=_rI_0))
-    ||(($g_qsz="2")
-      *($g_q_1_1=_q_1_1)
-      *($g_rI=_rI_0)
-      *($g_q_1_0=_q_1_0)
-      *($g_state="HasNextinvalid")
-      *($g_q_0_1=_q_0_1)
-      *($g_q_0_0=_q_0_0))
-    ||(($g_rI=_rI_0)*($g_qsz="2")
-      *($g_q_0_1=_q_0_1)
-      *($g_q_0_0=_q_0_0)
-      *($g_q_1_1=_q_1_1)
-      *($g_q_1_0=_q_1_0)
-      *($g_q_0_1!=_rI_0)
-      *($g_state="HasNextinvalid"))
-    ||(($g_rI=_rI_0)*($g_qsz="2")
-      *($g_q_0_0=_q_0_0)
-      *($g_q_0_1=_q_0_1)
-      *($g_q_0_1!=_rI_0)
-      *($g_q_1_0=_q_1_0)
-      *($g_q_1_1=_q_1_1)
-      *($g_state="HasNextinvalid"))
+    ||((@qsz="2")
+      *(@q_1_1=_q_1_1)
+      *(@rI=_rI_0)
+      *(@q_1_0=_q_1_0)
+      *(@state="HasNextinvalid")
+      *(@q_0_1=_q_0_1)
+      *(@q_0_0=_q_0_0))
+    ||((@rI=_rI_0)*(@qsz="2")
+      *(@q_0_1=_q_0_1)
+      *(@q_0_0=_q_0_0)
+      *(@q_1_1=_q_1_1)
+      *(@q_1_0=_q_1_0)
+      *(@q_0_1!=_rI_0)
+      *(@state="HasNextinvalid"))
+    ||((@rI=_rI_0)*(@qsz="2")
+      *(@q_0_0=_q_0_0)
+      *(@q_0_1=_q_0_1)
+      *(@q_0_1!=_rI_0)
+      *(@q_1_0=_q_1_0)
+      *(@q_1_1=_q_1_1)
+      *(@state="HasNextinvalid"))
     )
    }
-  ($g_qsz,$g_q_0_1
-  ,$g_q_0_0)
-  {(($g_rI=_rI_0)
-   *($g_q_0_1=_q_1_1)
-   *($g_state="HasNextinvalid")
-   *($g_q_0_0=_q_1_0)
-   *($g_qsz="1"))
+  (@qsz,@q_0_1
+  ,@q_0_0)
+  {((@rI=_rI_0)
+   *(@q_0_1=_q_1_1)
+   *(@state="HasNextinvalid")
+   *(@q_0_0=_q_1_0)
+   *(@qsz="1"))
   }
   // skip on "valid"
-  +{((($g_rI=_rI_0)*($g_qsz="2")
-     *($g_q_0_1=_q_0_1)
-     *($g_q_0_0=_q_0_0)
-     *($g_state="HasNextvalid")
-     *($g_q_1_1=_q_1_1)
-     *($g_q_1_0=_q_1_0)
-     *($g_q_0_1!=_rI_0))
-    ||(($g_qsz="2")
-      *($g_q_1_1=_q_1_1)
-      *($g_rI=_rI_0)
-      *($g_q_1_0=_q_1_0)
-      *($g_q_0_1=_q_0_1)
-      *($g_state="HasNextvalid")
-      *($g_q_0_0=_q_0_0))
+  +{(((@rI=_rI_0)*(@qsz="2")
+     *(@q_0_1=_q_0_1)
+     *(@q_0_0=_q_0_0)
+     *(@state="HasNextvalid")
+     *(@q_1_1=_q_1_1)
+     *(@q_1_0=_q_1_0)
+     *(@q_0_1!=_rI_0))
+    ||((@qsz="2")
+      *(@q_1_1=_q_1_1)
+      *(@rI=_rI_0)
+      *(@q_1_0=_q_1_0)
+      *(@q_0_1=_q_0_1)
+      *(@state="HasNextvalid")
+      *(@q_0_0=_q_0_0))
     )
    }
-  ($g_qsz,$g_q_0_1
-  ,$g_q_0_0)
-  {(($g_rI=_rI_0)
-   *($g_q_0_1=_q_1_1)
-   *($g_q_0_0=_q_1_0)
-   *($g_state="HasNextvalid")
-   *($g_qsz="1"))
+  (@qsz,@q_0_1
+  ,@q_0_0)
+  {((@rI=_rI_0)
+   *(@q_0_1=_q_1_1)
+   *(@q_0_0=_q_1_0)
+   *(@state="HasNextvalid")
+   *(@qsz="1"))
   }
   // skip on "error"
-  +{(($g_qsz="2")
-    *($g_state="HasNexterror")
-    *($g_q_1_1=_q_1_1)
-    *($g_rI=_rI_0)
-    *($g_q_1_0=_q_1_0)
-    *($g_q_0_1=_q_0_1)
-    *($g_q_0_0=_q_0_0))
+  +{((@qsz="2")
+    *(@state="HasNexterror")
+    *(@q_1_1=_q_1_1)
+    *(@rI=_rI_0)
+    *(@q_1_0=_q_1_0)
+    *(@q_0_1=_q_0_1)
+    *(@q_0_0=_q_0_0))
    }
-  ($g_qsz,$g_q_0_1
-  ,$g_q_0_0)
-  {(($g_rI=_rI_0)
-   *($g_q_0_1=_q_1_1)
-   *($g_q_0_0=_q_1_0)
-   *($g_state="HasNexterror")
-   *($g_qsz="1"))
+  (@qsz,@q_0_1
+  ,@q_0_0)
+  {((@rI=_rI_0)
+   *(@q_0_1=_q_1_1)
+   *(@q_0_0=_q_1_0)
+   *(@state="HasNexterror")
+   *(@qsz="1"))
   }
 
-procedure enqueue_$$(x,y) :
-  {($g_qsz="0")}
-  ($g_qsz,$g_q_0_0
-  ,$g_q_0_1)
-  {(($g_qsz="1")
-   *($g_q_0_0=x)
-   *($g_q_0_1=y))
-  }[x,y]+{($g_qsz="1")}
-  ($g_qsz,$g_q_1_0
-  ,$g_q_1_1)
-  {(($g_qsz="2")
-   *($g_q_1_0=x)
-   *($g_q_1_1=y))
-  }[x,y]
+procedure enqueue_$$(%x,%y) :
+  {(@qsz="0")}
+  (@qsz,@q_0_0
+  ,@q_0_1)
+  {((@qsz="1")
+   *(@q_0_0=%x)
+   *(@q_0_1=%y))
+  }[%x,%y]+{(@qsz="1")}
+  (@qsz,@q_1_0
+  ,@q_1_1)
+  {((@qsz="2")
+   *(@q_1_0=%x)
+   *(@q_1_1=%y))
+  }[%x,%y]
 
 
-procedure HasNext.print$$java.util.Iterator$$void(x) :
+procedure HasNext.print$$java.util.Iterator$$void(%x) :
 ?
   call 
     :=emit_$$("call_$$_HasNext.print$$java.util.Iterator$$void"
-             ,x);
-  call :=HasNext.print$$java.util.Iterator$$void_I(x);
+             ,%x);
+  call :=HasNext.print$$java.util.Iterator$$void_I(%x);
   call :=emit_$$("return_$$_HasNext.print$$java.util.Iterator$$void");
-procedure HasNext.print$$java.util.Iterator$$void_I(x) :
+procedure HasNext.print$$java.util.Iterator$$void_I(%x) :
   
 ?
-  assign r0:={()}(){/a/(a=x)}();
-  call $temp:=java.util.Iterator.hasNext$$$$boolean();
-  assign $z0:={()}(){/a/(a=$temp)}();
+  assign %r0:={()}(){/%a/(%a=%x)}();
+  call %temp:=java.util.Iterator.hasNext$$$$boolean();
+  assign %z0:={()}(){/%a/(%a=%temp)}();
   goto gen_1,gen_2;
   label gen_1;
-  assign :={()}(){($z0=0)}();
+  assign :={()}(){(%z0=0)}();
   goto label0;
   label gen_2;
-  assign :={()}(){($z0!=0)}();
+  assign :={()}(){(%z0!=0)}();
   call :=java.util.Iterator.next$$$$java.lang.Object();
   label label0;
   nop;
-procedure (b) := java.util.Iterator.hasNext$$$$boolean :
+procedure (%b) := java.util.Iterator.hasNext$$$$boolean :
   
 ?
   call :=emit_$$("call_$$_java.util.Iterator.hasNext$$$$boolean");
-  call b:=java.util.Iterator.hasNext$$$$boolean_I();
+  call %b:=java.util.Iterator.hasNext$$$$boolean_I();
   call :=emit_$$("return_$$_java.util.Iterator.hasNext$$$$boolean");
-procedure (b) := java.util.Iterator.hasNext$$$$boolean_I :
+procedure (%b) := java.util.Iterator.hasNext$$$$boolean_I :
   {}(){}
 procedure java.util.Iterator.next$$$$java.lang.Object :
   
 ?
   call :=emit_$$("call_$$_java.util.Iterator.next$$$$java.lang.Object");
-  call z:=java.util.Iterator.next$$$$java.lang.Object_I();
+  call %z:=java.util.Iterator.next$$$$java.lang.Object_I();
   call 
     :=emit_$$("return_$$_java.util.Iterator.next$$$$java.lang.Object");
-procedure (a) := java.util.Iterator.next$$$$java.lang.Object_I :
+procedure (%a) := java.util.Iterator.next$$$$java.lang.Object_I :
 

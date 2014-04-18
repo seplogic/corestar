@@ -1,34 +1,34 @@
-global state;
+global @state;
 
-procedure enqueue:
-  { $g_size = "0" }
-  ($g_size, $g_loc_0)
-  { $g_size = "1" * $g_loc_0 = @parameter0: }
+procedure enqueue(%x):
+  { @size = "0" }
+  (@size, @loc_0)
+  { @size = "1" * @loc_0 = %x }
 
-  { $g_size = "1" * $g_loc_0 = _e }
-  ($g_size, $g_loc_0, $g_loc_1)
-  { $g_size = "2" * $g_loc_0 = @parameter0: * $g_loc_1 = _e }
+  { @size = "1" * @loc_0 = _e }
+  (@size, @loc_0, @loc_1)
+  { @size = "2" * @loc_0 = %x * @loc_1 = _e }
 
 procedure step:
-  { $g_size = "1" * $g_loc_0 != "1" * $g_state = "Start" }
-  ($g_size, $g_state)
-  { $g_size = "0" * $g_state = "Start" }
+  { @size = "1" * @loc_0 != "1" * @state = "Start" }
+  (@size, @state)
+  { @size = "0" * @state = "Start" }
 
-  { $g_size = "1" * $g_loc_0 = "1" * $g_state = "Start" }
-  ($g_size, $g_state)
-  { $g_size = "0" * $g_state = "Error" }
+  { @size = "1" * @loc_0 = "1" * @state = "Start" }
+  (@size, @state)
+  { @size = "0" * @state = "Error" }
 
-procedure emit:
+procedure emit(%x):
 ?
-  call enqueue(@parameter0:);
+  call enqueue(%x);
   call step();
-  assign { $g_state != "Error" }{ $g_state != "Error" } ();
+  assign { @state != "Error" }{ @state != "Error" } ();
 end;
 
 procedure init:
 ?
-  assign {}($g_size){ $g_size = "0" } ();
-  assign {}($g_state){ $g_state = "Start" } ();
+  assign {}(@size){ @size = "0" } ();
+  assign {}(@state){ @state = "Start" } ();
 end;
 
 procedure Test19:

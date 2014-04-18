@@ -5,7 +5,7 @@ procedure Test17:
 end;
 
 procedure step:
-  { $g_state = "a" } ($g_state) { $g_state = "b" }
+  { @state = "a" } (@state) { @state = "b" }
 
 procedure check:
-  { $g_queue_size = "1" } () { }
+  { @queue_size = "1" } () { }

@@ -1,3 +1,3 @@
-procedure Test10: {a(b())}{c(x)}
+procedure Test10: {a(b())}{c(@x)}
 ?
 end;

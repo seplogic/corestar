@@ -1,4 +1,4 @@
-procedure Test01: {ls(x,nil())}{}
+procedure Test01: {ls(@x,nil())}{}
 ?
 end;
 

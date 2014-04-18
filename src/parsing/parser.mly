@@ -38,8 +38,6 @@ let z3_ctx = Syntax.z3_ctx
 let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
 let bool_sort = Z3.Boolean.mk_sort z3_ctx
 
-let mk_int_var v = Z3.Expr.mk_const_s z3_ctx v int_sort
-let mk_bool_var v = Z3.Expr.mk_const_s z3_ctx v bool_sort
 let mk_int_app op args =
   let fdecl = Z3.FuncDecl.mk_func_decl_s z3_ctx op
     (List.map (fun _ -> int_sort) args) int_sort in
@@ -78,6 +76,7 @@ let mk_string_const = Syntax.mk_string_const
 %token IMPORT
 %token INT_CONSTANT
 %token LABEL
+%token LIDENTIFIER
 %token L_BRACE
 %token L_BRACKET
 %token L_PAREN
@@ -88,7 +87,10 @@ let mk_string_const = Syntax.mk_string_const
 %token OP_MINUS
 %token OP_PLUS
 %token OROR
+%token PGIDENTIFIER
+%token PLIDENTIFIER
 %token PROCEDURE
+%token PUREIDENTIFIER
 %token QUESTIONMARK
 %token RULE
 %token R_BRACE
@@ -96,16 +98,23 @@ let mk_string_const = Syntax.mk_string_const
 %token R_PAREN
 %token SEMICOLON
 %token STRING_CONSTANT
+%token TPIDENTIFIER
 %token VDASH
+%token VPIDENTIFIER
 
 /* types */
 %type <string> IDENTIFIER
 %type <string> INT_CONSTANT
+%type <string> PGIDENTIFIER
+%type <string> PLIDENTIFIER
+%type <string> PUREIDENTIFIER
+%type <string> LIDENTIFIER
 %type <string> STRING_CONSTANT
+%type <string> TPIDENTIFIER
+%type <string> VPIDENTIFIER
 
 /* associativity and precedence */
 
-%left IDENTIFIER
 %left OROR
 %left MULT
 
@@ -116,13 +125,6 @@ let mk_string_const = Syntax.mk_string_const
 %% /* rules */
 
 /* Identifiers and constants */
-
-identifier:
-  | IDENTIFIER { $1 }
-;
-
-qidentifier:
-  | QUESTIONMARK IDENTIFIER { "?" ^ $2 }
 
 binop:
   | OP_MINUS { Z3.Arithmetic.mk_sub z3_ctx }
@@ -139,27 +141,25 @@ cmpop:
 
 /* Expressions */
 
-identifier_list_ne:
-  | identifier { [ $1 ] }
-  | identifier COMMA identifier_list_ne { $1 :: $3 }
+variable:
+  | PGIDENTIFIER { Syntax.mk_int_pgvar $1 }
+  | PLIDENTIFIER { Syntax.mk_int_plvar $1 }
+  | LIDENTIFIER { Syntax.mk_int_lvar $1 }
+  | TPIDENTIFIER { Syntax.mk_int_tpat $1 }
+  | VPIDENTIFIER { Syntax.mk_int_vpat $1 }
 ;
-
-lvariable:
-  | identifier { mk_int_var $1 }
-  | qidentifier { mk_int_var $1 }
+variable_list_ne:
+  |  variable    { [$1] }
+  |  variable COMMA variable_list_ne  { $1 :: $3 }
 ;
-lvariable_list_ne:
-  |  lvariable    { [$1] }
-  |  lvariable COMMA lvariable_list_ne  { $1 :: $3 }
-;
-lvariable_list:
+variable_list:
   |  {[]}
-  | lvariable_list_ne { $1 }
+  | variable_list_ne { $1 }
 ;
 
 term:
-  | lvariable { $1 }
-  | identifier L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
+  | variable { $1 }
+  | IDENTIFIER L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
   | L_PAREN term binop term R_PAREN { $3 [$2; $4] }
   | STRING_CONSTANT { mk_string_const $1 }
   | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
@@ -177,14 +177,14 @@ formula:
   | /* empty */ { Syntax.mk_emp }
   | EMP { Syntax.mk_emp }
   | FALSE { Z3.Boolean.mk_false z3_ctx }
-  | BANG identifier L_PAREN term_list R_PAREN { mk_bool_app ("!"^$2) $4 }
-  | identifier L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
+  | PUREIDENTIFIER L_PAREN term_list R_PAREN { mk_bool_app ("!"^$1) $3 }
+  | IDENTIFIER L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
   | formula MULT formula { Syntax.mk_star $1 $3 }
   | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
   | term NOT_EQUALS term { Syntax.mk_distinct [$1; $3] }
   | term EQUALS term { Syntax.mk_eq $1 $3 }
   | term cmpop term { $2 $1 $3 }
-  | qidentifier { mk_bool_var $1 } /* used for patterns */
+  | TPIDENTIFIER { Syntax.mk_bool_tpat $1 } /* used for patterns */
   | L_PAREN formula R_PAREN { $2 }
 ;
 
@@ -192,19 +192,19 @@ formula:
 
 modifies:
   | /* empty */ { [] }
-  | L_PAREN lvariable_list R_PAREN { $2 }
+  | L_PAREN variable_list R_PAREN { $2 }
 ;
 
 /* FIXME: rubbish syntax */
 in_vars:
   | /* empty */ { [] }
-  | L_BRACKET lvariable_list R_BRACKET { $2 }
+  | L_BRACKET variable_list R_BRACKET { $2 }
 ;
 
 /* FIXME: rubbish syntax */
 out_vars:
   | /* empty */ { [] }
-  | OP_DIV lvariable_list_ne OP_DIV { $2 }
+  | OP_DIV variable_list_ne OP_DIV { $2 }
 ;
 
 /* FIXME: rubbish syntax */
@@ -222,7 +222,7 @@ spec:
 /* Core statements */
 
 assgn_lhs:
-  | lvariable_list COLON_EQUALS { $1 }
+  | variable_list COLON_EQUALS { $1 }
   | /* empty */  { [] }
 ;
 core_args_in: L_PAREN term_list R_PAREN { $2 };
@@ -237,7 +237,7 @@ call_stmt:
     { { C.call_name = $1; call_rets = []; call_args = $2 } }
   | COLON_EQUALS IDENTIFIER core_args_in
     { { C.call_name = $2; call_rets = []; call_args = $3 } }
-  | lvariable_list_ne COLON_EQUALS IDENTIFIER core_args_in
+  | variable_list_ne COLON_EQUALS IDENTIFIER core_args_in
     { { C.call_name = $3; call_rets = $1; call_args = $4 } }
 ;
 
@@ -259,7 +259,7 @@ core_stmt_list:
 /* Rules */
 
 calculus_rule:
-  | RULE identifier COLON sequent
+  | RULE IDENTIFIER COLON sequent
     calculus_sidecondition
     IF sequent_list SEMICOLON
     { { Calculus.schema_name = $2
@@ -298,16 +298,16 @@ body:
 ;
 
 proc_lhs:
-  | L_PAREN lvariable_list R_PAREN COLON_EQUALS { $2 }
+  | L_PAREN variable_list R_PAREN COLON_EQUALS { $2 }
   | /* empty */  { [] }
 ;
 
 proc_args:
   | /* empty */ { [] }
-  | L_PAREN lvariable_list R_PAREN { $2 }
+  | L_PAREN variable_list R_PAREN { $2 }
 ;
 procedure:
-  | PROCEDURE proc_lhs identifier proc_args COLON spec body
+  | PROCEDURE proc_lhs IDENTIFIER proc_args COLON spec body
     { { C.proc_name = $3
       ; proc_spec = $6
       ; proc_ok = snd $7
@@ -323,7 +323,7 @@ import_entry:
 
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
-  | GLOBAL identifier_list_ne SEMICOLON { ParserAst.Global $2 }
+  | GLOBAL variable_list_ne SEMICOLON { ParserAst.Global $2 }
   | calculus_rule { ParserAst.CalculusRule $1 }
 ;
 

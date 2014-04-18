@@ -5,11 +5,11 @@ procedure Test11:
 end;
 
 procedure step:
-  { $g_state = "a" } { $g_state = "b" }
-  { $g_state = "b" } { $g_state = "c" }
+  { @state = "a" } { @state = "b" }
+  { @state = "b" } { @state = "c" }
 
 procedure check:
-  { $g_state != "c" } { $g_state != "c" }
+  { @state != "c" } { @state != "c" }
 
 procedure Test11a:
 ?
@@ -18,11 +18,11 @@ procedure Test11a:
 end;
 
 procedure step_a:
-  { $g_state = "a" } ($g_state) { $g_state = "b" }
-  { $g_state = "b" } ($g_state) { $g_state = "c" }
+  { @state = "a" } (@state) { @state = "b" }
+  { @state = "b" } (@state) { @state = "c" }
 
 procedure check_a:
-  { $g_state != "c" } () { $g_state != "c" }
+  { @state != "c" } () { @state != "c" }
 
 procedure Test11b:
 ?
@@ -30,4 +30,4 @@ procedure Test11b:
 end;
 
 procedure step_b:
-  { $g_state = "b" } () { $g_state = "b" }
+  { @state = "b" } () { @state = "b" }

@@ -978,7 +978,7 @@ end = struct
           fprintf logf "@{<details>@[@{<summary>Interpreting procedure body: %s@}@\n@]@?" procedure.C.proc_name;
         let body = inline_call_specs proc_of_name body in
         let mvars = collect_modified_vars body.P.cfg in
-        let mvars_global = List.filter Syntax.is_global mvars in
+        let mvars_global = List.filter Syntax.is_pgvar mvars in
         let pvars = collect_pvars body.P.cfg in
         let process_triple update triple =
           if log log_phase then
@@ -991,7 +991,7 @@ end = struct
           let update = update triple.C.post triple.C.in_vars triple.C.out_vars in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let visible_defs =
-              let p v _ = Syntax.is_global v || (List.exists (Syntax.expr_equal v) procedure.C.proc_rets) in
+              let p v _ = Syntax.is_pgvar v || (List.exists (Syntax.expr_equal v) procedure.C.proc_rets) in
               Syntax.ExprMap.filter p pvar_value in
             let pre_eqs = eqs_of_bindings (Syntax.ExprMap.bindings pre_defs) in
             let post_eqs =

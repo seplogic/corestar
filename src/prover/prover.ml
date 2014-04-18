@@ -665,7 +665,7 @@ let match_subformula_rule =
       if Syntax.expr_equal Syntax.mk_emp conc_spatial
       then rule_notapplicable else begin
         let lo_name = "_leftover" in
-        let leftover = Syntax.mk_lvar lo_name in
+        let leftover = Syntax.mk_bool_lvar lo_name in
         let enhanced_conc = Syntax.mk_star leftover conc_spatial in
         let matches =
           find_existential_sub_matches leftover Syntax.ExprMap.empty (enhanced_conc, hyp_spatial) in

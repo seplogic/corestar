@@ -9,5 +9,7 @@
 - add 'where' sidecondition (instantiate with matching)
 - apply (equivalence) rewrite rules on side-conditions
 - port old tests
+- mechanism to specify calculus rules order
+- add location to AST elements (CFG/rules/...)
 
 :load_local_vimrc
