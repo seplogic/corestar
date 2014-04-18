@@ -10,3 +10,5 @@ val check_sat : unit -> check_sat_response
   the stack are pure, then Z3 is informed that '*' is the same as 'and'.
   Otherwise, '*' remains uninterpreted, and it is the job of the client to
   provide an axiomatization for it. *)
+
+val print_stats : unit -> unit

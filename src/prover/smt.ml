@@ -72,3 +72,8 @@ let check_sat () =
 
 let push () = push_impure_stack (); Z3.Solver.push z3_solver
 let pop () = pop_impure_stack (); Z3.Solver.pop z3_solver 1
+
+let print_stats () =
+  print_endline
+    ("SMT stats:\n"^
+	(Z3.Solver.Statistics.to_string (Z3.Solver.get_statistics z3_solver)))
