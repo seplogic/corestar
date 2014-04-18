@@ -78,7 +78,7 @@ let mk_big_star l =
 
 let mk_big_or =
   ac_make (Z3.Boolean.mk_false z3_ctx) (Z3.Boolean.mk_or z3_ctx) @@
-    ac_simplify Z3.Expr.is_false Syntax.on_or
+    ac_simplify Z3.Boolean.is_false Syntax.on_or
 
 (* DBG
 let mk_big_or e =
@@ -283,7 +283,7 @@ let abduce_instance_rule =
   ; rule_apply =
     prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let is_or = Z3.Expr.is_or in
+      let is_or = Z3.Boolean.is_or in
       if is_or conclusion then rule_notapplicable else begin
         let _Is = guess_instances hypothesis conclusion in
         let mk _I =

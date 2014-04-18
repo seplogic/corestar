@@ -58,11 +58,11 @@ let var_name v = String.sub v 1 (String.length v - 1)
   [get_func_decl] is called. *)
 let z3_is is e = (* HUGE HACK *)
   try is e with Z3native.Exception _ -> false
-let z3_is_false = z3_is Z3.Expr.is_false
-let z3_is_or = z3_is Z3.Expr.is_or
-let z3_is_not = z3_is Z3.Expr.is_not
-let z3_is_eq = z3_is Z3.Expr.is_eq
-let z3_is_distinct = z3_is Z3.Expr.is_distinct
+let z3_is_false = z3_is Z3.Boolean.is_false
+let z3_is_or = z3_is Z3.Boolean.is_or
+let z3_is_not = z3_is Z3.Boolean.is_not
+let z3_is_eq = z3_is Z3.Boolean.is_eq
+let z3_is_distinct = z3_is Z3.Boolean.is_distinct
 let z3_is_const = z3_is Z3.Expr.is_const
 
 (* watch out for code duplication below (is_var and is_const) *)
