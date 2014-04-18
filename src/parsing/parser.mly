@@ -49,10 +49,7 @@ let mk_bool_app op args =
     (List.map (fun _ -> int_sort) args) bool_sort in
   Z3.Expr.mk_app z3_ctx fdecl args
 
-let mk_string_const s =
-  ignore (Syntax.mk_string_const s);
-  Z3.Expr.mk_const_s z3_ctx s int_sort
-
+let mk_string_const = Syntax.mk_string_const
 
 %} /* declarations */
 

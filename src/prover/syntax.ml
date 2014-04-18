@@ -12,6 +12,9 @@ let z3_ctx =
   if log log_smt then Z3.Log.append (Z3.Version.to_string);
   Z3.mk_context !Config.z3_options
 
+let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
+let string_sort = int_sort (* TODO: ugly hack? *)
+
 (* This should really be in the Z3 bindings? *)
 let expr_compare e1 e2 = Z3.AST.compare (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_expr e2)
 let expr_equal e1 e2 = Z3.AST.equal (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_expr e2)
@@ -19,7 +22,6 @@ let expr_equal e1 e2 = Z3.AST.equal (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_exp
 (* {{{ strings stuff *)
 
 let string_const_map = StringHash.create 0
-let string_sort = Z3.Sort.mk_uninterpreted_s z3_ctx "String"
 
 let mk_string_const s =
   try StringHash.find string_const_map s
@@ -200,7 +202,6 @@ let mk_2 op a b = Z3.FuncDecl.apply op [a; b]
 let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
 let star = Z3.FuncDecl.mk_func_decl_s z3_ctx "*" [bool_sort; bool_sort] bool_sort
 
-let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
 let mk_int_const x = Z3.Arithmetic.Integer.mk_const_s z3_ctx x
 
 let mk_var v = Z3.Expr.mk_const_s z3_ctx v int_sort
@@ -236,7 +237,7 @@ let on_string_const f =
   on_const_of_sort string_sort Z3.Expr.to_string f
 
 let on_int_const f =
-  on_const_of_sort (Z3.Arithmetic.Integer.mk_sort z3_ctx) Z3.Arithmetic.Integer.get_int f
+  on_const_of_sort int_sort Z3.Arithmetic.Integer.get_int f
 
 let is_pure_op e =
   try
