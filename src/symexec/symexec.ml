@@ -1030,7 +1030,8 @@ end = struct
           let ts = option_map (List.map join_triples) tss in
           if log log_phase then fprintf logf "@}@?";
 	  ts in
-        let ts = C.TripleSet.elements procedure.C.proc_spec in
+	let proc_spec = specialize_spec procedure.C.proc_rets procedure.C.proc_params procedure.C.proc_spec in
+        let ts = C.TripleSet.elements proc_spec in
         let ts =
           (if infer then begin
             if log log_phase then
@@ -1063,7 +1064,7 @@ end = struct
             let f t = not (Prover.is_inconsistent rules.C.calculus t.C.pre) in
             List.filter f ts in
 	  (* Check if specifications are better. *)
-          let old_ts = C.TripleSet.elements procedure.C.proc_spec in
+          let old_ts = C.TripleSet.elements proc_spec in
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
@@ -1075,7 +1076,16 @@ end = struct
             if log log_phase then fprintf logf "@{</details>@?";
             OK
           end else
-            (procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
+            (let remove_rets_from_modifies t =
+	       let mods =
+		 let rec f = function
+		   | [] -> []
+		   | a::tl when List.exists (Syntax.expr_equal a) procedure.C.proc_rets -> f tl
+		   | a::tl -> a::f tl in
+		 f t.C.modifies in
+	       { t with C.modifies = mods } in
+	     let new_ts = List.map remove_rets_from_modifies new_ts in
+	     procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
              if log log_exec then begin
                fprintf logf "@[<2>@{<h4>Abducted triples:@}";
 	       List.iter (fun triple -> fprintf logf "@,{%a}" CoreOps.pp_triple triple) ts;
@@ -1091,7 +1101,7 @@ end = struct
             List.for_all (flip Syntax.ExprSet.mem ms) mvars in
           let ok =
             List.for_all (option false ((<>) [])) tss
-            && C.TripleSet.for_all modifies_ok procedure.C.proc_spec in
+            && C.TripleSet.for_all modifies_ok proc_spec in
           if ok then OK else NOK
 	end
 end
