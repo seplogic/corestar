@@ -37,14 +37,14 @@ for line in xs[1:]:
 for letter, ts in automaton.items():
   stdout.write('procedure {}:\n'.format(letter))
   for x, ys in ts.items():
-    stdout.write('  {{$gs={}}} ($gs) {{false'.format(x))
+    stdout.write('  {{@s={}}} (@s) {{false'.format(x))
     for y in ys:
-      stdout.write('||$gs={}'.format(y))
+      stdout.write('||@s={}'.format(y))
     stdout.write('}\n')
   stdout.write('  {emp')
   for x in range(1,state_cnt+1):
     if x in ts:
-      stdout.write('*$gs!={}'.format(x))
+      stdout.write('*@s!={}'.format(x))
   stdout.write('} () {emp}\n')
 
 # generate words, form length 0 up to length seq_len
@@ -67,9 +67,9 @@ for n in range(seq_len + 1):
             nxt |= set([y])
           else:
             nxt |= set(automaton[l][y])
-      stdout.write('  {}{{$gs={}}} ($gs) {{false'.format(comment, x))
+      stdout.write('  {}{{@s={}}} (@s) {{false'.format(comment, x))
       for y in nxt:
-        stdout.write('||$gs={}'.format(y))
+        stdout.write('||@s={}'.format(y))
       stdout.write('}\n')
     stdout.write('?');
     if w != []:
