@@ -209,6 +209,7 @@ let mk_pgvar s v = mk_var s (String.make 1 pgvar_char ^ v)
 let mk_lvar s v = mk_var s (String.make 1 lvar_char ^ v)
 let mk_tpat s v = mk_var s (String.make 1 tpat_char ^ v)
 let mk_vpat s v = mk_var s (String.make 1 vpat_char ^ v)
+let mk_fresh_lvar s v = Z3.Expr.mk_fresh_const z3_ctx (String.make 1 lvar_char ^ v) s
 
 let mk_bool_plvar v = mk_plvar bool_sort v
 let mk_bool_pgvar v = mk_pgvar bool_sort v

@@ -77,6 +77,7 @@ val mk_pgvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_tpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_vpat : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_fresh_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 
 val mk_bool_plvar : string -> Z3.Expr.expr
 val mk_bool_pgvar : string -> Z3.Expr.expr
