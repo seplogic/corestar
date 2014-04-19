@@ -18,11 +18,13 @@ open Format
 let pp_args_out = pp_list_sep "," Syntax.pp_expr
 let pp_args_in = pp_list_sep "," Syntax.pp_expr
 
-let pp_triple f { pre; post; modifies } =
-  fprintf f "@[{%a}@]@,@[(%a)@]@,@[{%a}@]"
+let pp_triple f { pre; post; in_vars; out_vars; modifies; } =
+  fprintf f "@[{%a}@]@,@[(%a)@]@,@[{/%a/@,%a}@]@,@[[%a]@]"
     Syntax.pp_expr pre
     (pp_list_sep "," Syntax.pp_expr) modifies
+    pp_args_out out_vars
     Syntax.pp_expr post
+    pp_args_in in_vars
 
 let pp_spec f ts = pp_list_sep "+" pp_triple f (TripleSet.elements ts)
 
@@ -41,12 +43,12 @@ let pp_statement f = function
 
 let pp_logic _ _ = failwith "TODO (a8d7bnw2w)"
 
-let pp_ast_procedure f { proc_name; proc_spec; proc_body } =
+let pp_ast_procedure f { proc_name; proc_spec; proc_body; proc_params; proc_rets } =
   let pp_body f body =
     let pp_nl_core f c = fprintf f "@\n@{<p>%a@}" pp_statement c in
     fprintf f "@\n@[<2>?%a@]" (pp_list pp_nl_core) body in
   fprintf f "@\n@[@{<details>";
-  fprintf f "@[<2>@{<summary>procedure %s :@}@\n%a@]" proc_name pp_spec proc_spec;
+  fprintf f "@[<2>@{<summary>procedure (%a) := %s(%a) :@}@\n%a@]" pp_args_out proc_rets proc_name pp_args_in proc_params pp_spec proc_spec;
   option () (pp_body f) proc_body;
   fprintf f "@}@]"
 
