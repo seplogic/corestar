@@ -69,6 +69,7 @@ let kwd_or_else =
   fun d s ->
   try Hashtbl.find keyword_table s with Not_found -> d
 
+let strip_first_char s = String.sub s 1 (String.length s - 1)
 }
 
 
@@ -131,12 +132,12 @@ rule token = parse
   | "." { DOT }
   | eof { EOF }
 
-  | plidentifier as s { PLIDENTIFIER (String.sub s 1 (String.length s - 1)) }
-  | pgidentifier as s { PGIDENTIFIER (String.sub s 1 (String.length s - 1)) }
-  | lidentifier as s { LIDENTIFIER (String.sub s 1 (String.length s - 1)) }
-  | tpidentifier as s { TPIDENTIFIER (String.sub s 1 (String.length s - 1)) }
-  | vpidentifier as s { VPIDENTIFIER (String.sub s 1 (String.length s - 1)) }
-  | pureidentifier as s { PUREIDENTIFIER (String.sub s 1 (String.length s - 1)) }
+  | plidentifier as s { PLIDENTIFIER (strip_first_char s) }
+  | pgidentifier as s { PGIDENTIFIER (strip_first_char s) }
+  | lidentifier as s { LIDENTIFIER (strip_first_char s) }
+  | tpidentifier as s { TPIDENTIFIER (strip_first_char s) }
+  | vpidentifier as s { VPIDENTIFIER (strip_first_char s) }
+  | pureidentifier as s { PUREIDENTIFIER (strip_first_char s) }
   | identifier as s { kwd_or_else (IDENTIFIER s) s }
   (* Lexing integers and strings according to SMT-LIB 2.0. *)
   | integer as s { INT_CONSTANT s }
