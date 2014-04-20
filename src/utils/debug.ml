@@ -159,9 +159,14 @@ let prof_print_stats () =
     fprintf logf "@\n" in
   List.iter print_categ stats
 
+
+(*** NOTE: the functions below can alter the behaviour of the profiled
+     functions because they use Hashtbl whose state is global *)
+
 let prof_fun1 c f x =
   prof_start c;
-  try let r = f x in
+  try
+    let r = f x in
     (prof_stop c; r)
   with e ->
     (prof_stop c; raise e)

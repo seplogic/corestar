@@ -27,6 +27,8 @@ val prof_phase : string -> unit
 val prof_start : string -> unit
 val prof_stop : string -> unit
 val prof_print_stats : unit -> unit
+(*** NOTE: the functions below can alter the behaviour of the profiled
+     functions because they use Hashtbl whose state is global *)
 val prof_fun1 : string -> ('x1 -> 'result) -> ('x1 -> 'result)
 val prof_fun2 : string -> ('x1 -> 'x2 -> 'result) -> ('x1 -> 'x2 -> 'result)
 val prof_fun3 : string -> ('x1 -> 'x2 -> 'x3 -> 'result) -> ('x1 -> 'x2 -> 'x3 -> 'result)
