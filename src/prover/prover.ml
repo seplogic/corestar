@@ -420,7 +420,6 @@ let rec unique_subsets l =
 	inner [x] xs >>= (fun (yes, no) -> splits acc |> List.map (fun (to_yes, to_no) -> (to_yes@yes, to_no@no))) in
   inner [] l
 
-
 type bindings = Z3.Expr.expr Syntax.ExprMap.t
 
 let try_find x m = try Some (Syntax.ExprMap.find x m) with Not_found -> None
@@ -495,7 +494,11 @@ let rec find_matches is_free can_be_op bs (p, e) =
   let on_pvar_op pv o es = if can_be_op pv then bind pv else [] in
   let on_pop_var _ _ _ = [] in
   let on_pop_op po ps o es =
-    if not (Z3.FuncDecl.equal po o) then []
+    if not (Z3.FuncDecl.equal po o) then
+      if Z3.FuncDecl.equal po Syntax.star then
+	(* handle emp as neutral element of star *)
+        List.map (fun x -> Done x) (also_match bs (p, Syntax.mk_star e Syntax.mk_emp))
+      else []
     else
       let handle_comassoc _ =
 	begin
