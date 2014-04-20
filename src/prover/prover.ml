@@ -49,7 +49,16 @@ let is_emp e =
 
 let rec unfold on e = (on (ListH.concatMap (unfold on)) & c1 [e]) e
 
-let on_star_nary f = Syntax.on_star (fun a b -> f [a; b])
+let on_star_nary f =
+  Syntax.on_star (fun a b -> f [a; b])
+
+let on_big_star f g e =
+  let rec collect e =
+    (Syntax.on_star (fun e1 e2 -> (collect e1)@(collect  e2))
+     & (fun e -> [e])) e in
+  (Syntax.on_star (fun a b -> (f ((collect a)@(collect b))))
+   & g) e
+
 
 (* Removes zero, and removes repetitions of pure parts.
 Returns (pure, spatial) pair. *)
@@ -352,8 +361,8 @@ let inline_pvars_rule =
       end ) }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
-The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
-and "not". *)
+   The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
+   and "not". *)
 let normalize =
   let rec not_not e =
     let e = Syntax.recurse not_not e in
@@ -390,12 +399,14 @@ let unique_extractions l =
       else (x, xs)::rest in
   inner [] l
 
-(* splits a list of equal elements *)
+(** computes all the left-right splittings of a list *)
 let rec splits = function
   | [] -> [([], [])]
   | x::xs ->
     ([], x::xs)::(List.map (fun (yes, no) -> (x::yes, no)) (splits xs))
 
+
+(** Computes the list of unique 2-partitions of [l] *)
 (*
   assumes elements of [l] to be sorted
   (actually just that equal elements are next to each other)
@@ -416,8 +427,13 @@ let try_find x m = try Some (Syntax.ExprMap.find x m) with Not_found -> None
 
 (* TODO: Maybe rename to expr_cases2, or even Expr.cases2? *)
 let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
-  let on_pvar pv = (Syntax.on_var (on_pvar_var pv) & Syntax.on_app (on_pvar_op pv)) e in
-  let on_pop po ps = (Syntax.on_var (on_pop_var po ps) & Syntax.on_app (on_pop_op po ps)) e in
+  let on_pvar pv =
+    (Syntax.on_var (on_pvar_var pv)
+     & Syntax.on_app (on_pvar_op pv)) e in
+  let on_pop po ps =
+    (Syntax.on_var (on_pop_var po ps)
+     & on_big_star (on_pop_op po ps Syntax.star)
+     & Syntax.on_app (on_pop_op po ps)) e in
   (Syntax.on_var on_pvar & Syntax.on_app on_pop) p
 
 (* Not needed as eq and neq are not comassoc
@@ -426,7 +442,7 @@ let on_pair f a b = f [a; b]
 *)
 
 let on_comassoc handle_comassoc handle_skew e =
-  ( on_star_nary handle_comassoc
+  ( on_big_star handle_comassoc
   & Syntax.on_or handle_comassoc
 (*
   & Expr.on_eq (on_pair handle_comassoc)
@@ -467,6 +483,13 @@ let rec find_matches is_free can_be_op bs (p, e) =
 	| None -> [Done (Syntax.ExprMap.add pv e bs)]
 	| Some oe -> if Syntax.expr_equal e oe then [Done bs] else []
     end in
+  let apply_op o l =
+    (* this is a HACK to avoid creating invalid Z3
+       expressions: '*' is a binary operation as far as Z3 is
+       concerned, so it can only be applied to arbitrary lists
+       of elements via mk_big_star *)
+    if Z3.FuncDecl.equal o Syntax.star then mk_big_star l
+    else Z3.FuncDecl.apply o l in
   (* TODO: We might need a symmetric condition. *)
   let on_pvar_var pv ev = if is_free pv then bind pv else if Syntax.expr_equal pv ev then [Done bs] else [] in
   let on_pvar_op pv o es = if can_be_op pv then bind pv else [] in
@@ -476,13 +499,7 @@ let rec find_matches is_free can_be_op bs (p, e) =
     else
       let handle_comassoc _ =
 	begin
-	  let mk_o l =
-	    (* this is a HACK to avoid creating invalid Z3
-	       expressions: '*' is a binary operation as far as Z3 is
-	       concerned, so it can only be applied to arbitrary lists
-	       of elements via mk_big_star *)
-	    if Z3.FuncDecl.equal o Syntax.star then mk_big_star l
-	    else Z3.FuncDecl.apply o l in
+	  let mk_o = apply_op o in
 	  match ps with
 	  | [] -> if es = [] then [Done bs] else []
 	  | [x] -> List.map (fun m -> Done m) (also_match bs (x, normalize_comassoc e))
@@ -521,7 +538,7 @@ let rec find_matches is_free can_be_op bs (p, e) =
 	    acc >>= (flip also_match (tp, te)) in
 	  let result = List.fold_left process_todo [bs] todos in
 	  List.map (fun r -> Done r) result in
-      on_comassoc handle_comassoc handle_skew (Z3.FuncDecl.apply po ps) in
+      on_comassoc handle_comassoc handle_skew (apply_op po ps) in
   let matches = cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
   let process_match = function
     | Done final_bs -> [final_bs]
@@ -737,6 +754,7 @@ let spatial_match_rule =
       List.map (fun x -> [x]) gs) }
 
 let find_pattern_matches = find_matches (c1 true) Syntax.is_tpat
+let find_pattern_matches = prof_fun2 "find_pattern_matches" find_pattern_matches
 
 let find_sequent_matches bs ps s =
   let fm pat exp bs = find_pattern_matches bs (pat, exp) in
@@ -816,7 +834,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
-	if log log_prove then fprintf logf "@{<p>apply rule %s@}@\n" r.rule_name;
+	if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
         let ess = r.rule_apply goal in
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
         ess in
