@@ -761,9 +761,14 @@ let find_pattern_matches = prof_fun2 "find_pattern_matches" find_pattern_matches
 
 let find_sequent_matches bs ps s =
   let fm pat exp bs = find_pattern_matches bs (pat, exp) in
-  fm ps.Calculus.frame s.Calculus.frame bs >>=
-    fm ps.Calculus.hypothesis s.Calculus.hypothesis >>=
-    fm ps.Calculus.conclusion s.Calculus.conclusion
+  (* OPTIM: match less expensive things first.
+     A lot of rules won't match and we need to discover the ones which
+     don't as fast as possible. *)
+  (* TODO: This ordering is just a heuristic, it could be improved by
+     actually measuring the sizes of the formules in [s] *)
+  fm ps.Calculus.conclusion s.Calculus.conclusion bs >>=
+    fm ps.Calculus.frame s.Calculus.frame >>=
+    fm ps.Calculus.hypothesis s.Calculus.hypothesis
 (* }}} *)
 
 let rec instantiate bs p =
