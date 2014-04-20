@@ -184,7 +184,9 @@ let guess_instances e f =
   let bgs = get_eq_args e in
   let bgss = Misc.tuples (List.length vs) bgs in
   let vbgss = List.map (List.combine vs) bgss in
-  let mk es = mk_big_star (List.map (fun (v, e) -> Syntax.mk_eq v e) es) in
+  let mk es = mk_big_star (List.map (fun (v, e) ->
+    if Z3.Sort.equal (Z3.Expr.get_sort v) (Z3.Expr.get_sort e) then Syntax.mk_eq v e
+    else Syntax.mk_emp) es) in
   List.map mk (List.map ((@) vggs) vbgss)
 
 let smt_implies e f =
