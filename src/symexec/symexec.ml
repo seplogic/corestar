@@ -1077,12 +1077,9 @@ end = struct
             OK
           end else
             (let remove_rets_from_modifies t =
-	       let mods =
-		 let rec f = function
-		   | [] -> []
-		   | a::tl when List.exists (Syntax.expr_equal a) procedure.C.proc_rets -> f tl
-		   | a::tl -> a::f tl in
-		 f t.C.modifies in
+	       let f a =
+		 List.for_all (not @@ Syntax.expr_equal a) procedure.C.proc_rets in
+	       let mods = List.filter f t.C.modifies in
 	       { t with C.modifies = mods } in
 	     let new_ts = List.map remove_rets_from_modifies new_ts in
 	     procedure.C.proc_spec <- C.TripleSet.of_list new_ts;
