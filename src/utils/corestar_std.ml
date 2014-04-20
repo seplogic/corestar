@@ -176,6 +176,9 @@ let pp_int f x = fprintf f "%d" x
 
 let pp_string f s = fprintf f "%s" s
 
+let pp_pair pp_l pp_r f (x, y) =
+  Format.fprintf f "(%a, %a)" pp_l x pp_r y
+
 let pp_list pp f = List.iter (pp f)
 
 let pp_list_sep sep pp f = function
