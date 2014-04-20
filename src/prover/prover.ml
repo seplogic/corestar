@@ -808,11 +808,13 @@ let builtin_rules_noinst =
 let rules_of_calculus builtin c =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
-    let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
-    if smt_is_valid side_cond then
-      let try_one bs =
-        List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
-      List.map try_one m
+    if m != [] then
+      let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
+      if smt_is_valid side_cond then
+	let try_one bs =
+          List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
+	List.map try_one m
+      else rule_notapplicable
     else rule_notapplicable in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
