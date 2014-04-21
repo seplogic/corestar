@@ -265,7 +265,7 @@ let rec is_pure e =
   let terr _ = failwith "INTERNAL: should be formula, not term (fuw3irj)" in
   ( on_string_const terr
   & on_int_const terr
-  & on_var (c1 false)
+  & on_var (c1 false) (* best effort *)
   & on_emp (c0 true)
   & on_false (c0 true)
   & on_star (fun a b -> is_pure a && is_pure b)

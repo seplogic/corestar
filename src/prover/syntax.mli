@@ -36,13 +36,6 @@ val freshen : Z3.Expr.expr -> Z3.Expr.expr
   (* [freshen v] is a fresh logical variable whose name is similar to [v].
   NOTE: '!' has a special meaning! See implementation. *)
 
-(* kinds of variables *)
-(* Pattern variables:
-  ?x matches any expression (formula or term)
-  _x matches variables (which are terms) *)
-(* Formula variables:
-  x is a program variable
-  _x is a logical variable *)
 val is_pvar_name : var -> bool (* program variable *)
 val is_plvar_name : var -> bool (* program local variable *)
 val is_pgvar_name : var -> bool (* program global variables *)
@@ -58,6 +51,7 @@ val is_vpat : Z3.Expr.expr -> bool
 val var_name : var -> string
 
 (* Predicates are pure if they start with "!". *)
+(* formula variables are considered impure *)
 val is_pure : Z3.Expr.expr -> bool
 
 (* operations on formulas *)
