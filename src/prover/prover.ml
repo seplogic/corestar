@@ -307,47 +307,6 @@ let smt_disprove =
         rule_notapplicable
       end) }
 
-(* TODO(rg): I don't understand why this rule isn't too specific. *)
-let inline_pvars_rule =
-  { rule_name = "substitution (of logical vars with program vars)"
-  ; rule_apply =
-    prof_fun1 "Prover.inline_pvars_rule"
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      let subs = find_lvar_pvar_subs hypothesis in
-      let subs = List.sort (fun (x,_) (y,_) -> Syntax.expr_compare x y) subs in
-      (** compute a list of (v,p,c) where each subst (v,p) appears
-	  only once and c is the number of times v appeared in the
-	  original subst list *)
-      let rec count_subst r o = function
-	| [] -> option r (flip ListH.cons r) o
-	| (x,y)::tl ->
-	  match o with
-	  | None -> count_subst r (Some (x,y,1)) tl
-	  | Some (v,p,c) ->
-	    if Syntax.expr_equal x v then
-	      count_subst r (Some (v,p,c+1)) tl
-	    else count_subst ((v,p,c)::r) (Some (x,y,1)) tl in
-      (* a substitution is useful if the variable v being replaced
-	 appears in sub-formulas that are not of the form (v,p) *)
-      let rec filter_useful r = function
-	| [] -> r
-	| (x,y,c)::tl ->
-	  if occurences (c+1) hypothesis x then
-	    filter_useful ((x,y)::r) tl
-	  else filter_useful r tl in
-      let subs = filter_useful [] (count_subst [] None subs) in
-      let p f (x, y) = fprintf f "[%a->%a]" Syntax.pp_expr x Syntax.pp_expr y in
-      printf "@[<2>%a@]@\n" (pp_list_sep " " p) subs;
-      if subs = []
-      then rule_notapplicable
-      else begin
-        let (subees, subers) = List.split subs in
-        let sub_hyp = Z3.Expr.substitute hypothesis subees subers in
-        let mk_eq (a, b) = Z3.Boolean.mk_eq z3_ctx a b in
-        let hyp = mk_big_star (sub_hyp :: List.map mk_eq subs) in
-        [[{ Calculus.hypothesis = hyp; conclusion; frame}]]
-      end ) }
-
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
    The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
    and "not". *)
@@ -799,7 +758,6 @@ let builtin_rules =
 (*   ; or_rule *)
 (*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
-  (* ; inline_pvars_rule *)
   ]
 
 (* These are used for [is_entailment], which wouldn't benefit from instantiating
@@ -808,7 +766,6 @@ let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
   ; smt_disprove
-  (* ; inline_pvars_rule *)
   ; spatial_id_rule ]
 
 
