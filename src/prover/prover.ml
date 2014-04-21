@@ -758,7 +758,7 @@ let find_pattern_matches = prof_fun2 "find_pattern_matches" find_pattern_matches
 
 let find_sequent_matches bs ps s =
   let rec add_eqs e =
-    ( Syntax.on_eq (c2 (Smt.say e))
+    ( Syntax.on_eq (fun _ _ -> (Smt.say e))
     & Syntax.on_star (fun a b -> add_eqs a; add_eqs b)
     & (c1 ())) e in
   Smt.push ();
