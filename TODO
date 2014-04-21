@@ -1,6 +1,13 @@
 - use Z3 to help with instantiating lvars that occur only in conclusion
 - change syntax for named parameters
 - make it faster
+- remove the exponential complexity in find_matches
+  this could possibly involve reverting to the old behaviour of
+  implicitly framing sequents in user rules
+  See https://github.com/seplogic/corestar/commit/ab372af2b10f0a4aff4b7213b00dc24af3707b64
+- don't check if formulas are inconsistent after each symbolic execution step
+  (trying to prove f |- false is very expensive since we have to
+  exhaust all options. find something lighter-weight to do)
 - test on problem similar to those of topstar
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
