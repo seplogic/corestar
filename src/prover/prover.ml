@@ -462,13 +462,22 @@ type match_result =
   and [can_be_op] : expr -> bool, signifying which variables can be instantiated not just with variables
 *)
 
+(* assumes that equalities from the LHS have been pushed to Z3, so
+   that we can use its congruence closure mechanism to ask if some
+   expression is "trivially" equal to another efficiently. This is to
+   allow matching between two syntactically different expressions
+   which we know must be equal simply (and cheaply) from the
+   equalities in the LHS. *)
 let rec find_matches is_free can_be_op bs (p, e) =
   let also_match = find_matches is_free can_be_op in
+  (* use Z3 congruence closure to decide equality between
+     expressions *)
+  let congruent e f = Syntax.expr_equal e f || smt_is_valid (Syntax.mk_eq e f) in
   let bind pv =
     begin
       match try_find pv bs with
-	| None -> [Done (Syntax.ExprMap.add pv e bs)]
-	| Some oe -> if Syntax.expr_equal e oe then [Done bs] else []
+      | None -> [Done (Syntax.ExprMap.add pv e bs)]
+      | Some oe -> if congruent e oe then [Done bs] else []
     end in
   let apply_op o l =
     (* this is a HACK to avoid creating invalid Z3
@@ -503,7 +512,7 @@ let rec find_matches is_free can_be_op bs (p, e) =
 		  | None ->
 		    Some (More (Syntax.ExprMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
 		  | Some oyes ->
-		    if oyes = to_bind then Some (More (bs, (mk_o rest_p, mk_o no)))
+		    if congruent oyes to_bind then Some (More (bs, (mk_o rest_p, mk_o no)))
 		    else None in
 		unique_subsets es |> map_option is_more in
 	      let specific () =
@@ -748,15 +757,25 @@ let find_pattern_matches = find_matches (c1 true) Syntax.is_tpat
 let find_pattern_matches = prof_fun2 "find_pattern_matches" find_pattern_matches
 
 let find_sequent_matches bs ps s =
+  let rec add_eqs e =
+    ( Syntax.on_eq (c2 (Smt.say e))
+    & Syntax.on_star (fun a b -> add_eqs a; add_eqs b)
+    & (c1 ())) e in
+  Smt.push ();
+  add_eqs s.Calculus.hypothesis;
   let fm pat exp bs = find_pattern_matches bs (pat, exp) in
   (* OPTIM: match less expensive things first.
      A lot of rules won't match and we need to discover the ones which
      don't as fast as possible. *)
   (* TODO: This ordering is just a heuristic, it could be improved by
      actually measuring the sizes of the formules in [s] *)
-  fm ps.Calculus.conclusion s.Calculus.conclusion bs >>=
-    fm ps.Calculus.frame s.Calculus.frame >>=
-    fm ps.Calculus.hypothesis s.Calculus.hypothesis
+  let r =
+    fm ps.Calculus.conclusion s.Calculus.conclusion bs >>=
+      fm ps.Calculus.frame s.Calculus.frame >>=
+      fm ps.Calculus.hypothesis s.Calculus.hypothesis in
+  Smt.pop ();
+  r
+
 (* }}} *)
 
 let rec instantiate bs p =
@@ -780,7 +799,7 @@ let builtin_rules =
 (*   ; or_rule *)
 (*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
 (*   ; match_subformula_rule *)
-  ; inline_pvars_rule
+  (* ; inline_pvars_rule *)
   ]
 
 (* These are used for [is_entailment], which wouldn't benefit from instantiating
@@ -789,7 +808,7 @@ let builtin_rules_noinst =
   [ id_rule
   ; smt_pure_rule
   ; smt_disprove
-  ; inline_pvars_rule
+  (* ; inline_pvars_rule *)
   ; spatial_id_rule ]
 
 
