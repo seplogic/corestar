@@ -54,6 +54,9 @@ let declare_fun _ _ _ =
 
 let dump_solver () = print_endline (Z3.Solver.to_string z3_solver)
 
+let memoise = Syntax.ExprHashMap.create 0
+let smt_hit, smt_miss = ref 0, ref 0
+
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. In particular, only add
      distinct for strings that actually appear in the current goal and
@@ -65,10 +68,20 @@ let check_sat () =
     @ (if is_impure () then [] else [star_is_and; emp_is_true]) in
   Z3.Solver.push z3_solver;
   Z3.Solver.add z3_solver es;
-  let r = (match Z3.Solver.check z3_solver [] with
-    | Z3.Solver.SATISFIABLE -> Sat
-    | Z3.Solver.UNSATISFIABLE -> Unsat
-    | Z3.Solver.UNKNOWN -> Unknown) in
+  let ass = Z3.Boolean.mk_and z3_ctx (Z3.Solver.get_assertions z3_solver) in
+  let r =
+    try
+      let r = Syntax.ExprHashMap.find memoise ass in
+      incr smt_hit;
+      r
+    with Not_found -> (
+      incr smt_miss;
+      let r = (match Z3.Solver.check z3_solver [] with
+	| Z3.Solver.SATISFIABLE -> Sat
+	| Z3.Solver.UNSATISFIABLE -> Unsat
+	| Z3.Solver.UNKNOWN -> Unknown) in
+      Syntax.ExprHashMap.add memoise ass r;
+      r) in
   Z3.Solver.pop z3_solver 1;
   r
 
@@ -76,6 +89,7 @@ let push () = push_impure_stack (); Z3.Solver.push z3_solver
 let pop () = pop_impure_stack (); Z3.Solver.pop z3_solver 1
 
 let print_stats () =
+  fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
   print_endline
     ("SMT stats:\n"^
 	(Z3.Solver.Statistics.to_string (Z3.Solver.get_statistics z3_solver)))

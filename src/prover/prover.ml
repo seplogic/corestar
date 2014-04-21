@@ -13,24 +13,12 @@ type frame_and_antiframe =
 
 (* Helper functions for prover rules. *) (* {{{ *)
 
-let smt_hit, smt_miss = ref 0, ref 0
-let smt_is_valid =
-  let cache = Syntax.ExprHashMap.create 0 in
-  fun a -> begin
-    try
-      let r = Syntax.ExprHashMap.find cache a in
-      incr smt_hit;
-      r
-    with Not_found -> begin
-      incr smt_miss;
-      Smt.push ();
-      Smt.say (Z3.Boolean.mk_not z3_ctx a);
-      let r = Smt.check_sat () = Smt.Unsat in
-      Smt.pop ();
-      Syntax.ExprHashMap.add cache a r;
-      r
-    end
-  end
+let smt_is_valid a =
+  Smt.push ();
+  Smt.say (Z3.Boolean.mk_not z3_ctx a);
+  let r = Smt.check_sat () = Smt.Unsat in
+  Smt.pop ();
+  r
 
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
@@ -927,6 +915,5 @@ let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 
 let print_stats () =
-  fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
   fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
 (* }}} *)
