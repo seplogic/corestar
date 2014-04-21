@@ -174,6 +174,8 @@ type 'a pretty_printer = formatter -> 'a -> unit
 
 let pp_int f x = fprintf f "%d" x
 
+let pp_bool f x = if x then fprintf f "true" else fprintf f "false"
+
 let pp_string f s = fprintf f "%s" s
 
 let pp_pair pp_l pp_r f (x, y) =

@@ -169,14 +169,10 @@ end
 type 'a pretty_printer = Format.formatter -> 'a -> unit
 
 val pp_int : int pretty_printer
-
+val pp_bool : bool pretty_printer
 val pp_string : string pretty_printer
-
 val pp_pair : 'a pretty_printer -> 'b pretty_printer -> ('a * 'b) pretty_printer
-
 val pp_list : 'a pretty_printer -> 'a list pretty_printer
-
 val pp_list_sep : string -> 'a pretty_printer -> 'a list pretty_printer
-
 val string_of : 'a pretty_printer -> 'a -> string
 (* }}} *)
