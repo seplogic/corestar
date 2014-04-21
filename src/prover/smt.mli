@@ -12,3 +12,4 @@ val check_sat : unit -> check_sat_response
   provide an axiomatization for it. *)
 
 val print_stats : unit -> unit
+val dump_solver : unit -> unit

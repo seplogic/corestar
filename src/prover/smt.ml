@@ -52,6 +52,8 @@ let say e =
 let declare_fun _ _ _ =
   failwith "TODO"
 
+let dump_solver () = print_endline (Z3.Solver.to_string z3_solver)
+
 let check_sat () =
   (* TODO: Handle (distinct ...) efficiently. In particular, only add
      distinct for strings that actually appear in the current goal and
