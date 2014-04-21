@@ -259,7 +259,7 @@ let is_pure_op e =
     (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e))).[0] = pure_char
   with Z3native.Exception _ -> false
 
-(* TODO: This is now rather slow because Smt.check_sat calls it often. Cache it.*)
+(* this is shadowed by the memoised version below *)
 let rec is_pure e =
   let c0 x () = x in
   let terr _ = failwith "INTERNAL: should be formula, not term (fuw3irj)" in
@@ -275,6 +275,17 @@ let rec is_pure e =
   & on_distinct (c1 true)
   & on_quantifier is_pure
   & is_pure_op ) e
+
+let mem_pure = ExprHashMap.create 0
+
+(* TODO: do we want to gather statistics on cache hits? *)
+let is_pure e =
+  try ExprHashMap.find mem_pure e
+  with Not_found ->
+    let p = is_pure e in
+    ExprHashMap.add mem_pure e p;
+    p
+
 
 (* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
 
