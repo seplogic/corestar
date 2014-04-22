@@ -98,7 +98,7 @@ let on_const fconst fapp e = if is_const e then fconst e else fapp e
 let on_var f g e = if is_var e then f e else g e
 
 (* TODO: This is *not* a catch all case. it should have a continuation. *)
-let on_app f e = f (Z3.Expr.get_func_decl e) (List.rev (Z3.Expr.get_args e))
+let on_app f e = f (Z3.Expr.get_func_decl e) (Z3.Expr.get_args e)
 
 (* TODO: perhaps unfold more: variables, type of quant. *)
 let on_quantifier f g e =
@@ -110,7 +110,7 @@ let on_op op_ref f g e =
   let b =
     try Z3.FuncDecl.equal op_ref (Z3.Expr.get_func_decl e)
     with Z3native.Exception _ -> false in
-  if b then f (List.rev (Z3.Expr.get_args e)) else g e
+  if b then f (Z3.Expr.get_args e) else g e
 let on_0 op_ref f =
   let f = function
     | [] -> f ()
@@ -128,7 +128,7 @@ let on_2 op_ref f =
   on_op op_ref f
 
 let on_filter filt f g e =
-  if filt e then f (List.rev (Z3.Expr.get_args e)) else g e
+  if filt e then f (Z3.Expr.get_args e) else g e
 let on_filter_0 filt f g e =
   let f = function
     | [] -> f ()
