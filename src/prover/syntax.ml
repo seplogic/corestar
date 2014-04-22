@@ -68,7 +68,7 @@ let z3_is_const = z3_is Z3.Expr.is_const
 (* watch out for code duplication below (is_var and is_const) *)
 let is_pvar v = z3_is_const v && is_pvar_name (Z3.Expr.to_string v)
 let is_plvar v = z3_is_const v && is_plvar_name (Z3.Expr.to_string v)
-let is_pgvar v = z3_is_const v && is_plvar_name (Z3.Expr.to_string v)
+let is_pgvar v = z3_is_const v && is_pgvar_name (Z3.Expr.to_string v)
 let is_lvar v = z3_is_const v && is_lvar_name (Z3.Expr.to_string v)
 let is_tpat p = z3_is_const p && is_tpat_name (Z3.Expr.to_string p)
 let is_vpat p = z3_is_const p && is_vpat_name (Z3.Expr.to_string p)
