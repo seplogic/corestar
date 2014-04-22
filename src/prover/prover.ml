@@ -178,12 +178,21 @@ let guess_instances e f =
     | Some g -> ((v, g) :: gs, ws) in
   let vs = VS.diff (get_lvars f) (get_lvars e) in
   let vggs, vs = VS.fold collect_guess vs ([], []) in
+  (* fprintf logf "@{vggs = %a@}@\n" (pp_list_sep "+" (pp_pair Syntax.pp_expr Syntax.pp_expr)) vggs; *)
   let bgs = get_eq_args e in
+  (* fprintf logf "@{bgs = %a@}@\n" (pp_list_sep " " Syntax.pp_expr) bgs; *)
   let bgss = Misc.tuples (List.length vs) bgs in
+  let rec have_same_types vl bl = match (vl, bl) with
+    | [], [] -> true
+    | v::vtl, b::btl ->
+      if Z3.Sort.equal (Z3.Expr.get_sort v) (Z3.Expr.get_sort b)
+      then have_same_types vtl btl
+      else false
+    | _ -> assert false in
+  let bgss = List.filter (have_same_types vs) bgss in
   let vbgss = List.map (List.combine vs) bgss in
-  let mk es = mk_big_star (List.map (fun (v, e) ->
-    if Z3.Sort.equal (Z3.Expr.get_sort v) (Z3.Expr.get_sort e) then Syntax.mk_eq v e
-    else Syntax.mk_emp) es) in
+  (* fprintf logf "@{vbgss = %a@}@\n" (pp_list_sep "\n" (pp_list_sep ";" (pp_pair Syntax.pp_expr Syntax.pp_expr))) vbgss; *)
+  let mk es = mk_big_star (List.map (fun (v, e) -> Syntax.mk_eq v e) es) in
   List.map mk (List.map ((@) vggs) vbgss)
 
 let smt_implies e f =

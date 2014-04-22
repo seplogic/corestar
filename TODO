@@ -18,5 +18,6 @@
 - port old tests
 - mechanism to specify calculus rules order
 - add location to AST elements (CFG/rules/...)
+- Prover.abduce_instance_rule can produce a number of goals exponential in the number of lvars on the RHS
 
 :load_local_vimrc
