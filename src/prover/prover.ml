@@ -529,7 +529,7 @@ let match_args = expr_match_ops
   (fun ep es fp fs ->
     if ep <> fp then None
     else let rec go eqs es fs = match es, fs with
-      | [], [] -> Some (mk_big_star eqs)
+      | [], [] -> Some (Syntax.mk_big_star eqs)
       | [], _ | _, [] -> None
       | e :: es, f :: fs ->
           let eqs = if Syntax.expr_equal e f then eqs else Syntax.mk_eq e f :: eqs in
