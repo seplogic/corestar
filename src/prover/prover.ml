@@ -402,12 +402,16 @@ let find_matches is_free can_be_op bs (p,e) =
     | Some e' -> if congruent eb e' then [bs] else [] in
   (** [p] and [e] are atoms, ie expressions that have neither || nor * *)
   let rec find_atom_matches bs p e =
+    (* called when pattern is a variable [pv] and expression is a variable [ev] *)
     (* TODO: We might need a symmetric condition. *)
     let on_pvar_var pv ev =
       if is_free pv then bind bs pv ev
       else if Syntax.expr_equal pv ev then [bs] else [] in
+    (* called when pattern is a variable [pv] and expression is an op ([o] [es]) *)
     let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
+    (* called when pattern is an op and expression is a variable *)
     let on_pop_var _ _ _ = [] in
+    (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
       if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
       then []
