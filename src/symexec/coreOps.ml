@@ -103,7 +103,8 @@ let compute_sigs ok ps =
 
 (* WARNING: The warning message depends on which of xs&ys is shorter. See also
 the comment on [is_well_formed].*)
-let check_sorts_match ok loc inout m xs ys =
+let check_sorts_match ok fatal_error loc inout m xs ys =
+  let warnerr () = if fatal_error then (ok := false; "E:") else "W:" in
   let rec f n = function
     | [], [] -> ()
     | x :: xs, y :: ys ->
@@ -111,22 +112,22 @@ let check_sorts_match ok loc inout m xs ys =
           (eprintf "E:%s:%s %d: %s@\n@?" loc inout n m; ok := false);
         f (n + 1) (xs, ys)
     | xs, [] ->
-        eprintf "W:%s:%s: %d ignored %ss@\n@?" loc m (List.length xs) inout
+        eprintf "%s:%s:%s: %d ignored %ss@\n@?" (warnerr ()) loc m (List.length xs) inout
     | [], ys ->
-        eprintf "W:%s:%s: %d havocked %ss@\n@?" loc m (List.length ys) inout
+        eprintf "%s:%s:%s: %d havocked %ss@\n@?" (warnerr ()) loc m (List.length ys) inout
   in
   f 0 (xs, ys)
 
-let check_spec ok loc m (args, rets) spec =
+let check_spec ok fatal_error loc m (args, rets) spec =
   let check_triple t =
-    check_sorts_match ok loc "arg" m args t.in_vars;
-    check_sorts_match ok loc "ret" m t.out_vars rets in
+    check_sorts_match ok fatal_error loc "arg" m args t.in_vars;
+    check_sorts_match ok fatal_error loc "ret" m t.out_vars rets in
   TripleSet.iter check_triple spec
 
 let check_proc_specs ok sigs p =
   try
     let s = sigs p.proc_name in
-    check_spec ok p.proc_name "spec and proc disagree" s p.proc_spec
+    check_spec ok true p.proc_name "spec and proc disagree" s p.proc_spec
   with Not_found -> failwith "sigs should contain p.proc_name (s87q7whe)"
 
 let check_statements ok sigs p =
@@ -134,15 +135,15 @@ let check_statements ok sigs p =
     try
       let p_params, p_rets = sigs call_name in
       let m = sprintf "bad call to %s" call_name in
-      check_sorts_match ok p.proc_name "arg" m call_args p_params;
-      check_sorts_match ok p.proc_name "ret" m p_rets call_rets
+      check_sorts_match ok false p.proc_name "arg" m call_args p_params;
+      check_sorts_match ok false p.proc_name "ret" m p_rets call_rets
     with Not_found -> begin
       eprintf "%s called from %s, but not defined@\n" call_name p.proc_name;
       ok := false
     end in
   let one_assignment { asgn_rets; asgn_args; asgn_spec } =
     let loc = sprintf "asgn in %s" p.proc_name in
-    check_spec ok loc "sort mismatch" (asgn_args, asgn_rets) asgn_spec in
+    check_spec ok false loc "sort mismatch" (asgn_args, asgn_rets) asgn_spec in
   let one_statement = function
     | Assignment_core a -> one_assignment a
     | Call_core c -> one_call c
