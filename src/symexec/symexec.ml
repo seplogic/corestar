@@ -20,8 +20,6 @@ let fix_scc_limit = 1 lsl 2
 
 (** specialize spec to the given actuals
 
-    [top_level] should be true only when specializing a top-level spec of a function
-
     Warning: If actuals/formals have different lengths, then it makes them equal.
     See [CoreOps.check_well_formed] for an explanation. *)
 let specialize_spec top_level rets args xs =
@@ -33,14 +31,11 @@ let specialize_spec top_level rets args xs =
     let args', in_vars' = mk_same_len ([], []) (args, in_vars) in
     let rets', out_vars' = mk_same_len ([], []) (rets, out_vars) in
     let subst e = Z3.Expr.substitute e (in_vars'@out_vars') (args'@rets') in
-    let new_mods =
-      if top_level then modifies
-      else rets @ modifies (* old rets, so it havocs extra returns *) in
     { Core.pre = subst pre
     ; post = subst post
-    ; modifies = new_mods
-    ; in_vars = if top_level then in_vars else []
-    ; out_vars = if top_level then out_vars else [] } in
+    ; modifies = rets @ modifies (* old rets, so it havocs extra returns *)
+    ; in_vars = []
+    ; out_vars = [] } in
   C.TripleSet.map f xs
 
 let mk_big_star = Prover.mk_big_star
@@ -1039,7 +1034,13 @@ end = struct
           let ts = option_map (List.map join_triples) tss in
           if log log_phase then fprintf logf "@}@?";
 	  ts in
-	let proc_spec = specialize_spec true procedure.C.proc_rets procedure.C.proc_params procedure.C.proc_spec in
+	let instantiate_triple { Core.pre; post; modifies; in_vars; out_vars } =
+	  let args = procedure.C.proc_params in
+	  let rets = procedure.C.proc_rets in
+	  let subst e = Z3.Expr.substitute e (in_vars@out_vars) (args@rets) in
+	  { Core.pre = subst pre; post = subst post
+	  ; modifies = modifies; in_vars = []; out_vars = [] } in
+	let proc_spec = C.TripleSet.map instantiate_triple procedure.C.proc_spec in
         let ts = C.TripleSet.elements proc_spec in
         let ts =
           (if infer then begin
