@@ -292,16 +292,18 @@ let abduce_instance_rule =
     prof_fun1 "Prover.abduce_instance_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let is_or = Z3.Boolean.is_or in
-      if is_or conclusion then rule_notapplicable else begin
+      if is_or conclusion then rule_notapplicable
+      else
         let _Is = guess_instances hypothesis conclusion in
-        let mk _I =
-          if Syntax.expr_equal _I Syntax.mk_emp || Syntax.expr_equal _I conclusion
-          then None
-          else Some
-          [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
-          ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
-        in map_option mk _Is
-      end) }
+	let _Is = List.filter (fun _I -> not (Syntax.expr_equal _I Syntax.mk_emp || smt_is_valid (Syntax.mk_eq _I conclusion))) _Is in
+	if _Is = [] then rule_notapplicable
+        else
+	  let mk _I =
+	    fprintf logf "@{[%a]@}@\n" Syntax.pp_expr _I;
+            [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
+            ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
+          in List.map mk _Is
+    ) }
 
 let smt_disprove =
   { rule_name = "SMT disprove"
