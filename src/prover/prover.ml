@@ -146,8 +146,8 @@ More importantly, each e' is supposed to be a good guess of how to instantiate
 the variables lvars(f)-lvars(e) such that e*e' ⊢ f. *)
 let guess_instances e f =
   let module VS = Syntax.ExprSet in
+  let module H = Syntax.ExprHashSet in
   let get_eq_args e =
-    let module H = Syntax.ExprHashSet in
     let h = H.create 0 in
     let h_eq = H.create 0 in (* ∀x in h_eq, there is y in h s.t. x=y *)
     let add a b =
@@ -176,7 +176,19 @@ let guess_instances e f =
   let collect_guess v (gs, ws) = match guess v f with
     | None -> (gs, v :: ws)
     | Some g -> ((v, g) :: gs, ws) in
-  let vs = VS.diff (get_lvars f) (get_lvars e) in
+  (* HEURISTIC: Don't try to guess the values of variables inside
+     spatial predicates. Instead, expect that some rule will take care
+     of those predicates. *)
+  let guessable_vars =
+    let h = H.create 0 in
+    let rec collect x =
+      ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v) 
+      & Syntax.on_star (fun a b -> collect a; collect b)
+      & Syntax.on_or (List.iter collect)
+      & Syntax.on_app (fun _ es -> if Syntax.is_pure x then List.iter collect es)) x in
+    collect f;
+    H.fold VS.add h VS.empty in
+  let vs = VS.diff guessable_vars (get_lvars e) in
   let vggs, vs = VS.fold collect_guess vs ([], []) in
   (* fprintf logf "@{vggs = %a@}@\n" (pp_list_sep "+" (pp_pair Syntax.pp_expr Syntax.pp_expr)) vggs; *)
   let bgs = get_eq_args e in
