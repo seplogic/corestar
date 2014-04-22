@@ -19,5 +19,13 @@
 - mechanism to specify calculus rules order
 - add location to AST elements (CFG/rules/...)
 - Prover.abduce_instance_rule can produce a number of goals exponential in the number of lvars on the RHS
+- use Prover.normalize only for formulas we have no control over (eg,
+  user-provided, or after a Z3.Expr.simplify), and have another, less
+  costly "normalize_internal" that takes internal invariants into
+  account (eg, no || below || as we are careful to use only the n-ary
+  version). This is warranted because normalize is called all the time.
+- eliminate garbage logical variables in the states
+
+
 
 :load_local_vimrc
