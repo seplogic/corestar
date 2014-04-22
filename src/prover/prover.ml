@@ -348,36 +348,6 @@ let normalize =
 let normalize = prof_fun1 "Prover.normalize" normalize
 
 (* find_matches and helpers *) (* {{{ *)
-let unique_extractions l =
-  let rec inner acc = function
-    | [] -> []
-    | x::xs ->
-      let rest = (List.map (fun (y, ys) -> (y, x::ys)) (inner (x::acc) xs)) in
-      if List.exists (Syntax.expr_equal x) acc then rest
-      else (x, xs)::rest in
-  inner [] l
-
-(** computes all the left-right splittings of a list *)
-let rec splits = function
-  | [] -> [([], [])]
-  | x::xs ->
-    ([], x::xs)::(List.map (fun (yes, no) -> (x::yes, no)) (splits xs))
-
-
-(** Computes the list of unique 2-partitions of [l] *)
-(*
-  assumes elements of [l] to be sorted
-  (actually just that equal elements are next to each other)
-*)
-let rec unique_subsets l =
-  let rec inner acc = function
-    | [] -> splits acc
-    | x::xs ->
-      if List.exists (Syntax.expr_equal x) acc then inner (x::acc) xs
-      else
-	inner [x] xs >>= (fun (yes, no) -> splits acc |> List.map (fun (to_yes, to_no) -> (to_yes@yes, to_no@no))) in
-  inner [] l
-
 type bindings = Z3.Expr.expr Syntax.ExprMap.t
 
 let try_find x m = try Some (Syntax.ExprMap.find x m) with Not_found -> None
@@ -389,131 +359,95 @@ let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
      & Syntax.on_app (on_pvar_op pv)) e in
   let on_pop po ps =
     (Syntax.on_var (on_pop_var po ps)
-     & on_big_star (on_pop_op po ps Syntax.star)
      & Syntax.on_app (on_pop_op po ps)) e in
   (Syntax.on_var on_pvar & Syntax.on_app on_pop) p
 
-(* Not needed as eq and neq are not comassoc
-   They are not, as normalize_comassoc would not do the right thing on them
-let on_pair f a b = f [a; b]
+
+(** Find all instantiations that make the pattern [p] match the expression [e]
+
+    input [bs] is one assignment, the current branch we are exploring
+    output is list of assignments, all possible extensions which leads to a match
+
+    Parameterized by
+    [is_free] : expr -> bool, signifying which variables should be instantiated
+    [can_be_op] : expr -> bool, signifying which variables can be instantiated not just with variables
+
+    Assumes that [e] does not contain pattern variables
+    Assumes that [e] and [p] are in normal form
+    Always fails when either [e] or [p] have top-level disjunctions
+
+    Works best if known equalities have been pushed to Z3, so that we
+    can use its congruence closure mechanism to ask if some expression
+    is "trivially" equal to another efficiently. This allows matching
+    between two syntactically different expressions which are equal
+    because of known equalities.
 *)
-
-let on_comassoc handle_comassoc handle_skew e =
-  ( on_big_star handle_comassoc
-  & Syntax.on_or handle_comassoc
-(*
-  & Expr.on_eq (on_pair handle_comassoc)
-  & Expr.on_neq (on_pair handle_comassoc)
-*)
-  & handle_skew )
-  e
-
-(*
-  This normalization is needed in the matcher
-  because the matcher implicitly applies it to the pattern
-  it has to be done also to the expression in order to obtain a match
-*)
-let normalize_comassoc e =
-  let unfold = function [x] -> x | _ -> e in
-  (on_comassoc unfold (c1 e)) e
-
-type match_result =
-  | Done of bindings
-  | More of bindings * (Z3.Expr.expr * Z3.Expr.expr)
-
-(*
-  Z3.Expr.expr -> Z3.Expr.expr -> bindings list
-  Assumes that [e] does not contain pattern variables
-
-  input [bs] is one assignment, the current branch we are exploring
-  output is list of assignments, all possible extensions which leads to a match
-
-  Parameterized by [is_free] : expr -> bool, signifying which variables should be instantiated
-  and [can_be_op] : expr -> bool, signifying which variables can be instantiated not just with variables
-*)
-
-(* assumes that equalities from the LHS have been pushed to Z3, so
-   that we can use its congruence closure mechanism to ask if some
-   expression is "trivially" equal to another efficiently. This is to
-   allow matching between two syntactically different expressions
-   which we know must be equal simply (and cheaply) from the
-   equalities in the LHS. *)
-let rec find_matches is_free can_be_op bs (p, e) =
-  let also_match = find_matches is_free can_be_op in
-  (* use Z3 congruence closure to decide equality between
-     expressions *)
+let find_matches is_free can_be_op bs (p,e) =
+  (* use Z3 congruence closure to decide equality between expressions *)
   let congruent e f = Syntax.expr_equal e f || smt_is_valid (Syntax.mk_eq e f) in
-  let bind pv =
-    begin
-      match try_find pv bs with
-      | None -> [Done (Syntax.ExprMap.add pv e bs)]
-      | Some oe -> if congruent e oe then [Done bs] else []
-    end in
-  let apply_op o l =
-    (* this is a HACK to avoid creating invalid Z3
-       expressions: '*' is a binary operation as far as Z3 is
-       concerned, so it can only be applied to arbitrary lists
-       of elements via mk_big_star *)
-    if Z3.FuncDecl.equal o Syntax.star then mk_big_star l
-    else Z3.FuncDecl.apply o l in
-  (* TODO: We might need a symmetric condition. *)
-  let on_pvar_var pv ev = if is_free pv then bind pv else if Syntax.expr_equal pv ev then [Done bs] else [] in
-  let on_pvar_op pv o es = if can_be_op pv then bind pv else [] in
-  let on_pop_var _ _ _ = [] in
-  let on_pop_op po ps o es =
-    if not (Z3.FuncDecl.equal po o) then
-      if Z3.FuncDecl.equal po Syntax.star then
-	(* handle emp as neutral element of star *)
-        List.map (fun x -> Done x) (also_match bs (p, Syntax.mk_star e Syntax.mk_emp))
-      else []
+  let bind bs pv eb = match try_find pv bs with
+    | None -> [Syntax.ExprMap.add pv eb bs]
+    | Some e' -> if congruent eb e' then [bs] else [] in
+  (** [p] and [e] are atoms, ie expressions that have neither || nor * *)
+  let rec find_atom_matches bs p e =
+    (* TODO: We might need a symmetric condition. *)
+    let on_pvar_var pv ev =
+      if is_free pv then bind bs pv ev
+      else if Syntax.expr_equal pv ev then [bs] else [] in
+    let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
+    let on_pop_var _ _ _ = [] in
+    let on_pop_op po ps o es =
+      if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
+      then []
+      else
+	let todos = List.combine ps es in
+	let process_todo acc (tp, te) =
+	  acc >>= flip ((flip find_atom_matches) tp) te in
+	List.fold_left process_todo [bs] todos in
+    cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
+  (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
+  let find_star_matches bs pl el =
+    let (tpatvars, patoms)  = List.partition Syntax.is_tpat pl in
+    if List.length tpatvars > 1 then
+      failwith "pattern formulas should have at most one formula variable (qj979xyr)";
+    (** matches a pattern [p] against a list of *-conjoined
+	expressions el. Returns a list of pairs (b',el') of matching
+	bindings b' together with leftover expressions el' *)
+    let rec one_patom bs acc p = function
+      | [] -> [] (* no match *)
+      | e::tl ->
+	let bs' = find_atom_matches bs p e in
+	if bs' = [] then one_patom bs (e::acc) p tl
+	else (bs', (List.rev acc)@tl)::one_patom bs (e::acc) p tl in
+    let f ebl p =
+      let g (bss, es) = bss >>= (fun bs' -> one_patom bs' [] p es) in
+      ebl >>= g in
+    let atom_matches = List.fold_left f [([bs], el)] patoms in
+    if tpatvars = [] then
+      atom_matches >>=
+	(fun (bss, es) ->
+	  bss >>= fun bs -> if es = [] then [bs] else [])
     else
-      let handle_comassoc _ =
-	begin
-	  let mk_o = apply_op o in
-	  match ps with
-	  | [] -> if es = [] then [Done bs] else []
-	  | [x] -> List.map (fun m -> Done m) (also_match bs (x, normalize_comassoc e))
-	  | ext_p::rest_p ->
-	    begin
-	      let unspecific v =
-		let is_more (yes, no) =
-		  let to_bind = normalize_comassoc (mk_o yes) in
-		  match try_find v bs with
-		  | None ->
-		    Some (More (Syntax.ExprMap.add v to_bind bs, (mk_o rest_p, mk_o no)))
-		  | Some oyes ->
-		    if congruent oyes to_bind then Some (More (bs, (mk_o rest_p, mk_o no)))
-		    else None in
-		unique_subsets es |> map_option is_more in
-	      let specific () =
-		match es with
-		| [] -> []
-		| [x] -> if rest_p = [] then List.map (fun m -> Done m) (also_match bs (ext_p, x)) else []
-		| _ ->
-		  let ext_match (ext_e, rest_e) =
-		    let mk_more m = More (m, (mk_o rest_p, mk_o rest_e)) in
-		    List.map mk_more (also_match bs (ext_p, ext_e)) in
-		  unique_extractions es >>= ext_match in
-	      (Syntax.on_var
-		 (fun v -> if can_be_op v then unspecific v else specific ())
-	       & (fun _ -> specific ()))
-		ext_p
-	    end
-	end in
-      let handle_skew _ =
-	if List.length ps <> List.length es then []
-	else
-	  let todos = List.combine ps es in
-	  let process_todo acc (tp, te) =
-	    acc >>= (flip also_match (tp, te)) in
-	  let result = List.fold_left process_todo [bs] todos in
-	  List.map (fun r -> Done r) result in
-      on_comassoc handle_comassoc handle_skew (apply_op po ps) in
-  let matches = cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
-  let process_match = function
-    | Done final_bs -> [final_bs]
-    | More (next_bs, next_pair) -> also_match next_bs next_pair in
-  matches >>= process_match
+      let tpatvar = List.hd tpatvars in
+      (* at most one pattern variable, which gets the leftover frame *)
+      atom_matches >>=
+	(fun (bss, es) ->
+	  bss >>= fun bs -> bind bs tpatvar (Syntax.mk_big_star es)) in
+  let no_star pa =
+    let fsm = find_star_matches bs [pa] in
+    (on_big_star fsm
+     & fun _ -> fsm [e]) e in
+  let star pl =
+    let fsm = find_star_matches bs pl in
+    (on_big_star fsm
+     & fun _ -> fsm [e]) e in
+  (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr p Syntax.pp_expr e; *)
+  let r = (on_big_star star & no_star) p in
+  (* let pp_binding f b = *)
+  (*   fprintf f "@{Found matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair Syntax.pp_expr Syntax.pp_expr)) (Syntax.ExprMap.fold (fun pat ex l -> (pat,ex)::l) b []) in *)
+  (* fprintf logf "@{<v 2>%a@}" (pp_list pp_binding) r; *)
+  r
+
 
 let expr_match_ops go e f =
   let err _ =
