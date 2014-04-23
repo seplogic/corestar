@@ -21,15 +21,19 @@ let rec fold_pairs f acc = function
   | x :: ((y :: _) as xs) -> fold_pairs f (f acc x y) xs
 
 let iter_pairs f =
-  let f () x = f x in fold_pairs f
+  let f () x = f x in fold_pairs f ()
 
-let rec iter_pairs f = function
-  | [] | [_] -> ()
-  | x :: ((y :: _) as xs) -> f x y; iter_pairs f xs
+let fold_all_pairs f z xs =
+  let f x z y = f z x y in
+  let g z = function [] -> z | x :: xs -> List.fold_left (f x) z xs in
+  List.fold_left g z (ListH.tails xs)
 
-let iter_all_pairs f xs =
-  let g = function [] -> () | x :: xs -> List.iter (f x) xs in
-  List.iter g (ListH.tails xs)
+let iter_all_pairs f =
+  let f () x y = f x y in fold_all_pairs f ()
+
+let map_all_pairs f xs =
+  let g rs x y = f x y :: rs in
+  List.rev (fold_all_pairs g [] xs)
 
 let map_lift_exists f l
     =

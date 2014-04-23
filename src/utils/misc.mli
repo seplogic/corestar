@@ -23,12 +23,19 @@ val insert_sorted : 'a -> 'a list -> 'a list
 (* }}} *)
 
 val fold_pairs : ('b -> 'a -> 'a -> 'b) -> 'b -> 'a list -> 'b
+  (* Folds over consecutive pairs. *)
 
 val iter_pairs : ('a -> 'a -> unit) -> 'a list -> unit
   (* Iterates over consecutive pairs. *)
 
+val fold_all_pairs : ('b -> 'a -> 'a -> 'b) -> 'b -> 'a list -> 'b
+  (* Folds over all subsets of size 2. *)
+
 val iter_all_pairs : ('a -> 'a -> unit) -> 'a list -> unit
   (* Iterates over all subsets of size 2. *)
+
+val map_all_pairs : ('a -> 'a -> 'b) -> 'a list -> 'b list
+  (* Maps over all subsets of size 2. *)
 
 val map_and_find : ('a -> 'b) -> 'a list -> 'b
   (** 

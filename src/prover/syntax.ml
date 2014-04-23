@@ -196,9 +196,11 @@ let vars x =
 
 let bool_sort = Z3.Boolean.mk_sort z3_ctx
 
+(* TODO: why is mk_0 different from others? *)
 let mk_0 op = Z3.Expr.mk_const_s z3_ctx op bool_sort
-let mk_1 op a = Z3.FuncDecl.apply op [a]
-let mk_2 op a b = Z3.FuncDecl.apply op [a; b]
+let mk_1 op e = Z3.FuncDecl.apply op [e]
+let mk_2 op e f = Z3.FuncDecl.apply op [e; f]
+let mk_n = Z3.FuncDecl.apply
 
 let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
 let star = Z3.FuncDecl.mk_func_decl_s z3_ctx "*" [bool_sort; bool_sort] bool_sort

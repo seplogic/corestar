@@ -36,6 +36,7 @@ val freshen : Z3.Expr.expr -> Z3.Expr.expr
   (* [freshen v] is a fresh logical variable whose name is similar to [v].
   NOTE: '!' has a special meaning! See implementation. *)
 
+(* kinds of variables *)
 val is_pvar_name : var -> bool (* program variable *)
 val is_plvar_name : var -> bool (* program local variable *)
 val is_pgvar_name : var -> bool (* program global variables *)
@@ -62,6 +63,7 @@ val vars : Z3.Expr.expr -> Z3.Expr.expr list
 val mk_0 : string -> Z3.Expr.expr
 val mk_1 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_2 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
+val mk_n : Z3.FuncDecl.func_decl -> Z3.Expr.expr list -> Z3.Expr.expr
 
 val emp : Z3.FuncDecl.func_decl
 val star : Z3.FuncDecl.func_decl
@@ -73,6 +75,7 @@ val mk_tpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_vpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_fresh_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 
+val bool_sort : Z3.Sort.sort
 val mk_bool_plvar : string -> Z3.Expr.expr
 val mk_bool_pgvar : string -> Z3.Expr.expr
 val mk_bool_lvar : string -> Z3.Expr.expr
