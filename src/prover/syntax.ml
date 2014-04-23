@@ -15,9 +15,8 @@ let z3_ctx =
 let int_sort = Z3.Arithmetic.Integer.mk_sort z3_ctx
 let string_sort = int_sort (* TODO: ugly hack? *)
 
-(* This should really be in the Z3 bindings? *)
-let expr_compare e1 e2 = Z3.AST.compare (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_expr e2)
-let expr_equal e1 e2 = Z3.AST.equal (Z3.Expr.ast_of_expr e1) (Z3.Expr.ast_of_expr e2)
+let expr_compare = Z3.Expr.compare
+let expr_equal = Z3.Expr.equal
 
 (* {{{ strings stuff *)
 
