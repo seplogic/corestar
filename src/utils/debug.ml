@@ -146,19 +146,21 @@ let prof_stop c =
   let ts = (try Hashtbl.find prof_time_of_c c with Not_found -> []) in
   Hashtbl.replace prof_time_of_c c (t2 -. t1 :: ts)
 let prof_print_stats () =
-  let stats =
-    let sum = List.fold_left (+.) 0.0 in
-    [ "max", List.fold_left max 0.0
-    ; "total", sum
-    ; "cnt", float_of_int @@ List.length
-    ; "avg", (fun ts -> sum ts /. float_of_int (List.length ts))
-    ] in
-  let print_categ (n, f) =
-    let xs = Hashtbl.fold (fun c ts xs -> (f ts, c) :: xs) prof_time_of_c [] in
-    let xs = List.sort compare xs in
-    List.iter (fun (v, c) -> fprintf logf "%s %s %.03f@\n" n c v) xs;
-    fprintf logf "@\n" in
-  List.iter print_categ stats
+  if log log_stats then begin
+    let stats =
+      let sum = List.fold_left (+.) 0.0 in
+      [ "max", List.fold_left max 0.0
+      ; "total", sum
+      ; "cnt", float_of_int @@ List.length
+      ; "avg", (fun ts -> sum ts /. float_of_int (List.length ts))
+      ] in
+    let print_categ (n, f) =
+      let xs = Hashtbl.fold (fun c ts xs -> (f ts, c) :: xs) prof_time_of_c [] in
+      let xs = List.sort compare xs in
+      List.iter (fun (v, c) -> fprintf logf "%s %s %.03f@\n" n c v) xs;
+      fprintf logf "@\n" in
+    List.iter print_categ stats
+  end
 
 
 (*** NOTE: the functions below can alter the behaviour of the profiled
