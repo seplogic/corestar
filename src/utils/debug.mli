@@ -20,6 +20,7 @@ val log_prove : int
 val log_exec : int
 val log_logic : int
 val log_smt : int
+val log_stats : int
 val log : int -> bool
 val logf : Format.formatter
 val add_formatter_tag : Format.formatter -> Format.tag * string * string -> unit

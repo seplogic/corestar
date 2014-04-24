@@ -717,7 +717,7 @@ let builtin_rules =
   ; smt_pure_rule
 (*   ; smt_disprove *)
 (*   ; or_rule *)
-(*   ; match_rule (* XXX: subsumed by match_subformula_rule? *) *)
+  ; match_rule (* XXX: subsumed by match_subformula_rule? *)
 (*   ; match_subformula_rule *)
   ]
 
@@ -852,5 +852,6 @@ let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 
 let print_stats () =
+  if log log_stats then
   fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
 (* }}} *)

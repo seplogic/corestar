@@ -89,7 +89,9 @@ let push () = push_impure_stack (); Z3.Solver.push z3_solver
 let pop () = pop_impure_stack (); Z3.Solver.pop z3_solver 1
 
 let print_stats () =
-  fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
-  print_endline
-    ("SMT stats:\n"^
-	(Z3.Solver.Statistics.to_string (Z3.Solver.get_statistics z3_solver)))
+  if log log_stats then begin
+    fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
+    let smt_stats = Z3.Solver.get_statistics z3_solver in
+    let smt_stats = Z3.Solver.Statistics.to_string smt_stats in
+    fprintf logf "SMT stats: %s@\n" smt_stats
+  end

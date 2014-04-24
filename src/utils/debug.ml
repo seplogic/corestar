@@ -79,6 +79,7 @@ let log_phase = 1 lsl 3
 let log_prove = 1 lsl 4
 let log_specs = 1 lsl 5
 let log_smt = 1 lsl 6
+let log_stats = 1 lsl 7
 
 (* enable html tags in output *)
 let log_html = false
