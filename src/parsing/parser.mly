@@ -75,11 +75,12 @@ let mk_string_const = Syntax.mk_string_const
 %token IF
 %token IMPORT
 %token INT_CONSTANT
-%token LABEL
-%token LIDENTIFIER
 %token L_BRACE
 %token L_BRACKET
 %token L_PAREN
+%token LABEL
+%token LEFTARROW
+%token LIDENTIFIER
 %token MULT
 %token NOP
 %token NOT_EQUALS
@@ -91,12 +92,13 @@ let mk_string_const = Syntax.mk_string_const
 %token PLIDENTIFIER
 %token PROCEDURE
 %token PUREIDENTIFIER
-%token QUESTIONMARK
-%token RULE
 %token R_BRACE
 %token R_BRACKET
 %token R_PAREN
+%token RETURNS
+%token RULE
 %token SEMICOLON
+%token SPEC
 %token STRING_CONSTANT
 %token TPIDENTIFIER
 %token VDASH
@@ -160,10 +162,11 @@ variable_list:
 term:
   | variable { $1 }
   | IDENTIFIER L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
-  | L_PAREN term binop term R_PAREN { $3 [$2; $4] }
+  | L_PAREN term binop term R_PAREN { $3 [$2; $4] } /* TODO: make nicer */
   | STRING_CONSTANT { mk_string_const $1 }
   | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
 ;
+
 term_list_ne:
   | term {$1::[]}
   | term COMMA term_list_ne { $1::$3 }
@@ -195,22 +198,9 @@ modifies:
   | L_PAREN variable_list R_PAREN { $2 }
 ;
 
-/* FIXME: rubbish syntax */
-in_vars:
-  | /* empty */ { [] }
-  | L_BRACKET variable_list R_BRACKET { $2 }
-;
-
-/* FIXME: rubbish syntax */
-out_vars:
-  | /* empty */ { [] }
-  | OP_DIV variable_list_ne OP_DIV { $2 }
-;
-
-/* FIXME: rubbish syntax */
 triple:
-  | L_BRACE formula R_BRACE modifies L_BRACE out_vars formula R_BRACE in_vars
-    { { Core.pre = $2; modifies = $4; post = $7; out_vars = $6; in_vars = $9 } }
+  | L_BRACE formula R_BRACE modifies L_BRACE formula R_BRACE
+    { { Core.pre = $2; modifies = $4; post = $6 } }
 ;
 
 spec:
@@ -221,10 +211,6 @@ spec:
 
 /* Core statements */
 
-assgn_lhs:
-  | variable_list COLON_EQUALS { $1 }
-  | /* empty */  { [] }
-;
 core_args_in: L_PAREN term_list R_PAREN { $2 };
 
 label_list:
@@ -241,11 +227,30 @@ call_stmt:
     { { C.call_name = $3; call_rets = $1; call_args = $4 } }
 ;
 
+spec_subst_ne:
+  | L_BRACKET variable_list LEFTARROW term_list R_BRACKET { ($2, $4) }
+;
+
+spec_subst:
+  | /* empty */ { ([], []) }
+  | spec_subst_ne { $1 }
+;
+
+spec_subst_ret:
+  | /* empty */ { ([], []) }
+  | RETURNS spec_subst_ne { $2 }
+;
+
 core_stmt:
   | END  { C.End }
   | NOP  { C.Nop_stmt_core }
-  | ASSIGN assgn_lhs spec core_args_in
-    { C.Assignment_core { C.asgn_rets = $2; asgn_args = $4; asgn_spec = $3 } }
+  | SPEC spec spec_subst spec_subst_ret
+    { C.Assignment_core
+      { C.asgn_rets = snd $4
+      ; asgn_rets_formal = fst $4
+      ; asgn_args = snd $3
+      ; asgn_args_formal = fst $3
+      ; asgn_spec = $2 } }
   | CALL call_stmt { C.Call_core $2 }
   | GOTO label_list { C.Goto_stmt_core $2 }
   | LABEL IDENTIFIER  { C.Label_stmt_core $2 }
@@ -293,27 +298,27 @@ sequent_list_ne:
 
 body:
   | /* empty */ { (None, true) }
-  | QUESTIONMARK core_stmt_list { (Some $2, true) }
+  | COLON core_stmt_list { (Some $2, true) }
   | BANG core_stmt_list { (Some $2, false) }
-;
-
-proc_lhs:
-  | L_PAREN variable_list R_PAREN COLON_EQUALS { $2 }
-  | /* empty */  { [] }
 ;
 
 proc_args:
   | /* empty */ { [] }
   | L_PAREN variable_list R_PAREN { $2 }
 ;
+
+proc_rets:
+  | /* empty */ { [] }
+  | RETURNS L_PAREN variable_list R_PAREN { $3 }
+
 procedure:
-  | PROCEDURE proc_lhs IDENTIFIER proc_args COLON spec body
-    { { C.proc_name = $3
-      ; proc_spec = $6
-      ; proc_ok = snd $7
-      ; proc_body = fst $7
-      ; proc_params = $4
-      ; proc_rets = $2
+  | PROCEDURE IDENTIFIER proc_args proc_rets spec body
+    { { C.proc_name = $2
+      ; proc_spec = $5
+      ; proc_ok = snd $6
+      ; proc_body = fst $6
+      ; proc_args = $3
+      ; proc_rets = $4
       ; proc_rules = { C.calculus = []; abstraction = [] } } }
 ;
 

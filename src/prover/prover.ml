@@ -105,9 +105,9 @@ let find_lvar_pvar_subs e =
   let add_if_good l =
     Syntax.on_eq
       (fun a b ->
-	if Syntax.is_lvar a && Syntax.is_pvar b then (a, b)::l
-	else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
-	else l)
+        if Syntax.is_lvar a && Syntax.is_pvar b then (a, b)::l
+        else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
+        else l)
     & (c1 l) in
   let es = unfold on_star_nary e in
   List.fold_left add_if_good [] es
@@ -307,11 +307,11 @@ let abduce_instance_rule =
       if is_or conclusion then rule_notapplicable
       else
         let _Is = guess_instances hypothesis conclusion in
-	let _Is = List.filter (fun _I -> not (Syntax.expr_equal _I Syntax.mk_emp || smt_is_valid (Syntax.mk_eq _I conclusion))) _Is in
-	if _Is = [] then rule_notapplicable
+        let _Is = List.filter (fun _I -> not (Syntax.expr_equal _I Syntax.mk_emp || smt_is_valid (Syntax.mk_eq _I conclusion))) _Is in
+        if _Is = [] then rule_notapplicable
         else
-	  let mk _I =
-	    fprintf logf "@{[%a]@}@\n" Syntax.pp_expr _I;
+          let mk _I =
+            fprintf logf "@{[%a]@}@\n" Syntax.pp_expr _I;
             [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
             ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
           in List.map mk _Is
@@ -416,10 +416,10 @@ let find_matches is_free can_be_op bs (p,e) =
       if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
       then []
       else
-	let todos = List.combine ps es in
-	let process_todo acc (tp, te) =
-	  acc >>= flip ((flip find_atom_matches) tp) te in
-	List.fold_left process_todo [bs] todos in
+        let todos = List.combine ps es in
+        let process_todo acc (tp, te) =
+          acc >>= flip ((flip find_atom_matches) tp) te in
+        List.fold_left process_todo [bs] todos in
     cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
   (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
   let find_star_matches bs pl el =
@@ -427,28 +427,28 @@ let find_matches is_free can_be_op bs (p,e) =
     if List.length tpatvars > 1 then
       failwith "pattern formulas should have at most one formula variable (qj979xyr)";
     (** matches a pattern [p] against a list of *-conjoined
-	expressions el. Returns a list of pairs (b',el') of matching
-	bindings b' together with leftover expressions el' *)
+        expressions el. Returns a list of pairs (b',el') of matching
+        bindings b' together with leftover expressions el' *)
     let rec one_patom bs acc p = function
       | [] -> [] (* no match *)
       | e::tl ->
-	let bs' = find_atom_matches bs p e in
-	if bs' = [] then one_patom bs (e::acc) p tl
-	else (bs', (List.rev acc)@tl)::one_patom bs (e::acc) p tl in
+        let bs' = find_atom_matches bs p e in
+        if bs' = [] then one_patom bs (e::acc) p tl
+        else (bs', (List.rev acc)@tl)::one_patom bs (e::acc) p tl in
     let f ebl p =
       let g (bss, es) = bss >>= (fun bs' -> one_patom bs' [] p es) in
       ebl >>= g in
     let atom_matches = List.fold_left f [([bs], el)] patoms in
     if tpatvars = [] then
       atom_matches >>=
-	(fun (bss, es) ->
-	  bss >>= fun bs -> if es = [] then [bs] else [])
+        (fun (bss, es) ->
+          bss >>= fun bs -> if es = [] then [bs] else [])
     else
       let tpatvar = List.hd tpatvars in
       (* at most one pattern variable, which gets the leftover frame *)
       atom_matches >>=
-	(fun (bss, es) ->
-	  bss >>= fun bs -> bind bs tpatvar (Syntax.mk_big_star es)) in
+        (fun (bss, es) ->
+          bss >>= fun bs -> bind bs tpatvar (Syntax.mk_big_star es)) in
   let no_star pa =
     let fsm = find_star_matches bs [pa] in
     (on_big_star fsm
@@ -540,24 +540,24 @@ let rec find_conversion can_convert bs (p, e) =
     Syntax.cases
       (c1 None)
       (fun o es -> if o <> po || List.length es <> List.length ps then None else
-	  let handle_comassoc _ _ =
-	    let rec inner bs = function
-	      | [], _ -> Some bs
-	      | ph :: pt, es ->
-		option
-		  None
-		  (fun (bs, rest_e) -> inner bs (pt, rest_e))
-		  (find_some
-		     (fun (ext_e,rest_e) -> option_map (fun m -> (m, rest_e))
-		       (find_conversion can_convert bs (ext_e, ph)))
-		     (unique_extractions es)) in
-	    inner bs (ps,es) in
-	  let handle_skew _ _ =
-	    let rec inner bs = function
-	    | [] -> Some bs
-	    | h :: t -> option None (flip inner t) (find_conversion can_convert bs h) in
-	    inner bs (List.combine ps es) in
-	  on_comassoc handle_comassoc handle_skew po ps
+          let handle_comassoc _ _ =
+            let rec inner bs = function
+              | [], _ -> Some bs
+              | ph :: pt, es ->
+                option
+                  None
+                  (fun (bs, rest_e) -> inner bs (pt, rest_e))
+                  (find_some
+                     (fun (ext_e,rest_e) -> option_map (fun m -> (m, rest_e))
+                       (find_conversion can_convert bs (ext_e, ph)))
+                     (unique_extractions es)) in
+            inner bs (ps,es) in
+          let handle_skew _ _ =
+            let rec inner bs = function
+            | [] -> Some bs
+            | h :: t -> option None (flip inner t) (find_conversion can_convert bs h) in
+            inner bs (List.combine ps es) in
+          on_comassoc handle_comassoc handle_skew po ps
       ) e in
   Syntax.cases on_pvar on_op p
 *)
@@ -581,9 +581,9 @@ let spatial_id_rule =
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
       if log log_prove then fprintf logf "hp: %a@ hs: %a@ cp: %a@ cs: %a"
-	Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;
+        Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;
       if Syntax.expr_equal hyp_spatial Syntax.mk_emp
-	&& Syntax.expr_equal conc_spatial Syntax.mk_emp
+        && Syntax.expr_equal conc_spatial Syntax.mk_emp
       then rule_notapplicable
       else if Syntax.expr_equal hyp_spatial conc_spatial (* should really be handled by matching *)
         then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
@@ -605,14 +605,14 @@ let match_rule =
     prof_fun1 "Prover.match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let matches =
-	  find_existential_matches Syntax.ExprMap.empty (conclusion, hypothesis) in
+          find_existential_matches Syntax.ExprMap.empty (conclusion, hypothesis) in
       if log log_prove then fprintf logf "@,found %d matches@\n" (List.length matches);
       let mk_goal m =
-	let b = Syntax.ExprMap.bindings m in
-	let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
-	[ { Calculus.hypothesis = hypothesis
-	  ; conclusion = mk_big_star (List.map mk_eq b)
-	  ; frame } ] in
+        let b = Syntax.ExprMap.bindings m in
+        let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
+        [ { Calculus.hypothesis = hypothesis
+          ; conclusion = mk_big_star (List.map mk_eq b)
+          ; frame } ] in
       List.map mk_goal matches) }
 
 let match_subformula_rule =
@@ -736,9 +736,9 @@ let rules_of_calculus builtin c =
     if m != [] then
       let side_cond = Z3.Boolean.mk_or z3_ctx (List.map (flip instantiate rs.Calculus.side_condition) m) in
       if smt_is_valid side_cond then
-	let try_one bs =
+        let try_one bs =
           List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
-	List.map try_one m
+        List.map try_one m
       else rule_notapplicable
     else rule_notapplicable in
   let to_rule rs =
@@ -769,7 +769,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
   let result =
     if n = 0 then leaf else begin
       let process_rule r =
-	if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
+        if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
         let ess = r.rule_apply goal in
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
         ess in

@@ -17,6 +17,7 @@
 (* {{{ *) (** {2 Common operations} *)
 
 (**
+  TODO: Change to some other name because OCaml 4.01 uses it fo something else.
   Function composition. Where a function is expected, you can write [g @@
   f] instead of [fun x -> g (f x)].
  *)
@@ -28,6 +29,7 @@ val ( |> ) : 'a -> ('a -> 'b) -> 'b
 (** First [map], then concat; aka [bind] for the list monad. *)
 val ( >>= ) : 'a list -> ('a -> 'b list) -> 'b list
 
+(* TODO: Remove: OCaml 4.01 calls this @@. *)
 (** Function application. You can write [g & f & x] instead of [g (f (x))]. *)
 val ( & ) : ('a -> 'b) -> 'a -> 'b
 
@@ -169,10 +171,14 @@ end
 type 'a pretty_printer = Format.formatter -> 'a -> unit
 
 val pp_int : int pretty_printer
-val pp_bool : bool pretty_printer
+
 val pp_string : string pretty_printer
+
 val pp_pair : 'a pretty_printer -> 'b pretty_printer -> ('a * 'b) pretty_printer
+
 val pp_list : 'a pretty_printer -> 'a list pretty_printer
+
 val pp_list_sep : string -> 'a pretty_printer -> 'a list pretty_printer
+
 val string_of : 'a pretty_printer -> 'a -> string
 (* }}} *)

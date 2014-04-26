@@ -22,26 +22,23 @@ let fix_scc_limit = 1 lsl 2
 
     Warning: If actuals/formals have different lengths, then it makes them equal.
     See [CoreOps.check_well_formed] for an explanation. *)
-let specialize_spec top_level rets args xs =
-  let f { Core.pre; post; modifies; in_vars; out_vars } =
-    let rec mk_same_len (vs', fs') = function
-      | _, [] -> (List.rev vs', List.rev fs')
-      | [], f :: fs -> mk_same_len (Syntax.freshen f :: vs', f :: fs') ([], fs)
-      | v :: vs, f :: fs -> mk_same_len (v :: vs', f :: fs') (vs, fs) in
-    let args', in_vars' = mk_same_len ([], []) (args, in_vars) in
-    let rets', out_vars' = mk_same_len ([], []) (rets, out_vars) in
-    let subst e = Z3.Expr.substitute e (in_vars'@out_vars') (args'@rets') in
-    { Core.pre = subst pre
-    ; post = subst post
-    ; modifies = rets @ modifies (* old rets, so it havocs extra returns *)
-    ; in_vars = []
-    ; out_vars = [] } in
-  C.TripleSet.map f xs
+let specialize_spec a_ps f_ps a_rs f_rs =
+  let f { Core.pre; post; modifies } =
+    let rec chop (a_s', f_s') = function
+      | _, [] -> (List.rev a_s', List.rev f_s')
+      | [], f :: f_s -> chop (Syntax.freshen f :: a_s', f :: f_s') ([], f_s)
+      | a :: a_s, f :: f_s -> chop (a :: a_s', f :: f_s') (a_s, f_s) in
+    let a_ps', f_ps' = chop ([], []) (a_ps, f_ps) in
+    let a_rs', f_rs' = chop ([], []) (a_rs, f_rs) in
+    { Core.pre = Z3.Expr.substitute pre f_ps' a_ps'
+    ; post = Z3.Expr.substitute post (f_ps' @ f_rs') (a_ps' @ a_rs')
+    ; modifies = a_rs @ modifies (* old rets, so it havocs extra returns *) } in
+  C.TripleSet.map f
 
 let mk_big_star = Prover.mk_big_star
 let mk_star = Prover.mk_star
 
-let freshen_triple { C.pre; post; modifies; in_vars; out_vars } =
+let freshen_triple { C.pre; post; modifies } =
   let h = Syntax.ExprHashMap.create 0 in
   let rec freshen_expr e =
     let var v = if not (Syntax.is_lvar v) then v else begin
@@ -50,9 +47,9 @@ let freshen_triple { C.pre; post; modifies; in_vars; out_vars } =
         (let w = Syntax.freshen v in Syntax.ExprHashMap.add h v w; w)
     end in
     (Syntax.on_var var & Syntax.recurse freshen_expr) e in
-  { C.pre = freshen_expr pre; post = freshen_expr post; modifies; in_vars; out_vars }
+  { C.pre = freshen_expr pre; post = freshen_expr post; modifies }
 
-let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
+let simplify_triple ({ C.pre; post; modifies } as t1) =
   let module H = Hashtbl.Make (Syntax.HashableExpr) in
 
   let dbg_eq f (a, b) =
@@ -84,7 +81,6 @@ let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
       let a, b = find a, find b in
       let a, b =
         if is_lvar b || not (is_var b || is_lvar a) then b, a else a, b in
-(*       let a, b = if is_pvar a && not (is_pvar b) then b, a else a, b in *)
       H.replace h a b in
     List.iter union eqs;
     let es = H.fold (fun k _ ks -> k :: ks) h [] in
@@ -117,7 +113,7 @@ let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
   let post = mk_big_star (post :: lvar_eqs post_reps) in
   let pre = Prover.normalize pre in
   let post = Prover.normalize post in
-  let t2 = { C.pre; post; modifies; in_vars; out_vars } in
+  let t2 = { C.pre; post; modifies } in
   printf "@[<2>(simplify_triple@ @[(%a)→(%a)@]@\npre_subst@ %a\
       @\npost_subst@ %a@\ncommon_pre@ %a@\ncommon_post@ %a@])@\n"
     CoreOps.pp_triple t1
@@ -129,9 +125,9 @@ let simplify_triple ({ C.pre; post; modifies; in_vars; out_vars } as t1) =
     ;
   t2
 
-let normalize { C.pre; post; modifies; in_vars; out_vars } =
+let normalize { C.pre; post; modifies } =
   let f = Prover.normalize in
-  { C.pre = f pre; post = f post; modifies = modifies; in_vars; out_vars }
+  { C.pre = f pre; post = f post; modifies }
 
 let normalize_spec = C.TripleSet.map normalize
 
@@ -145,20 +141,8 @@ let join_triples ts =
   let post = Prover.mk_big_or (List.map (fun t -> t.C.post) ts) in
   let modifies =
     Misc.remove_duplicates Syntax.expr_compare (ts >>= fun t -> t.C.modifies) in
-  let get_vars extract =
-    let same xs ys =
-      try List.for_all2 Syntax.expr_equal xs ys
-      with Invalid_argument _ -> false in
-    let all_equal = function
-      | [] -> true
-      | x :: xs -> List.for_all (same x) xs in
-    let vars = List.map extract ts in
-    assert (all_equal vars);
-    (match vars with [] -> [] | vars :: _ -> vars) in
-  let in_vars = get_vars (fun t -> t.C.in_vars) in
-  let out_vars = get_vars (fun t -> t.C.out_vars) in
   printf "LEAVE join_triples)@\n";
-  { C.pre; post; modifies; in_vars; out_vars }
+  { C.pre; post; modifies }
 
 
 (* }}} *)
@@ -237,8 +221,12 @@ let sc_interesting_label = function
   | _ -> false
 
 let sc_new_label = function
-  | C.Assignment_core { C.asgn_rets; asgn_args; asgn_spec } ->
-      G.Spec_cfg (specialize_spec false asgn_rets asgn_args asgn_spec)
+  | C.Assignment_core a ->
+      G.Spec_cfg
+        ( specialize_spec
+            a.C.asgn_args a.C.asgn_args_formal
+            a.C.asgn_rets a.C.asgn_rets_formal
+            a.C.asgn_spec )
   | C.Call_core c -> G.Call_cfg c
   | C.Nop_stmt_core -> G.Nop_cfg
   | _ -> assert false
@@ -297,7 +285,7 @@ let output_cfgH n g =
 
 let mk_cfg q =
   let n = q.C.proc_name in
-  let g = option_map (mk_intermediate_cfg  q.C.proc_params q.C.proc_rets) q.C.proc_body in
+  let g = option_map (mk_intermediate_cfg  q.C.proc_args q.C.proc_rets) q.C.proc_body in
   if !Config.verbosity >= 3 then
     option () (fun g -> output_cfgH n g.ProcedureH.cfg) g;
   let g = option_map simplify_cfg g in
@@ -743,9 +731,7 @@ end = struct
     let check_intermediate { Prover.frame; _ } =
       List.exists check_final (prove (mk_star frame t1.C.post) t2.C.post) in
     let r =
-      (* TODO: we might want some leeway in these first two checks *)
-      t1.C.in_vars = t2.C.in_vars && t1.C.out_vars = t2.C.out_vars
-      && List.for_all (flip Syntax.ExprSet.mem t2m) t1.C.modifies
+      List.for_all (flip Syntax.ExprSet.mem t2m) t1.C.modifies
       && List.exists check_intermediate (prove t2.C.pre t1.C.pre) in
     if log log_exec then begin
       fprintf logf "@[<2>implies_triple: %b@ @[%a@ =?=> %a@]@]@\n"
@@ -925,14 +911,12 @@ end = struct
       Some (get_stop_confs context procedure)
     end
 
-  (** the triple [out_vars] := {emp} () {emp} ([in_vars]) *)
-  let empty_triple in_vars out_vars =
-    { Core.pre = Syntax.mk_emp; post = Syntax.mk_emp;
-      in_vars = in_vars; out_vars = out_vars; modifies = [] }
+  let empty_triple =
+    { Core.pre = Syntax.mk_emp; post = Syntax.mk_emp; modifies = [] }
 
-  let spec_of post in_vars out_vars =
+  let spec_of post =
     let post = CoreOps.mk_assert post in
-    let nop = C.TripleSet.singleton (empty_triple in_vars out_vars) in
+    let nop = C.TripleSet.singleton empty_triple in
     fun stop statement ->
     if statement = stop
     then begin assert (G.Cfg.V.label statement = G.Nop_cfg); post end
@@ -943,12 +927,12 @@ end = struct
           assert false (* should have called [inline_call_specs] before *)
     end
 
-  let update_gen ask rules body post in_vars out_vars =
+  let update_gen ask rules body post =
     let ask = ask rules.C.calculus in
     let is_deadend = Prover.is_inconsistent rules.C.calculus in
     let abstract_afs = abstract_afs rules.C.calculus in
     let execute = execute
-      abstract_afs ask is_deadend (spec_of post in_vars out_vars body.P.stop) in
+      abstract_afs ask is_deadend (spec_of post body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 
   let update_infer = update_gen abduct
@@ -966,7 +950,11 @@ end = struct
     let call_to_spec v = match G.Cfg.V.label v with
       | G.Call_cfg { C.call_name; call_rets; call_args } ->
           let p = proc_of_name call_name in
-          let spec = specialize_spec false call_rets call_args  p.C.proc_spec in (* TODO: find the source of List.rev *)
+          let spec =
+            specialize_spec
+              call_args p.C.proc_args
+              call_rets p.C.proc_rets
+              p.C.proc_spec in
           G.Cfg.V.create (G.Spec_cfg spec)
       | _ -> v in
     { procedure with P.cfg = G.Cfg.map_vertex call_to_spec procedure.P.cfg }
@@ -992,7 +980,7 @@ end = struct
             let init = Syntax.ExprHashMap.create 0 in
             Syntax.ExprMap.iter (fun _ v -> Syntax.ExprHashMap.replace init v ()) pre_defs;
             Syntax.ExprHashMap.mem init in
-          let update = update triple.C.post triple.C.in_vars triple.C.out_vars in
+          let update = update triple.C.post in
           let triple_of_conf { G.current_heap; missing_heap; pvar_value } =
             let visible_defs =
               let p v _ = Syntax.is_pgvar v || (List.exists (Syntax.expr_equal v) procedure.C.proc_rets) in
@@ -1023,8 +1011,6 @@ end = struct
             simplify_triple
               { C.pre = mk_big_star [triple.C.pre; missing_heap; pre_eqs]
               ; post = mk_star current_heap post_eqs
-	      ; in_vars = triple.C.in_vars
-	      ; out_vars = triple.C.out_vars
               ; modifies = mvars_global } in
           let css =
             let name = procedure.C.proc_name in
@@ -1034,21 +1020,14 @@ end = struct
           let ts = option_map (List.map join_triples) tss in
           if log log_phase then fprintf logf "@}@?";
 	  ts in
-	let instantiate_triple { Core.pre; post; modifies; in_vars; out_vars } =
-	  let args = procedure.C.proc_params in
-	  let rets = procedure.C.proc_rets in
-	  let subst e = Z3.Expr.substitute e (in_vars@out_vars) (args@rets) in
-	  { Core.pre = subst pre; post = subst post
-	  ; modifies = modifies; in_vars = []; out_vars = [] } in
-	let proc_spec = C.TripleSet.map instantiate_triple procedure.C.proc_spec in
-        let ts = C.TripleSet.elements proc_spec in
+        let ts = C.TripleSet.elements procedure.C.proc_spec in
         let ts =
           (if infer then begin
             if log log_phase then
               fprintf logf "@[@{<h4>symexec inferring %s@}@]@\n@?" procedure.C.proc_name;
             let process_triple_infer =
               process_triple (update_infer rules body) in
-            let ts = empty_triple  procedure.C.proc_params procedure.C.proc_rets :: ts in
+            let ts = empty_triple :: ts in
             if log log_phase then
               fprintf logf "@[<2>@{<p>%d candidate triples@}@]@\n@?" (List.length ts);
             let ts = lol_cat (List.map process_triple_infer ts) in
@@ -1074,7 +1053,7 @@ end = struct
             let f t = not (Prover.is_inconsistent rules.C.calculus t.C.pre) in
             List.filter f ts in
 	  (* Check if specifications are better. *)
-          let old_ts = C.TripleSet.elements proc_spec in
+          let old_ts = C.TripleSet.elements procedure.C.proc_spec in
           let not_better nt =
             let implied_by = flip (implies_triple rules.C.calculus) in
             List.exists (implied_by nt) old_ts in
@@ -1107,7 +1086,7 @@ end = struct
             List.for_all (flip Syntax.ExprSet.mem ms) mvars_global in
           let ok =
             List.for_all (option false ((<>) [])) tss
-            && C.TripleSet.for_all modifies_ok proc_spec in
+            && C.TripleSet.for_all modifies_ok procedure.C.proc_spec in
           if ok then OK else NOK
 	end
 end

@@ -52,11 +52,10 @@ let error_message e lb =
 let kwd_or_else =
   let keyword_table = Hashtbl.create 53 in
   List.iter (fun (kwd, tok) -> Hashtbl.add keyword_table kwd tok) [
-    "emp", EMP;
-    "false", FALSE;
-    "assign", ASSIGN;
     "call", CALL;
+    "emp", EMP;
     "end", END;
+    "false", FALSE;
     "global", GLOBAL;
     "goto", GOTO;
     "if", IF;
@@ -64,7 +63,9 @@ let kwd_or_else =
     "label", LABEL;
     "nop", NOP;
     "procedure", PROCEDURE;
+    "returns", RETURNS;
     "rule", RULE;
+    "spec", SPEC;
   ];
   fun d s ->
   try Hashtbl.find keyword_table s with Not_found -> d
@@ -113,23 +114,23 @@ rule token = parse
   | "+" { OP_PLUS }
   | "," { COMMA }
   | "-" { OP_MINUS }
+  | "." { DOT }
   | "/" { OP_DIV }
   | ":" { COLON }
   | ":=" { COLON_EQUALS }
   | ";" { SEMICOLON }
   | "<" { CMP_LT }
+  | "<-" { LEFTARROW }
   | "<=" { CMP_LE }
   | "=" { EQUALS }
   | ">" { CMP_GT }
   | ">=" { CMP_GE }
-  | "?" { QUESTIONMARK }
+  | "[" { L_BRACKET }
+  | "]" { R_BRACKET }
   | "{" { L_BRACE }
   | "|-" { VDASH }
   | "||" { OROR }
   | "}" { R_BRACE }
-  | "[" { L_BRACKET }
-  | "]" { R_BRACKET }
-  | "." { DOT }
   | eof { EOF }
 
   | plidentifier as s { PLIDENTIFIER (strip_first_char s) }

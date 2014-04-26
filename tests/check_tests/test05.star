@@ -1,15 +1,14 @@
-
-procedure test05:
+procedure test05
 {
    (_current_queue_list_size_2 = "0") *
-   (@current_queue_list_size = _current_queue_list_size_2) * 
+   (@current_queue_list_size = _current_queue_list_size_2) *
    (_parameter0_4 != "return_$$_java.util.Iterator.next$$$$java.lang.Object") *
    (@current_automaton_state = _current_automaton_state_2) *
-   (_current_automaton_state_2 = "simplestart") * 
-   (_parameter0_4 != "call_$$_java.util.Iterator.next$$$$java.lang.Object") * 
-   (_parameter0_4 = _log_queue_0_0_11) * 
-   (@parameter0 = _parameter0_4) * 
-   (@queue_event_0_position_0 = _queue_event_0_position_0_2) * 
+   (_current_automaton_state_2 = "simplestart") *
+   (_parameter0_4 != "call_$$_java.util.Iterator.next$$$$java.lang.Object") *
+   (_parameter0_4 = _log_queue_0_0_11) *
+   (@parameter0 = _parameter0_4) *
+   (@queue_event_0_position_0 = _queue_event_0_position_0_2) *
    (_parameter0_4 = _log_queue_0_0_21)
 }
 ( @current_automaton_state
@@ -28,8 +27,8 @@ procedure test05:
    (@current_automaton_state != "simpleerror") *
    (@current_queue_list_size = "0")
 }
-?
- assign
+:
+ spec
   {
    (_current_queue_list_size_1 = "0") *
    (@current_queue_list_size = _current_queue_list_size_1) *
@@ -56,5 +55,5 @@ procedure test05:
    (@queue_event_0_position_0 = _log_queue_0_0_6) *
    (@parameter0 = _parameter0_3) *
    (@current_automaton_state != "simpleerror") *
-   (@current_queue_list_size = "0")} ();
-end;
+   (@current_queue_list_size = "0")};
+

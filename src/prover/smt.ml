@@ -31,7 +31,6 @@ let impure_count = ref 0
   last push; !impure_count is the number of true elements in !impure_stack. *)
 let set_impure b = match !impure_stack with
   | c :: cs ->
-      if b then printf "impure!@\n";
       if b && not c then incr impure_count;
       impure_stack := (b || c) :: cs
   | [] -> failwith "!impure_stack shouldn't be empty (9wq8edj)"

@@ -84,7 +84,7 @@ let log_stats = 1 lsl 7
 (* enable html tags in output *)
 let log_html = false
 
-let log_active = log_phase lor log_exec lor log_prove
+let log_active = log_prove
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0
