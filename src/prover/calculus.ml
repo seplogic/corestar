@@ -7,16 +7,23 @@ type sequent =
   ; hypothesis : Z3.Expr.expr
   ; conclusion : Z3.Expr.expr }
 
-(*
-The subgoal list represents a conjunction.  The goal often has the
-form (L*?l |- R*?r): L and R contain the interesting part, while the
-pattern variables ?l and ?r capture the rest. The side condition is
-a formula that should hold for the rule to fire (it is passed to the
-SMT solver, which checks that it is valid).
+(** The subgoal list represents a conjunction.
+
+    The goal often has the form (L*?l |- R*?r): L and R contain the
+    interesting part, while the pattern variables ?l and ?r capture
+    the rest.
+
+    pure_check is a list of pure formulas that should all hold for the
+    rule to fire (it is passed to the SMT solver, which checks that
+    they are valid).
+
+    fresh_in_expr is a list of pairs (v,e) such that v must not appear
+    free in e for the rule to fire.
 *)
 type rule_schema =
   { schema_name : string (* not essential, just for reporting problems *)
-  ; side_condition : Z3.Expr.expr
+  ; pure_check : Z3.Expr.expr list
+  ; fresh_in_expr : (Z3.Expr.expr * Z3.Expr.expr) list
   ; goal_pattern : sequent
   ; subgoal_pattern : sequent list }
 

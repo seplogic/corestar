@@ -56,13 +56,16 @@ let kwd_or_else =
     "emp", EMP;
     "end", END;
     "false", FALSE;
+    "fresh", FRESH;
     "global", GLOBAL;
     "goto", GOTO;
     "if", IF;
     "import", IMPORT;
+    "in", IN;
     "label", LABEL;
     "nop", NOP;
     "procedure", PROCEDURE;
+    "purecheck", PURECHECK;
     "returns", RETURNS;
     "rule", RULE;
     "spec", SPEC;

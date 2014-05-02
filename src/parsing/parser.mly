@@ -69,11 +69,13 @@ let mk_string_const = Syntax.mk_string_const
 %token EOF
 %token EQUALS
 %token FALSE
+%token FRESH
 %token GLOBAL
 %token GOTO
 %token IDENTIFIER
 %token IF
 %token IMPORT
+%token IN
 %token INT_CONSTANT
 %token L_BRACE
 %token L_BRACKET
@@ -92,6 +94,7 @@ let mk_string_const = Syntax.mk_string_const
 %token PLIDENTIFIER
 %token PROCEDURE
 %token PUREIDENTIFIER
+%token PURECHECK
 %token R_BRACE
 %token R_BRACKET
 %token R_PAREN
@@ -265,12 +268,29 @@ core_stmt_list:
 
 calculus_rule:
   | RULE IDENTIFIER COLON sequent
-    calculus_sidecondition
+    sidecondition_list
     IF sequent_list SEMICOLON
     { { Calculus.schema_name = $2
-      ; side_condition = $5
+      ; pure_check = fst $5
+      ; fresh_in_expr = snd $5
       ; goal_pattern = $4
       ; subgoal_pattern = $7 } }
+;
+
+sidecondition:
+  | PURECHECK term { (Some $2, None) }
+  | FRESH variable IN term { (None,  Some ($2,$4)) }
+;
+sidecondition_list_ne:
+  | sidecondition { (option [] (fun x -> [x]) (fst $1),
+		     option [] (fun x -> [x]) (snd $1)) }
+  | sidecondition SEMICOLON sidecondition_list_ne
+      { (option (fst $3) (flip ListH.cons (fst $3)) (fst $1),
+	 option (snd $3) (flip ListH.cons (snd $3)) (snd $1)) }
+;
+sidecondition_list:
+  | /*empty*/  { ([], []) }
+  | sidecondition_list_ne { $1 }
 ;
 
 sequent:
@@ -278,10 +298,6 @@ sequent:
     { { Calculus.frame = Syntax.mk_emp
       ; hypothesis = $1
       ; conclusion = $3 } }
-;
-
-calculus_sidecondition:
-  | /* empty for now, TODO */ { Z3.Boolean.mk_true z3_ctx }
 ;
 
 sequent_list:
@@ -312,11 +328,11 @@ proc_rets:
   | RETURNS L_PAREN variable_list R_PAREN { $3 }
 
 procedure:
-  | PROCEDURE IDENTIFIER proc_args proc_rets spec body
+  | PROCEDURE IDENTIFIER proc_args proc_rets COLON spec body
     { { C.proc_name = $2
-      ; proc_spec = $5
-      ; proc_ok = snd $6
-      ; proc_body = fst $6
+      ; proc_spec = $6
+      ; proc_ok = snd $7
+      ; proc_body = fst $7
       ; proc_args = $3
       ; proc_rets = $4
       ; proc_rules = { C.calculus = []; abstraction = [] } } }
