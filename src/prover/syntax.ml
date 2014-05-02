@@ -272,6 +272,31 @@ let is_pure_op e =
 (* this is shadowed by the memoised version below *)
 let rec is_pure e =
   let c0 x () = x in
+  let is_z3_bool_op e =
+    Z3.Boolean.is_ite e
+    || Z3.Boolean.is_and e
+    || Z3.Boolean.is_or e
+    || Z3.Boolean.is_iff e
+    || Z3.Boolean.is_xor e
+    || Z3.Boolean.is_not e
+    || Z3.Boolean.is_implies e in
+  let is_z3_pure_op e =
+    Z3.Set.is_subset e
+    || Z3.FiniteDomain.is_lt e
+    || Z3.Relation.is_is_empty e
+    || Z3.Arithmetic.is_le e
+    || Z3.Arithmetic.is_ge e
+    || Z3.Arithmetic.is_lt e
+    || Z3.Arithmetic.is_gt e
+    || Z3.BitVector.is_bv_ule e
+    || Z3.BitVector.is_bv_sle e
+    || Z3.BitVector.is_bv_uge e
+    || Z3.BitVector.is_bv_sge e
+    || Z3.BitVector.is_bv_ult e
+    || Z3.BitVector.is_bv_slt e
+    || Z3.BitVector.is_bv_ugt e
+    || Z3.BitVector.is_bv_sgt e
+    || Z3.BitVector.is_bv_comp e in
   let terr _ = failwith "INTERNAL: should be formula, not term (fuw3irj)" in
   ( on_string_const terr
   & on_int_const terr
@@ -284,6 +309,8 @@ let rec is_pure e =
   & on_eq (c2 true)
   & on_distinct (c1 true)
   & on_quantifier is_pure
+  & on_filter is_z3_bool_op (fun l -> assert(List.for_all is_pure l); true)
+  & on_filter is_z3_pure_op (c1 true)
   & is_pure_op ) e
 
 let mem_pure = ExprHashMap.create 0
