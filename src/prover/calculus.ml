@@ -29,6 +29,20 @@ type rule_schema =
 
 type t = rule_schema list
 
+let mk_equiv_rule name lhs rhs =
+  let f = Syntax.mk_fresh_bool_tpat "_f" in
+  let lo = Syntax.mk_fresh_bool_tpat "_lo" in
+  [{ schema_name = name ^ "_left"
+   ; pure_check = []
+   ; fresh_in_expr = []
+   ; goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
+   ; subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }] };
+   { schema_name = name ^ "_right"
+   ; pure_check = []
+   ; fresh_in_expr = []
+   ; goal_pattern = { frame = f; hypothesis = lo; conclusion = lhs }
+   ; subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }] }]
+
 let sequent_equal { frame = f1; hypothesis = h1; conclusion = c1 }
     { frame = f2; hypothesis = h2; conclusion = c2 } =
   Syntax.expr_equal f1 f2 && Syntax.expr_equal h1 h2 && Syntax.expr_equal c1 c2
