@@ -175,6 +175,7 @@ let prof_fun1 c f x =
     (prof_stop c; raise e)
 let prof_fun2 c f x y = prof_fun1 c (uncurry f) (x, y)
 let prof_fun3 c f x y = prof_fun2 c (uncurry f) (x, y)
+let prof_fun4 c f x y = prof_fun3 c (uncurry f) (x, y)
 
 
 (* }}} *)

@@ -33,5 +33,6 @@ val prof_print_stats : unit -> unit
 val prof_fun1 : string -> ('x1 -> 'result) -> ('x1 -> 'result)
 val prof_fun2 : string -> ('x1 -> 'x2 -> 'result) -> ('x1 -> 'x2 -> 'result)
 val prof_fun3 : string -> ('x1 -> 'x2 -> 'x3 -> 'result) -> ('x1 -> 'x2 -> 'x3 -> 'result)
+val prof_fun4 : string -> ('x1 -> 'x2 -> 'x3 -> 'x4 -> 'result) -> ('x1 -> 'x2 -> 'x3 -> 'x4 -> 'result)
 
 (* TODO: [add_formatter_tag] should probably be in another module *)
