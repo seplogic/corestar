@@ -364,6 +364,12 @@ type bindings = Z3.Expr.expr Syntax.ExprMap.t
 
 let try_find x m = try Some (Syntax.ExprMap.find x m) with Not_found -> None
 
+let rec instantiate bs p =
+  let on_var pv =
+    match try_find pv bs with None -> pv | Some e -> e in
+  let on_app po ps = Z3.FuncDecl.apply po (List.map (instantiate bs) ps) in
+  (Syntax.on_var on_var & Syntax.on_app on_app) p
+
 (* TODO: Maybe rename to expr_cases2, or even Expr.cases2? *)
 let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
   let on_pvar pv =
@@ -374,19 +380,37 @@ let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
      & Syntax.on_app (on_pop_op po ps)) e in
   (Syntax.on_var on_pvar & Syntax.on_app on_pop) p
 
+let expr_match_ops go e f =
+  let err _ =
+    fprintf str_formatter
+      "expr_match_ops %a and %a" Syntax.pp_expr e Syntax.pp_expr f;
+    invalid_arg (flush_str_formatter ()) in
+  cases_pat_exp (c1 err) (c2 err) (c2 err) go (e, f)
 
-(** Find all instantiations that make the pattern [p] match the expression [e]
+let match_args = expr_match_ops
+  (fun ep es fp fs ->
+    if ep <> fp then None
+    else let rec go eqs es fs = match es, fs with
+      | [], [] -> Some (Syntax.mk_big_star eqs)
+      | [], _ | _, [] -> None
+      | e :: es, f :: fs ->
+          let eqs = if Syntax.expr_equal e f then eqs else Syntax.mk_eq e f :: eqs in
+          go eqs es fs in
+      go [] es fs)
+
+(** Find all instantiations that make the pattern [pat] match the expression [expr]
 
     input [bs] is one assignment, the current branch we are exploring
     output is list of assignments, all possible extensions which leads to a match
 
     Parameterized by
+    [eqs] : expr list, a set of equalities that are known to hold (typically, the LHS of the current sequent)
     [is_free] : expr -> bool, signifying which variables should be instantiated
     [can_be_op] : expr -> bool, signifying which variables can be instantiated not just with variables
 
-    Assumes that [e] does not contain pattern variables
-    Assumes that [e] and [p] are in normal form
-    Always fails when either [e] or [p] have top-level disjunctions
+    Assumes that [expr] does not contain pattern variables
+    Assumes that [expr] and [pat] are in normal form
+    Always fails when either [expr] or [pat] have top-level disjunctions
 
     Works best if known equalities have been pushed to Z3, so that we
     can use its congruence closure mechanism to ask if some expression
@@ -394,7 +418,7 @@ let cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) =
     between two syntactically different expressions which are equal
     because of known equalities.
 *)
-let find_matches is_free can_be_op bs (p,e) =
+let rec find_matches eqs is_free can_be_op bs (pat,expr) =
   (* use Z3 congruence closure to decide equality between expressions *)
   let congruent e f = Syntax.expr_equal e f || smt_is_valid (Syntax.mk_eq e f) in
   let bind bs pv eb = match try_find pv bs with
@@ -410,7 +434,27 @@ let find_matches is_free can_be_op bs (p,e) =
     (* called when pattern is a variable [pv] and expression is an op ([o] [es]) *)
     let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
     (* called when pattern is an op and expression is a variable *)
-    let on_pop_var _ _ _ = [] in
+    let on_pop_var po ps ev =
+      (* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
+	 bs' on the provision that ev = po(ps)[bs'] *)
+      let p = Z3.FuncDecl.apply po ps in
+      let been_there =
+	( Syntax.on_star (fun f a -> Syntax.is_tpat f &&
+	  (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
+	   & c1 false) a)
+	  & c1 false ) pat in
+      if been_there then [] (* prevent infinite loops *)
+      else
+	let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
+	let f = Syntax.mk_fresh_bool_tpat "f" in
+	let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
+	(* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
+	let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
+	let is_good b =
+	  let p = instantiate b p in
+	  (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
+	  if congruent ev p then true else false in
+	List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
       if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
@@ -452,39 +496,18 @@ let find_matches is_free can_be_op bs (p,e) =
   let no_star pa =
     let fsm = find_star_matches bs [pa] in
     (on_big_star fsm
-     & fun _ -> fsm [e]) e in
+     & fun _ -> fsm [expr]) expr in
   let star pl =
     let fsm = find_star_matches bs pl in
     (on_big_star fsm
-     & fun _ -> fsm [e]) e in
+     & fun _ -> fsm [expr]) expr in
   (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr p Syntax.pp_expr e; *)
-  let r = (on_big_star star & no_star) p in
+  let r = (on_big_star star & no_star) pat in
   (* let pp_binding f b = *)
   (*   fprintf f "@{Found matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair Syntax.pp_expr Syntax.pp_expr)) (Syntax.ExprMap.fold (fun pat ex l -> (pat,ex)::l) b []) in *)
   (* fprintf logf "@{<v 2>%a@}" (pp_list pp_binding) r; *)
   r
-
-
-let expr_match_ops go e f =
-  let err _ =
-    fprintf str_formatter
-      "expr_match_ops %a and %a" Syntax.pp_expr e Syntax.pp_expr f;
-    invalid_arg (flush_str_formatter ()) in
-  cases_pat_exp
-    (c1 err) (c2 err) (c2 err)
-    go
-    (e, f)
-
-let match_args = expr_match_ops
-  (fun ep es fp fs ->
-    if ep <> fp then None
-    else let rec go eqs es fs = match es, fs with
-      | [], [] -> Some (Syntax.mk_big_star eqs)
-      | [], _ | _, [] -> None
-      | e :: es, f :: fs ->
-          let eqs = if Syntax.expr_equal e f then eqs else Syntax.mk_eq e f :: eqs in
-          go eqs es fs in
-      go [] es fs)
+let find_matches = prof_fun4 "Prover.find_matches" find_matches
 
 (* Notations:
     gs is an accumulator for subgoals found so far (any of them suffices)
@@ -564,10 +587,10 @@ let rec find_conversion can_convert bs (p, e) =
 
 (* interpret free variables as existential variables *)
 let find_existential_matches =
-  find_matches Syntax.is_lvar (c1 false)
+  find_matches [] Syntax.is_lvar (c1 false)
 
 let find_existential_sub_matches leftover_var =
-  find_matches Syntax.is_lvar (Syntax.expr_equal leftover_var)
+  find_matches [] Syntax.is_lvar (Syntax.expr_equal leftover_var)
 
 (*
 let find_existential_match = find_conversion Syntax.is_lvar
@@ -673,17 +696,16 @@ let spatial_match_rule =
       let gs = list_spatial_matches [] hyp_pure conc_pure [] [] hs cs in
       List.map (fun x -> [x]) gs) }
 
-let find_pattern_matches = find_matches (c1 true) Syntax.is_tpat
-let find_pattern_matches = prof_fun2 "find_pattern_matches" find_pattern_matches
+let find_pattern_matches eqs = find_matches eqs (c1 true) Syntax.is_tpat
 
 let find_sequent_matches bs ps s =
   let rec add_eqs e =
-    ( Syntax.on_eq (fun _ _ -> (Smt.say e))
-    & Syntax.on_star (fun a b -> add_eqs a; add_eqs b)
-    & (c1 ())) e in
+    ( Syntax.on_eq (fun _ _ -> (Smt.say e); [e])
+    & Syntax.on_star (fun a b -> add_eqs a@add_eqs b)
+    & (c1 [])) e in
   Smt.push ();
-  add_eqs s.Calculus.hypothesis;
-  let fm pat exp bs = find_pattern_matches bs (pat, exp) in
+  let eqs = add_eqs s.Calculus.hypothesis in
+  let fm pat exp bs = find_pattern_matches eqs bs (pat, exp) in
   (* OPTIM: match less expensive things first.
      A lot of rules won't match and we need to discover the ones which
      don't as fast as possible. *)
@@ -697,12 +719,6 @@ let find_sequent_matches bs ps s =
   r
 
 (* }}} *)
-
-let rec instantiate bs p =
-  let on_var pv =
-    match try_find pv bs with None -> pv | Some e -> e in
-  let on_app po ps = Z3.FuncDecl.apply po (List.map (instantiate bs) ps) in
-  (Syntax.on_var on_var & Syntax.on_app on_app) p
 
 let instantiate_sequent bs s =
   { Calculus.frame = instantiate bs s.Calculus.frame
@@ -856,5 +872,5 @@ let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 let print_stats () =
   if log log_stats then
-  fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
+    fprintf logf "disproved_hit %d disproved_miss %d@\n" !disproved_hit !disproved_miss
 (* }}} *)
