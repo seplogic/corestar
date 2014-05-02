@@ -16,6 +16,9 @@ val mk_int_pgvar : string -> Z3.Expr.expr
 val mk_int_lvar : string -> Z3.Expr.expr
 val mk_int_tpat : string -> Z3.Expr.expr
 val mk_int_vpat : string -> Z3.Expr.expr
+val mk_fresh_int_lvar : string -> Z3.Expr.expr
+val mk_fresh_int_tpat : string -> Z3.Expr.expr
+val mk_fresh_int_vpat : string -> Z3.Expr.expr
 
 (* string operations *)
 val mk_string_const : string -> Z3.Expr.expr (* with side-effects! *)
@@ -74,6 +77,8 @@ val mk_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_tpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_vpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_fresh_lvar : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_fresh_tpat : Z3.Sort.sort -> string -> Z3.Expr.expr
+val mk_fresh_vpat : Z3.Sort.sort -> string -> Z3.Expr.expr
 
 val bool_sort : Z3.Sort.sort
 val mk_bool_plvar : string -> Z3.Expr.expr
@@ -81,6 +86,9 @@ val mk_bool_pgvar : string -> Z3.Expr.expr
 val mk_bool_lvar : string -> Z3.Expr.expr
 val mk_bool_tpat : string -> Z3.Expr.expr
 val mk_bool_vpat : string -> Z3.Expr.expr
+val mk_fresh_bool_lvar : string -> Z3.Expr.expr
+val mk_fresh_bool_tpat : string -> Z3.Expr.expr
+val mk_fresh_bool_vpat : string -> Z3.Expr.expr
 
 val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_distinct : Z3.Expr.expr list -> Z3.Expr.expr

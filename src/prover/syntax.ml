@@ -210,13 +210,19 @@ let mk_pgvar s v = mk_var s (String.make 1 pgvar_char ^ v)
 let mk_lvar s v = mk_var s (String.make 1 lvar_char ^ v)
 let mk_tpat s v = mk_var s (String.make 1 tpat_char ^ v)
 let mk_vpat s v = mk_var s (String.make 1 vpat_char ^ v)
-let mk_fresh_lvar s v = Z3.Expr.mk_fresh_const z3_ctx (String.make 1 lvar_char ^ v) s
+let mk_fresh_var s v = Z3.Expr.mk_fresh_const z3_ctx v s
+let mk_fresh_lvar s v = mk_fresh_var s (String.make 1 lvar_char ^ v)
+let mk_fresh_tpat s v = mk_fresh_var s (String.make 1 tpat_char ^ v)
+let mk_fresh_vpat s v = mk_fresh_var s (String.make 1 vpat_char ^ v)
 
 let mk_bool_plvar v = mk_plvar bool_sort v
 let mk_bool_pgvar v = mk_pgvar bool_sort v
 let mk_bool_lvar v = mk_lvar bool_sort v
 let mk_bool_tpat v = mk_tpat bool_sort v
 let mk_bool_vpat v = mk_vpat bool_sort v
+let mk_fresh_bool_lvar v = mk_fresh_lvar bool_sort v
+let mk_fresh_bool_tpat v = mk_fresh_tpat bool_sort v
+let mk_fresh_bool_vpat v = mk_fresh_vpat bool_sort v
 
 let mk_int_const x = Z3.Arithmetic.Integer.mk_const_s z3_ctx x
 let mk_int_plvar v = mk_plvar int_sort v
@@ -224,6 +230,9 @@ let mk_int_pgvar v = mk_pgvar int_sort v
 let mk_int_lvar v = mk_lvar int_sort v
 let mk_int_tpat v = mk_tpat int_sort v
 let mk_int_vpat v = mk_vpat int_sort v
+let mk_fresh_int_lvar v = mk_fresh_lvar int_sort v
+let mk_fresh_int_tpat v = mk_fresh_tpat int_sort v
+let mk_fresh_int_vpat v = mk_fresh_vpat int_sort v
 
 let mk_distinct = Z3.Boolean.mk_distinct z3_ctx
 let mk_emp = Z3.FuncDecl.apply emp []
