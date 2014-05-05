@@ -264,6 +264,39 @@ let on_string_const f =
 let on_int_const f =
   on_const_of_sort int_sort Z3.Arithmetic.Integer.get_int f
 
+(* pretty printing *) (* {{{ *)
+(* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
+
+(* close to SMT-LIB's language *)
+let rec pp_expr_prefix f = pp_string f @@ Z3.Expr.to_string
+
+(* WARNING: close to input language, but somewhat mangled wrt data structure *)
+let rec pp_expr_infix f e =
+  let pp_n op = fprintf f "@[(%a)@]" (pp_list_sep op pp_expr_infix) in
+  let pp_2 op e1 e2 = pp_n op [e1; e2] in
+  let pp_1 op e = fprintf f "@[%s%a@]" op pp_expr_infix e in
+  let pp_0 op () = fprintf f "%s" op in
+  (on_string_const (fprintf f "\"%s\"")
+   & on_int_const (pp_int f)
+   & on_var (fun e -> fprintf f "%s" (Z3.Expr.to_string e))
+   & on_emp (pp_0 "emp")
+   & on_false (pp_0 "false")
+   & on_star (pp_2 " * ")
+   & on_or (pp_n " || ")
+   & on_not (pp_1 "!")
+   & on_eq (pp_2 "=")
+   & on_distinct (pp_n "!=")
+   & on_app (fun op es -> fprintf f "@[%s(%a)@]" (Z3.Symbol.to_string (Z3.FuncDecl.get_name op)) (pp_list_sep ", " pp_expr_infix) es))
+    e
+
+(* NOTE: This function should be used *only* for debug. The [pp_prefix] version
+is a verbatim dump of the data structure, and should be preferred. The
+[pp_expr_infix] version is a hack that you might want to use if you want to print
+expressions, edit them, then read them back with corestar's parser. All this
+while debugging, of course.*)
+let pp_expr = pp_expr_prefix
+(* }}} *)
+
 let is_pure_op e =
   try
     (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e))).[0] = pure_char
@@ -297,7 +330,8 @@ let rec is_pure e =
     || Z3.BitVector.is_bv_ugt e
     || Z3.BitVector.is_bv_sgt e
     || Z3.BitVector.is_bv_comp e in
-  let terr _ = failwith "INTERNAL: should be formula, not term (fuw3irj)" in
+  let terr _ =
+    failwith "INTERNAL: should be formula, not term (fuw3irj)" in
   ( on_string_const terr
   & on_int_const terr
   & on_var (c1 false) (* best effort *)
@@ -322,35 +356,3 @@ let is_pure e =
     let p = is_pure e in
     ExprHashMap.add mem_pure e p;
     p
-
-
-(* NOTE: pretty printing is for debug, so don't rely on it for anything else *)
-
-(* close to SMT-LIB's language *)
-let rec pp_expr_prefix f = pp_string f @@ Z3.Expr.to_string
-
-(* WARNING: close to input language, but somewhat mangled wrt data structure *)
-let rec pp_expr_infix f e =
-  let pp_n op = fprintf f "@[(%a)@]" (pp_list_sep op pp_expr_infix) in
-  let pp_2 op e1 e2 = pp_n op [e1; e2] in
-  let pp_1 op e = fprintf f "@[%s%a@]" op pp_expr_infix e in
-  let pp_0 op () = fprintf f "%s" op in
-  (on_string_const (fprintf f "\"%s\"")
-   & on_int_const (pp_int f)
-   & on_var (fun e -> fprintf f "%s" (Z3.Expr.to_string e))
-   & on_emp (pp_0 "emp")
-   & on_false (pp_0 "false")
-   & on_star (pp_2 " * ")
-   & on_or (pp_n " || ")
-   & on_not (pp_1 "!")
-   & on_eq (pp_2 "=")
-   & on_distinct (pp_n "!=")
-   & on_app (fun op es -> fprintf f "@[%s(%a)@]" (Z3.Symbol.to_string (Z3.FuncDecl.get_name op)) (pp_list_sep ", " pp_expr_infix) es))
-    e
-
-(* NOTE: This function should be used *only* for debug. The [pp_prefix] version
-is a verbatim dump of the data structure, and should be preferred. The
-[pp_expr_infix] version is a hack that you might want to use if you want to print
-expressions, edit them, then read them back with corestar's parser. All this
-while debugging, of course.*)
-let pp_expr = pp_expr_prefix
