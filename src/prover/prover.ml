@@ -182,7 +182,8 @@ let guess_instances e f =
   let guessable_vars =
     let h = H.create 0 in
     let rec collect x =
-      ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v) 
+      ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v)
+      & Syntax.on_const (c1 ())
       & Syntax.on_star (fun a b -> collect a; collect b)
       & Syntax.on_or (List.iter collect)
       & Syntax.on_app (fun _ es -> if Syntax.is_pure x then List.iter collect es)) x in

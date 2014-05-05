@@ -35,7 +35,7 @@ for line in xs[1:]:
 
 # generate one procedure per letter
 for letter, ts in automaton.items():
-  stdout.write('procedure {}:\n'.format(letter))
+  stdout.write('procedure {}\n'.format(letter))
   for x, ys in ts.items():
     stdout.write('  {{@s={}}} (@s) {{false'.format(x))
     for y in ys:
@@ -56,7 +56,7 @@ for n in range(seq_len + 1):
     for _ in range(n):
       w.append(ls[i % m])
       i //= m
-    stdout.write('\nprocedure seq_{}:\n'.format('_'.join(w)))
+    stdout.write('\nprocedure seq_{}\n'.format('_'.join(w)))
     for x in range(1,state_cnt+1):
       nxt = set([x])
       for l in w:
@@ -71,7 +71,7 @@ for n in range(seq_len + 1):
       for y in nxt:
         stdout.write('||@s={}'.format(y))
       stdout.write('}\n')
-    stdout.write('?');
+    stdout.write(':');
     if w != []:
       stdout.write(' call seq_{}();'.format('_'.join(w[:-1])))
       stdout.write(' call {}();'.format(w[-1]))

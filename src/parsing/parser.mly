@@ -53,7 +53,6 @@ let mk_string_const = Syntax.mk_string_const
 
 /* ============================================================= */
 /* tokens */
-%token ASSIGN
 %token BANG
 %token CALL
 %token CMP_GE
@@ -328,11 +327,11 @@ proc_rets:
   | RETURNS L_PAREN variable_list R_PAREN { $3 }
 
 procedure:
-  | PROCEDURE IDENTIFIER proc_args proc_rets COLON spec body
+  | PROCEDURE IDENTIFIER proc_args proc_rets spec body
     { { C.proc_name = $2
-      ; proc_spec = $6
-      ; proc_ok = snd $7
-      ; proc_body = fst $7
+      ; proc_spec = $5
+      ; proc_ok = snd $6
+      ; proc_body = fst $6
       ; proc_args = $3
       ; proc_rets = $4
       ; proc_rules = { C.calculus = []; abstraction = [] } } }
