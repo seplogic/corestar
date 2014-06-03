@@ -262,10 +262,12 @@ let dbg_mc = ref 0
 type named_rule =
   { rule_name : string (* For debug *)
   (** If (rule_apply x) is [[a;b];[c]], then a and b together are
-  sufficient to prove x, and so is c alone. In particular, [[]] means
-  that x was discharged, and [] means that this rule doesn't apply. If the rule
-  manages to disprove x, then it should raise Disproved. *)
-  ; rule_apply : Calculus.sequent -> Calculus.sequent list list }
+      sufficient to prove x, and so is c alone. In particular, [[]] means
+      that x was discharged, and [] means that this rule doesn't apply. If the rule
+      manages to disprove x, then it should raise Disproved. *)
+  ; rule_apply : Calculus.sequent -> Calculus.sequent list list
+    ; rule_priority : int
+    ; rule_flags : int }
 let goal_discharged = [[]]
 let rule_notapplicable = []
 
@@ -276,7 +278,9 @@ let id_rule =
     (function { Calculus.hypothesis; conclusion; _ } ->
       if Syntax.expr_equal hypothesis conclusion
       then goal_discharged
-      else rule_notapplicable ) }
+      else rule_notapplicable )
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency }
 
 let or_rule =
   { rule_name = "or elimination"
@@ -284,7 +288,9 @@ let or_rule =
     prof_fun1 "Prover.or_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
-      (Syntax.on_or (List.map mk_goal) & (c1 [])) conclusion) }
+      (Syntax.on_or (List.map mk_goal) & (c1 [])) conclusion)
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency }
 
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
@@ -293,7 +299,9 @@ let smt_pure_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion
       then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]]
-      else rule_notapplicable )) }
+      else rule_notapplicable ))
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency }
 
 (* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
 I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
@@ -316,7 +324,9 @@ let abduce_instance_rule =
             [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
             ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
           in List.map mk _Is
-    ) }
+    )
+  ; rule_priority = 999
+  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_instantiation }
 
 let smt_disprove =
   { rule_name = "SMT disprove"
@@ -329,7 +339,9 @@ let smt_disprove =
         let conclusion, _ = extract_pure_part conclusion in
         smt_disprove_query hypothesis conclusion;
         rule_notapplicable
-      end) }
+      end)
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
    The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -621,7 +633,9 @@ let spatial_id_rule =
             ; conclusion = mk_big_star (conc_pure :: List.map mk_eq b)
             ; frame } ] in
         List.map mk_goal matches
-      end) }
+      end)
+  ; rule_priority = 100
+  ; rule_flags = 0 }
 
 let match_rule =
   { rule_name = "matching free variables"
@@ -637,7 +651,9 @@ let match_rule =
         [ { Calculus.hypothesis = hypothesis
           ; conclusion = mk_big_star (List.map mk_eq b)
           ; frame } ] in
-      List.map mk_goal matches) }
+      List.map mk_goal matches)
+  ; rule_priority = 100
+  ; rule_flags = 0 }
 
 let match_subformula_rule =
   { rule_name = "matching spatial subformula"
@@ -671,7 +687,9 @@ let match_subformula_rule =
               ; conclusion = conc_pure
               ; frame = mk_star frame conc_spatial } ] ] in
         matches >>= mk_goal
-      end) }
+      end)
+  ; rule_priority = 100
+  ; rule_flags = 0 }
 
 (* This is intended as a lightweight version of [match_subformula_rule]. *)
 let spatial_match_rule =
@@ -695,7 +713,9 @@ let spatial_match_rule =
       let hs = List.sort cmp hs in
       let cs = List.sort cmp cs in *)
       let gs = list_spatial_matches [] hyp_pure conc_pure [] [] hs cs in
-      List.map (fun x -> [x]) gs) }
+      List.map (fun x -> [x]) gs)
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency }
 
 let find_pattern_matches eqs = find_matches eqs (c1 true) Syntax.is_tpat
 
@@ -728,26 +748,17 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
-(*   ; spatial_match_rule (* should be before abduce_instance_rule *) *)
-  ; abduce_instance_rule
-(*   ; spatial_id_rule *)
-  ; smt_pure_rule
-(*   ; smt_disprove *)
-(*   ; or_rule *)
-  ; match_rule (* XXX: subsumed by match_subformula_rule? *)
-(*   ; match_subformula_rule *)
+  (*   ; spatial_match_rule (* should be before abduce_instance_rule *) *)
+    ; spatial_id_rule
+    ; smt_pure_rule
+    ; smt_disprove
+  (*   ; or_rule *)
+    ; match_rule (* XXX: subsumed by match_subformula_rule? *)
+  (*   ; match_subformula_rule *)
+    ; abduce_instance_rule
   ]
 
-(* These are used for [is_entailment], which wouldn't benefit from instantiating
-lvars. *)
-let builtin_rules_noinst =
-  [ id_rule
-  ; smt_pure_rule
-  ; smt_disprove
-  ; spatial_id_rule ]
-
-
-let rules_of_calculus builtin c =
+let rules_of_calculus =
   let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
     let is_fresh bs (v, e) =
@@ -763,8 +774,10 @@ let rules_of_calculus builtin c =
     else rule_notapplicable in
   let to_rule rs =
     { rule_name = rs.Calculus.schema_name
-    ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs) } in
-  builtin @ List.map to_rule c
+    ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs)
+    ; rule_priority = rs.Calculus.rule_priority
+    ; rule_flags = rs.Calculus.rule_flags } in
+  List.map to_rule
 
 
 (* }}} *)
@@ -832,44 +845,51 @@ let rec heap_size e =
 let min_depth = 2
 let max_depth = 6
 
-let wrap_calculus builtin f calculus =
-  let rules = rules_of_calculus builtin calculus in
-  fun hypothesis conclusion ->
-    f rules { Calculus.hypothesis; conclusion; frame = Syntax.mk_emp }
+let wrap_calculus flags f calculus =
+  let user_filter r = flags r.Calculus.rule_flags in
+  let user_rules = rules_of_calculus (List.filter user_filter calculus) in
+  let filter r = flags r.rule_flags in
+  let rules = List.filter filter builtin_rules in
+  let cmp_rules r1 r2 = compare r1.rule_priority r2.rule_priority in
+  let rules = List.stable_sort cmp_rules (rules @ user_rules) in
+  f rules
 
-let is_entailment rules goal =
+let is_entailment rules lhs rhs =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     if Syntax.expr_equal conclusion Syntax.mk_emp && Syntax.is_pure hypothesis
     then 0
     else Backtrack.max_penalty in
+  let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
   let _, p = solve_idfs min_depth max_depth rules penalty goal in
   p = 0
-let is_entailment = prof_fun2 "Prover.is_entailment" is_entailment
+let is_entailment = prof_fun3 "Prover.is_entailment" is_entailment
 
-let infer_frame rules goal =
+let infer_frame rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
     then (n + 1) * heap_size hypothesis
     else Backtrack.max_penalty in
+  let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
-let infer_frame = prof_fun2 "Prover.infer_frame" infer_frame
+let infer_frame = prof_fun3 "Prover.infer_frame" infer_frame
 
-let biabduct rules goal =
+let biabduct rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     (n + 1) * (heap_size hypothesis + heap_size conclusion) in
+  let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
   let ss, p = solve_idfs min_depth max_depth rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
-let biabduct = prof_fun2 "Prover.biabduct" biabduct
-
-let is_entailment = wrap_calculus builtin_rules_noinst is_entailment
-let infer_frame = wrap_calculus builtin_rules infer_frame
-let biabduct = wrap_calculus builtin_rules biabduct
+let biabduct = prof_fun3 "Prover.biabduct" biabduct
 
 let is_inconsistent rules e =
   is_entailment rules e (Z3.Boolean.mk_false z3_ctx)
 let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
+let is_entailment = wrap_calculus (fun f -> (not @@ Calculus.is_abduct_rule) f && (not @@ Calculus.is_instantiation_rule) f) is_entailment
+let infer_frame = wrap_calculus (not @@ Calculus.is_abduct_rule) infer_frame
+let biabduct = wrap_calculus (c1 true) biabduct
+let is_inconsistent = wrap_calculus Calculus.is_inconsistency_rule is_inconsistent
 
 let print_stats () =
   if log log_stats then

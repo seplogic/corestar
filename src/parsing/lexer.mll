@@ -52,6 +52,7 @@ let error_message e lb =
 let kwd_or_else =
   let keyword_table = Hashtbl.create 53 in
   List.iter (fun (kwd, tok) -> Hashtbl.add keyword_table kwd tok) [
+    "abduct", ABDUCT;
     "call", CALL;
     "emp", EMP;
     "end", END;
@@ -62,7 +63,9 @@ let kwd_or_else =
     "if", IF;
     "import", IMPORT;
     "in", IN;
+    "inconsistent", INCONSISTENT;
     "label", LABEL;
+    "nobacktrack", NO_BACKTRACK;
     "nop", NOP;
     "procedure", PROCEDURE;
     "purecheck", PURECHECK;

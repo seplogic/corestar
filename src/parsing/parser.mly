@@ -53,6 +53,7 @@ let mk_string_const = Syntax.mk_string_const
 
 /* ============================================================= */
 /* tokens */
+%token ABDUCT
 %token BANG
 %token CALL
 %token CMP_GE
@@ -75,6 +76,7 @@ let mk_string_const = Syntax.mk_string_const
 %token IF
 %token IMPORT
 %token IN
+%token INCONSISTENT
 %token INT_CONSTANT
 %token L_BRACE
 %token L_BRACKET
@@ -84,6 +86,7 @@ let mk_string_const = Syntax.mk_string_const
 %token LIDENTIFIER
 %token MULT
 %token NOP
+%token NO_BACKTRACK
 %token NOT_EQUALS
 %token OP_DIV
 %token OP_MINUS
@@ -266,14 +269,31 @@ core_stmt_list:
 /* Rules */
 
 calculus_rule:
-  | RULE IDENTIFIER COLON sequent
+  | RULE rule_flags IDENTIFIER rule_priority COLON sequent
     sidecondition_list
     IF sequent_list SEMICOLON
-    { { Calculus.schema_name = $2
-      ; pure_check = fst $5
-      ; fresh_in_expr = snd $5
-      ; goal_pattern = $4
-      ; subgoal_pattern = $7 } }
+    { { Calculus.schema_name = $3
+      ; pure_check = fst $7
+      ; fresh_in_expr = snd $7
+      ; goal_pattern = $6
+      ; subgoal_pattern = $9
+      ; rule_priority = $4
+      ; rule_flags = $2 } }
+;
+
+rule_flag:
+  | NO_BACKTRACK { Calculus.rule_no_backtrack }
+  | ABDUCT { Calculus.rule_abduct }
+  | INCONSISTENT { Calculus.rule_inconsistency }
+;
+rule_flags:
+  | /* empty */ { 0 }
+  | rule_flag rule_flags { $1 lor $2 }
+;
+
+rule_priority:
+  | /* empty */ { Calculus.default_rule_priority }
+  | L_PAREN INT_CONSTANT R_PAREN { int_of_string $2 }
 ;
 
 sidecondition:

@@ -7,6 +7,20 @@ type sequent =
   ; hypothesis : Z3.Expr.expr
   ; conclusion : Z3.Expr.expr }
 
+let rule_num_flags = 4
+let rule_no_backtrack = 1 lsl 0
+let rule_abduct = 1 lsl 1
+let rule_inconsistency = 1 lsl 2
+let rule_instantiation = 1 lsl 3
+
+let is_abduct_rule f = f land rule_abduct <> 0
+let is_inconsistency_rule f = f land rule_inconsistency <> 0
+let is_no_backtrack_rule f = f land rule_no_backtrack <> 0
+let is_instantiation_rule f = f land rule_instantiation <> 0
+
+(** default priority for user rules *)
+let default_rule_priority = 10000
+
 (** The subgoal list represents a conjunction.
 
     The goal often has the form (L*?l |- R*?r): L and R contain the
@@ -25,23 +39,29 @@ type rule_schema =
   ; pure_check : Z3.Expr.expr list
   ; fresh_in_expr : (Z3.Expr.expr * Z3.Expr.expr) list
   ; goal_pattern : sequent
-  ; subgoal_pattern : sequent list }
+  ; subgoal_pattern : sequent list
+  ; rule_priority : int
+  ; rule_flags : int }
 
 type t = rule_schema list
 
-let mk_equiv_rule name lhs rhs =
+let mk_equiv_rule name priority flags lhs rhs =
   let f = Syntax.mk_fresh_bool_tpat "_f" in
   let lo = Syntax.mk_fresh_bool_tpat "_lo" in
-  [{ schema_name = name ^ "_left"
-   ; pure_check = []
-   ; fresh_in_expr = []
-   ; goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
-   ; subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }] };
-   { schema_name = name ^ "_right"
+  [{ schema_name = name ^ "_right"
    ; pure_check = []
    ; fresh_in_expr = []
    ; goal_pattern = { frame = f; hypothesis = lo; conclusion = lhs }
-   ; subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }] }]
+   ; subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }]
+   ; rule_priority = priority
+   ; rule_flags = flags };
+   { schema_name = name ^ "_left"
+   ; pure_check = []
+   ; fresh_in_expr = []
+   ; goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
+   ; subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }]
+   ; rule_priority = priority
+   ; rule_flags = flags }]
 
 let sequent_equal { frame = f1; hypothesis = h1; conclusion = c1 }
     { frame = f2; hypothesis = h2; conclusion = c2 } =
