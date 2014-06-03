@@ -8,19 +8,6 @@ let z3_ctx = Syntax.z3_ctx
 
 let z3_solver = Z3.Solver.mk_simple_solver z3_ctx
 
-(* (forall ((x Bool) (y Bool)) (= ( * x y ) ( and x y ))) *)
-let star_is_and =
-  let bool_sort = Z3.Boolean.mk_sort z3_ctx in
-  let x = Z3.Expr.mk_const_s z3_ctx "x" bool_sort in
-  let y = Z3.Expr.mk_const_s z3_ctx "y" bool_sort in
-  let forall vs b =
-    Z3.Quantifier.expr_of_quantifier &
-    Z3.Quantifier.mk_forall_const Syntax.z3_ctx vs b None [] [] None None in
-  let equal = Syntax.mk_eq in
-  let star = Syntax.mk_star in
-  let conj e f = Z3.Boolean.mk_and z3_ctx [e; f] in
-  forall [x; y] (equal (star x y) (conj x y))
-
 (* (= emp true) *)
 let emp_is_true =
   Syntax.mk_eq Syntax.mk_emp (Z3.Boolean.mk_true z3_ctx)
@@ -43,10 +30,29 @@ let pop_impure_stack () = match !impure_stack with
   | [] -> failwith "!impure_stack shouldn't be empty (id8nwb)"
 let is_impure () = !impure_count > 0
 
+(** rewrite_star_to_and [e] replaces occurences of "*" in [e] with the boolean conjunction "and" *)
+let rewrite_star_to_and e =
+  let cache = Syntax.ExprHashMap.create 0 in
+  let rec rewrite_star a b =
+    let a = rewrite_expr a in
+    let b = rewrite_expr b in
+(*    Format.fprintf logf "Translated args = %a to %a@." (pp_list_sep "," Syntax.pp_expr) args (pp_list_sep "," Syntax.pp_expr) new_args; *)
+    Z3.Boolean.mk_and z3_ctx [a; b]
+  and rewrite_expr e =
+    try Syntax.ExprHashMap.find cache e
+    with Not_found ->
+      let new_e = (Syntax.on_quantifier (c1 e) & Syntax.on_star rewrite_star & Syntax.recurse rewrite_expr) e in
+      Syntax.ExprHashMap.add cache e new_e;
+      new_e in
+  rewrite_expr e
+
 (** say [e] tells Z3 to assert [e] (assert is a keyword) *)
 let say e =
-  set_impure (not (Syntax.is_pure e));
-  Z3.Solver.add z3_solver [e]
+  (* if (not (Syntax.is_pure e)) then *)
+  (*   Format.fprintf Debug.logf "@{Impure: %a@}@\n" Syntax.pp_expr e; *)
+  let pure = Syntax.is_pure e in
+  set_impure (not pure);
+  Z3.Solver.add z3_solver [if pure then rewrite_star_to_and e else e]
 
 let declare_fun _ _ _ =
   failwith "TODO"
@@ -64,7 +70,7 @@ let check_sat () =
   let es =
     (* Z3 segfaults if we use mk_distinct with < 2 elements *)
     (if List.length ss >= 2 then [Z3.Boolean.mk_distinct z3_ctx ss] else [])
-    @ (if is_impure () then [] else [star_is_and; emp_is_true]) in
+    @(if is_impure () then [] else [emp_is_true]) in
   Z3.Solver.push z3_solver;
   Z3.Solver.add z3_solver es;
   let ass = Z3.Boolean.mk_and z3_ctx (Z3.Solver.get_assertions z3_solver) in

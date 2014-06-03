@@ -124,6 +124,7 @@ val on_star : 'a app_eval_2
 val on_string_const : (string -> 'a) -> 'a app_eval
 val on_int_const : (int -> 'a) -> 'a app_eval
 val on_op : Z3.FuncDecl.func_decl -> 'a app_eval_n
+val on_quantifier : 'a app_eval_1
 
 (* Example: let rec f e = cases (fun _->false) (recurse f) *)
 val recurse : (Z3.Expr.expr -> Z3.Expr.expr) -> (Z3.Expr.expr -> Z3.Expr.expr)
