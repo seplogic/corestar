@@ -112,17 +112,6 @@ let find_lvar_pvar_subs e =
   let es = unfold on_star_nary e in
   List.fold_left add_if_good [] es
 
-(* [e] occurs at least [n] times in [v] *)
-let occurences n e v =
-  let is_v =
-    let c = ref 0 in
-    fun f ->
-      if Syntax.expr_equal v f then incr c;
-      !c >= n in
-  let rec check f =
-    is_v f || Syntax.on_app (fun _ -> List.exists check) f in
-  check e
-
 (* Handles ss=[],
 and caries over the pure parts of the antiframe into the frame. *)
 let afs_of_sequents = function
