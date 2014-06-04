@@ -36,12 +36,14 @@ let rewrite_star_to_and e =
   let rec rewrite_star a b =
     let a = rewrite_expr a in
     let b = rewrite_expr b in
-(*    Format.fprintf logf "Translated args = %a to %a@." (pp_list_sep "," Syntax.pp_expr) args (pp_list_sep "," Syntax.pp_expr) new_args; *)
     Z3.Boolean.mk_and z3_ctx [a; b]
   and rewrite_expr e =
     try Syntax.ExprHashMap.find cache e
     with Not_found ->
-      let new_e = (Syntax.on_quantifier (c1 e) & Syntax.on_star rewrite_star & Syntax.recurse rewrite_expr) e in
+      let mk_quantifier body universal bounds weight pats =
+        let q = Z3.Quantifier.mk_quantifier z3_ctx universal bounds (rewrite_expr body) (Some weight) pats [] None None in
+        Z3.Quantifier.expr_of_quantifier q in
+      let new_e = (Syntax.on_quantifier mk_quantifier & Syntax.on_star rewrite_star & Syntax.recurse rewrite_expr) e in
       Syntax.ExprHashMap.add cache e new_e;
       new_e in
   rewrite_expr e

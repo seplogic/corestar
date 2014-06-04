@@ -102,7 +102,17 @@ let on_app f e = f (Z3.Expr.get_func_decl e) (Z3.Expr.get_args e)
 (* TODO: perhaps unfold more: variables, type of quant. *)
 let on_quantifier f g e =
   if Z3.AST.is_quantifier (Z3.Expr.ast_of_expr e)
-  then f (Z3.Quantifier.get_body (Z3.Quantifier.quantifier_of_expr e))
+  then
+    let q = Z3.Quantifier.quantifier_of_expr e in
+    let vs = Z3.Quantifier.get_bound_variable_sorts q in
+    let vn = Z3.Quantifier.get_bound_variable_names q in
+    let bounds = List.map2 (Z3.Expr.mk_const z3_ctx) vn vs in
+    f (Z3.Quantifier.get_body q)
+      (Z3.Quantifier.is_universal q)
+      bounds
+      (Z3.Quantifier.get_weight q)
+      (Z3.Quantifier.get_patterns q)
+      (* Z3.Quantifier.get_no_patterns q*) (* TODO: bug in Z3 bindings? cannot get these *)
   else g e
 
 let on_op op_ref f g e =
@@ -347,7 +357,7 @@ let rec is_pure e =
 	& on_not (fun e -> assert (is_pure e); true)
 	& on_eq (c2 true)
 	& on_distinct (c1 true)
-	& on_quantifier is_pure
+	& on_quantifier (fun b _ _ _ _ -> is_pure b)
 	& on_filter is_z3_bool_op (fun l -> assert(List.for_all is_pure l); true)
 	& on_filter is_z3_pure_op (c1 true)
 	& is_pure_op ) e in
