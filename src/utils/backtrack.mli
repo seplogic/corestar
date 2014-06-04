@@ -29,7 +29,7 @@ val min_penalty : int
 val max_penalty : int
 
 val choose :
-  ('a -> 'b * int) -> ('a -> bool) ->
+  ('a -> 'b * int) -> ('a -> bool) -> ('a -> bool) ->
   ('a -> 'a) -> 'b * int -> 'a -> 'b * int
   (* [choose f end next z start] is like [choose_list], but applied on a list
   [xs] that is computed implicitly as follows: [start], [next start],
@@ -37,7 +37,7 @@ val choose :
   [end x] evaluates to [true]. *)
 
 val choose_list :
-  ('a -> 'b * int) -> 'b * int -> 'a list -> 'b * int
+  ('a -> 'b * int) -> ('a -> bool) -> 'b * int -> 'a list -> 'b * int
   (* [choose_list f z xs] applies [f] to the elements of [xs] in turn.  The
   results must be pairs (value, score).  If a score [<=min_penalty] is returned,
   then that pair is returned without evaluating [f] on the rest of [xs].
@@ -45,7 +45,7 @@ val choose_list :
   In case [xs] is empty, [z] is returned. *)
 
 val combine_list :
-  ('a -> 'b list * int) -> 'b list * int -> 'a list -> 'b list * int
+  ('a -> 'b list * int) -> ('a -> bool) -> 'b list * int -> 'a list -> 'b list * int
   (* [combine_list f ([], 0) xs] is similar to
       let yss, ps = List.split (List.map f xs) in (List.concat yss, sum ps)
   except that the mapping stops early if the sum of penalties exceeds

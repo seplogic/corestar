@@ -25,16 +25,17 @@ let chain fs x cont =
   List.fold_right flip fs cont x
 
 (* READ THIS FUNCTION. Early exit folding of structures *)
-let rec early_exit_fold exitable plus leaf next acc c =
-  if leaf c then acc else
-  let new_acc = plus acc c in
-  if exitable new_acc then new_acc
-  else early_exit_fold exitable plus leaf next new_acc (next c)
+let rec early_exit_fold exitable plus btrackable leaf next acc c =
+  if leaf c || exitable acc then acc else
+    try
+      let new_acc = plus acc c in
+      if not (btrackable c) then new_acc
+      else early_exit_fold exitable plus btrackable leaf next new_acc (next c)
+    with No_match -> early_exit_fold exitable plus btrackable leaf next acc (next c)
 
-let early_exit_fold_list exitable plus acc l =
+let early_exit_fold_list exitable plus btrackable acc l =
   let plus_head a c = plus a (List.hd c) in
-  early_exit_fold exitable plus_head ((=) []) List.tl acc l
-
+  early_exit_fold exitable plus_head (btrackable @@ List.hd) ((=) []) List.tl acc l
 
 let min_penalty = 5
 let max_penalty = 50
@@ -42,11 +43,9 @@ let max_penalty = 50
 let exitable_choice (_, penalty) = penalty <= min_penalty
 
 let plus_choice f (best, best_penalty) c =
-  try
-    let (candidate, penalty) = f c in
-    if (penalty < best_penalty) then (candidate, penalty)
-    else (best, best_penalty)
-  with No_match -> (best, best_penalty)
+  let (candidate, penalty) = f c in
+  if (penalty < best_penalty) then (candidate, penalty)
+  else (best, best_penalty)
 
 let choose f = early_exit_fold exitable_choice (plus_choice f)
 

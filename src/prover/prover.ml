@@ -269,7 +269,7 @@ let id_rule =
       then goal_discharged
       else rule_notapplicable )
   ; rule_priority = 100
-  ; rule_flags = Calculus.rule_inconsistency }
+  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
 let or_rule =
   { rule_name = "or elimination"
@@ -279,7 +279,7 @@ let or_rule =
       let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
       (Syntax.on_or (List.map mk_goal) & (c1 [])) conclusion)
   ; rule_priority = 100
-  ; rule_flags = Calculus.rule_inconsistency }
+  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
 let smt_pure_rule =
   { rule_name = "pure entailment (by SMT)"
@@ -290,7 +290,7 @@ let smt_pure_rule =
       then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]]
       else rule_notapplicable ))
   ; rule_priority = 100
-  ; rule_flags = Calculus.rule_inconsistency }
+  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
 (* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
 I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
@@ -314,8 +314,8 @@ let abduce_instance_rule =
             ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
           in List.map mk _Is
     )
-  ; rule_priority = 999
-  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_instantiation }
+  ; rule_priority = 999999
+  ; rule_flags = Calculus.rule_instantiation }
 
 let smt_disprove =
   { rule_name = "SMT disprove"
@@ -330,7 +330,7 @@ let smt_disprove =
         rule_notapplicable
       end)
   ; rule_priority = 100
-  ; rule_flags = Calculus.rule_inconsistency }
+  ; rule_flags = Calculus.rule_no_backtrack lor Calculus.rule_inconsistency }
 
 (* A root-leaf path of the result matches ("or"?; "star"?; "not"?; OTHER).
    The '?' means 'maybe', and OTHER matches anything else other than "or", "star",
@@ -624,7 +624,7 @@ let spatial_id_rule =
         List.map mk_goal matches
       end)
   ; rule_priority = 100
-  ; rule_flags = 0 }
+  ; rule_flags = Calculus.rule_no_backtrack }
 
 let match_rule =
   { rule_name = "matching free variables"
@@ -737,13 +737,13 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
-  (*   ; spatial_match_rule (* should be before abduce_instance_rule *) *)
+    (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
     ; spatial_id_rule
     ; smt_pure_rule
     ; smt_disprove
-  (*   ; or_rule *)
-    ; match_rule (* XXX: subsumed by match_subformula_rule? *)
-  (*   ; match_subformula_rule *)
+    (* ; or_rule *)
+    (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
+    (* ; match_subformula_rule *)
     ; abduce_instance_rule
   ]
 
@@ -793,14 +793,17 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
       let process_rule r =
         if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
         let ess = r.rule_apply goal in
+        if ess = rule_notapplicable then raise Backtrack.No_match;
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
+        if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
         ess in
+      let btrackable r = not (Calculus.is_no_backtrack_rule r.rule_flags) in
       let solve_subgoal = solve rules penalty (n - 1) in
-      let solve_all_subgoals = Backtrack.combine_list solve_subgoal ([], 0) in
-      let choose_alternative = Backtrack.choose_list solve_all_subgoals leaf in
+      let solve_all_subgoals = Backtrack.combine_list solve_subgoal (c1 true) ([], 0) in
+      let choose_alternative = Backtrack.choose_list solve_all_subgoals (c1 true) leaf in
       let choose_rule =
         Backtrack.choose_list (choose_alternative @@ process_rule) in
-      try choose_rule leaf rules
+      try choose_rule btrackable leaf rules
       with Disproved -> begin
         if log log_prove then fprintf logf "disproved@\n";
         leaf
@@ -814,7 +817,7 @@ let solve_idfs min_depth max_depth rules penalty goal =
   let solve = flip (solve rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
-  let r = Backtrack.choose solve give_up succ fail min_depth in
+  let r = Backtrack.choose solve (c1 true) give_up succ fail min_depth in
   if log log_prove then fprintf logf "@}@]@\n@?";
   r
 
