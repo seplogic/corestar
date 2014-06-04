@@ -63,7 +63,7 @@ val size : Z3.Expr.expr -> int
 val vars : Z3.Expr.expr -> Z3.Expr.expr list
 
 (* various helpers *)
-val mk_0 : string -> Z3.Expr.expr
+val mk_0 : Z3.FuncDecl.func_decl -> Z3.Expr.expr
 val mk_1 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_2 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_n : Z3.FuncDecl.func_decl -> Z3.Expr.expr list -> Z3.Expr.expr
