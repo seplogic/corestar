@@ -438,25 +438,25 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     (* called when pattern is an op and expression is a variable *)
     let on_pop_var po ps ev =
       (* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
-	 bs' on the provision that ev = po(ps)[bs'] *)
+         bs' on the provision that ev = po(ps)[bs'] *)
       let p = Z3.FuncDecl.apply po ps in
       let been_there =
-	( Syntax.on_star (fun f a -> Syntax.is_tpat f &&
-	  (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
-	   & c1 false) a)
-	  & c1 false ) pat in
+        ( Syntax.on_star (fun f a -> Syntax.is_tpat f &&
+          (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
+           & c1 false) a)
+          & c1 false ) pat in
       if been_there then [] (* prevent infinite loops *)
       else
-	let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
-	let f = Syntax.mk_fresh_bool_tpat "f" in
-	let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
-	(* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
-	let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
-	let is_good b =
-	  let p = instantiate b p in
-	  (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
-	  if congruent ev p then true else false in
-	List.filter is_good new_bs in
+        let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
+        let f = Syntax.mk_fresh_bool_tpat "f" in
+        let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
+        (* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
+        let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
+        let is_good b =
+          let p = instantiate b p in
+          (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
+          if congruent ev p then true else false in
+        List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
       if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
@@ -611,7 +611,7 @@ let spatial_id_rule =
         && Syntax.expr_equal conc_spatial Syntax.mk_emp
       then rule_notapplicable
       else if Syntax.expr_equal hyp_spatial conc_spatial (* should really be handled by matching *)
-        then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
+      then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
       else begin
         let matches = find_existential_matches Syntax.ExprMap.empty (conc_spatial, hyp_spatial) in
         if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
