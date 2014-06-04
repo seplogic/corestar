@@ -74,11 +74,12 @@ let is_vpat p = z3_is_const p && is_vpat_name (Z3.Expr.to_string p)
 
 (* caution: code-duplication for optimisation purposes! *)
 let is_var v =
-  z3_is_const v &&
-  (is_pvar_name (Z3.Expr.to_string v)
-   || is_lvar_name (Z3.Expr.to_string v)
-   || is_tpat_name (Z3.Expr.to_string v)
-   || is_vpat_name (Z3.Expr.to_string v))
+  Z3.AST.is_var (Z3.Expr.ast_of_expr v)
+  || (z3_is_const v &&
+	(is_pvar_name (Z3.Expr.to_string v)
+	 || is_lvar_name (Z3.Expr.to_string v)
+	 || is_tpat_name (Z3.Expr.to_string v)
+	 || is_vpat_name (Z3.Expr.to_string v)))
 let is_const v = z3_is_const v && not
   (is_pvar_name (Z3.Expr.to_string v)
    || is_lvar_name (Z3.Expr.to_string v)

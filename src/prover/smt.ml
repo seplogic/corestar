@@ -41,9 +41,12 @@ let rewrite_star_to_and e =
     try Syntax.ExprHashMap.find cache e
     with Not_found ->
       let mk_quantifier body universal bounds weight pats =
-        let q = Z3.Quantifier.mk_quantifier z3_ctx universal bounds (rewrite_expr body) (Some weight) pats [] None None in
-        Z3.Quantifier.expr_of_quantifier q in
-      let new_e = (Syntax.on_quantifier mk_quantifier & Syntax.on_star rewrite_star & Syntax.recurse rewrite_expr) e in
+        Z3.Expr.update e [rewrite_expr body] in
+      let new_e =
+        (Syntax.on_var id
+         & Syntax.on_quantifier mk_quantifier
+         & Syntax.on_star rewrite_star
+         & Syntax.recurse rewrite_expr) e in
       Syntax.ExprHashMap.add cache e new_e;
       new_e in
   rewrite_expr e
