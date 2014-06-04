@@ -1,30 +1,30 @@
-procedure Test1:
-{emp}{emp} ?
-nop;
-label loop;
-goto loop;
-end;
+procedure Test1
+  {emp}{emp}
+:
+  label loop;
+  goto loop;
 
 // TODO: Should fail well-formedness checks.
-procedure havoc(%y) {}(%y){}
+procedure havoc(%y)
+  {}(%y){}
 
-procedure Test2:
-{emp}{emp} ?
-nop;
-spec {%x=_x}(%x){@x=_x+1};
-spec {%x=_x}(%x){@x=_x+1} + {x=_x}(){y>_x};
-spec {%a=_x}(){@r=_x+1} [x/%a, y/%b] returns [y/@r];
-spec {%a=_x}(){@r=_x+1} + {}(){} [x/@a] returns [y/@r];
+procedure Test2
+  {emp}{emp}
+:
+  spec {%x=_x}(%x){@x=_x+1};
+  spec {%x=_x}(%x){@x=_x+1} + {x=_x}(){y>_x};
+  spec {%a=_x}(){@r=_x+1} [%a,%b <- x,y] returns [@r<-y];
+  spec {%a=_x}(){@r=_x+1} + {}(){} [@a<-x] returns [@r<-y];
 
-spec {}(%x){};
-call havoc(%x);
+  spec {}(%x){};
+  call havoc(%x);
 
-assign %x := {emp} () {/%x/emp} [%z] (%y);
-label loop;
-call %x := f((%x+%y), %y);
-goto loop, and;
-label and;
-end;
+  spec {}(%x){};
+  label loop;
+  call %x := f((%x+%y), %y);
+  goto loop, and;
+  label and;
 
-procedure (%c) := f(%a,%b):
+procedure f(%a,%b) returns (%c)
+:
 

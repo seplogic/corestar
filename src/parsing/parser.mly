@@ -123,6 +123,8 @@ let mk_string_const = Syntax.mk_string_const
 /* associativity and precedence */
 
 %left OROR
+%left OP_PLUS
+%left OP_MINUS
 %left MULT
 
 /* entry point */
@@ -132,11 +134,6 @@ let mk_string_const = Syntax.mk_string_const
 %% /* rules */
 
 /* Identifiers and constants */
-
-binop:
-  | OP_MINUS { Z3.Arithmetic.mk_sub z3_ctx }
-  | OP_PLUS { Z3.Arithmetic.mk_add z3_ctx }
-;
 
 cmpop:
   | CMP_LE { Z3.Arithmetic.mk_le z3_ctx }
@@ -165,11 +162,17 @@ variable_list:
 ;
 
 term:
+  | function_ { mk_int_app (fst $1) (snd $1) }
+  | term_nf { $1 }
+  | L_PAREN term_nf R_PAREN { $2 }
+;
+
+term_nf:
   | variable { $1 }
-  | IDENTIFIER L_PAREN term_list R_PAREN { mk_int_app $1 $3 }
-  | L_PAREN term binop term R_PAREN { $3 [$2; $4] } /* TODO: make nicer */
   | STRING_CONSTANT { mk_string_const $1 }
   | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
+  | term OP_MINUS term { Z3.Arithmetic.mk_sub z3_ctx [$1; $3] }
+  | term OP_PLUS term { Z3.Arithmetic.mk_add z3_ctx [$1; $3] }
 ;
 
 term_list_ne:
@@ -182,18 +185,27 @@ term_list:
 ;
 
 formula:
+  | function_ { mk_bool_app (fst $1) (snd $1) }
+  | formula_nf { $1 }
+  | L_PAREN formula_nf R_PAREN { $2 }
+;
+
+formula_nf:
   | /* empty */ { Syntax.mk_emp }
   | EMP { Syntax.mk_emp }
   | FALSE { Z3.Boolean.mk_false z3_ctx }
   | PUREIDENTIFIER L_PAREN term_list R_PAREN { mk_bool_app ("!"^$1) $3 }
-  | IDENTIFIER L_PAREN term_list R_PAREN { mk_bool_app $1 $3 }
   | formula MULT formula { Syntax.mk_star $1 $3 }
   | formula OROR formula { Z3.Boolean.mk_or z3_ctx [$1; $3] }
   | term NOT_EQUALS term { Syntax.mk_distinct [$1; $3] }
   | term EQUALS term { Syntax.mk_eq $1 $3 }
   | term cmpop term { $2 $1 $3 }
   | TPIDENTIFIER { Syntax.mk_bool_tpat $1 } /* used for patterns */
-  | L_PAREN formula R_PAREN { $2 }
+;
+
+function_:
+  | IDENTIFIER L_PAREN term_list R_PAREN { ($1, $3) }
+  | L_PAREN function_ R_PAREN { $2 }
 ;
 
 /* Specifications */
