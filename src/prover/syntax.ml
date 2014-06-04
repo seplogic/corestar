@@ -302,7 +302,9 @@ let is_pure_op e =
     (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e))).[0] = pure_char
   with Z3native.Exception _ -> false
 
-(* this is shadowed by the memoised version below *)
+(* TODO: do we want to gather statistics on cache hits? *)
+let mem_pure = ExprHashMap.create 0
+
 let rec is_pure e =
   let c0 x () = x in
   let is_z3_bool_op e =
@@ -332,27 +334,22 @@ let rec is_pure e =
     || Z3.BitVector.is_bv_comp e in
   let terr _ =
     failwith "INTERNAL: should be formula, not term (fuw3irj)" in
-  ( on_string_const terr
-  & on_int_const terr
-  & on_var (c1 false) (* best effort *)
-  & on_emp (c0 true)
-  & on_false (c0 true)
-  & on_star (fun a b -> is_pure a && is_pure b)
-  & on_or (List.for_all is_pure)
-  & on_not (fun e -> assert (is_pure e); true)
-  & on_eq (c2 true)
-  & on_distinct (c1 true)
-  & on_quantifier is_pure
-  & on_filter is_z3_bool_op (fun l -> assert(List.for_all is_pure l); true)
-  & on_filter is_z3_pure_op (c1 true)
-  & is_pure_op ) e
-
-let mem_pure = ExprHashMap.create 0
-
-(* TODO: do we want to gather statistics on cache hits? *)
-let is_pure e =
   try ExprHashMap.find mem_pure e
   with Not_found ->
-    let p = is_pure e in
-    ExprHashMap.add mem_pure e p;
-    p
+    let pure =
+      ( on_string_const terr
+	& on_int_const terr
+	& on_var (c1 false) (* best effort *)
+	& on_emp (c0 true)
+	& on_false (c0 true)
+	& on_star (fun a b -> is_pure a && is_pure b)
+	& on_or (List.for_all is_pure)
+	& on_not (fun e -> assert (is_pure e); true)
+	& on_eq (c2 true)
+	& on_distinct (c1 true)
+	& on_quantifier is_pure
+	& on_filter is_z3_bool_op (fun l -> assert(List.for_all is_pure l); true)
+	& on_filter is_z3_pure_op (c1 true)
+	& is_pure_op ) e in
+    ExprHashMap.add mem_pure e pure;
+    pure
