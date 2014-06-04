@@ -34,34 +34,45 @@ let default_rule_priority = 10000
     fresh_in_expr is a list of pairs (v,e) such that v must not appear
     free in e for the rule to fire.
 *)
+type sequent_schema =
+  { seq_name : string (* not essential, just for reporting problems *)
+  ; seq_pure_check : Z3.Expr.expr list
+  ; seq_fresh_in_expr : (Z3.Expr.expr * Z3.Expr.expr) list
+  ; seq_goal_pattern : sequent
+  ; seq_subgoal_pattern : sequent list
+  ; seq_priority : int
+  ; seq_flags : int }
+
+type rewrite_schema =
+  { rw_name : string (* not essential, just for reporting problems *)
+  ; rw_from_pattern : Z3.Expr.expr
+  ; rw_to_pattern : Z3.Expr.expr }
+
 type rule_schema =
-  { schema_name : string (* not essential, just for reporting problems *)
-  ; pure_check : Z3.Expr.expr list
-  ; fresh_in_expr : (Z3.Expr.expr * Z3.Expr.expr) list
-  ; goal_pattern : sequent
-  ; subgoal_pattern : sequent list
-  ; rule_priority : int
-  ; rule_flags : int }
+| Sequent_rule of sequent_schema
+| Rewrite_rule of rewrite_schema
 
 type t = rule_schema list
 
 let mk_equiv_rule name priority flags lhs rhs =
   let f = Syntax.mk_fresh_bool_tpat "_f" in
   let lo = Syntax.mk_fresh_bool_tpat "_lo" in
-  [{ schema_name = name ^ "_right"
-   ; pure_check = []
-   ; fresh_in_expr = []
-   ; goal_pattern = { frame = f; hypothesis = lo; conclusion = lhs }
-   ; subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }]
-   ; rule_priority = priority
-   ; rule_flags = flags };
-   { schema_name = name ^ "_left"
-   ; pure_check = []
-   ; fresh_in_expr = []
-   ; goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
-   ; subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }]
-   ; rule_priority = priority
-   ; rule_flags = flags }]
+  let rs =
+    [{ seq_name = name ^ "_right"
+     ; seq_pure_check = []
+     ; seq_fresh_in_expr = []
+     ; seq_goal_pattern = { frame = f; hypothesis = lo; conclusion = lhs }
+     ; seq_subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }]
+     ; seq_priority = priority
+     ; seq_flags = flags };
+     { seq_name = name ^ "_left"
+     ; seq_pure_check = []
+     ; seq_fresh_in_expr = []
+     ; seq_goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
+     ; seq_subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }]
+     ; seq_priority = priority
+     ; seq_flags = flags }] in
+  List.map (fun r -> Sequent_rule r) rs
 
 let sequent_equal { frame = f1; hypothesis = h1; conclusion = c1 }
     { frame = f2; hypothesis = h2; conclusion = c2 } =

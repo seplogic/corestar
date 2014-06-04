@@ -708,13 +708,16 @@ let spatial_match_rule =
 
 let find_pattern_matches eqs = find_matches eqs (c1 true) Syntax.is_tpat
 
-let find_sequent_matches bs ps s =
+let add_sequent_eqs s =
   let rec add_eqs e =
     ( Syntax.on_eq (fun _ _ -> (Smt.say e); [e])
     & Syntax.on_star (fun a b -> add_eqs a@add_eqs b)
     & (c1 [])) e in
+  add_eqs s.Calculus.hypothesis
+
+let find_sequent_matches bs ps s =
   Smt.push ();
-  let eqs = add_eqs s.Calculus.hypothesis in
+  let eqs = add_sequent_eqs s in
   let fm pat exp bs = find_pattern_matches eqs bs (pat, exp) in
   (* OPTIM: match less expensive things first.
      A lot of rules won't match and we need to discover the ones which
@@ -728,6 +731,31 @@ let find_sequent_matches bs ps s =
   Smt.pop ();
   r
 
+(** Applies rewrite rule [r] everywhere in [e]
+
+    not recursively though: rewriting could trigger more
+    rewriting. That is not taken into account. This is because to do
+    it properly we would need to do a fix point over all the rewrite
+    rules, not just one. Perhaps we should do that.
+*)
+let rec rewrite_in_expr eqs r e =
+  let name = r.Calculus.rw_name in
+  let from_pat = r.Calculus.rw_from_pattern in
+  let to_pat = r.Calculus.rw_to_pattern in
+  let op = Z3.Expr.get_func_decl from_pat in
+  let rewrite_op e =
+    let bs = find_pattern_matches eqs Syntax.ExprMap.empty (from_pat, e) in
+    if bs = [] then e
+    else (
+      assert (List.length bs = 1); (* Jules: is this reasonable? *)
+      let f = instantiate (List.hd bs) to_pat in
+      if log log_prove then
+        fprintf logf "@{<p>Rewrote %s: @[%a@] -> @[%a@]@}@\n" name Syntax.pp_expr e Syntax.pp_expr f;
+      f) in
+  (Syntax.on_op op (fun _ -> rewrite_op e)
+   & Syntax.on_app (fun op l ->
+     Z3.FuncDecl.apply op (List.map (rewrite_in_expr eqs r) l))) e
+
 (* }}} *)
 
 let instantiate_sequent bs s =
@@ -737,36 +765,54 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
-    (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
-    ; spatial_id_rule
-    ; smt_pure_rule
-    ; smt_disprove
-    (* ; or_rule *)
-    (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
-    (* ; match_subformula_rule *)
-    ; abduce_instance_rule
+  (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
+  ; spatial_id_rule
+  ; smt_pure_rule
+  ; smt_disprove
+  (* ; or_rule *)
+  (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
+  (* ; match_subformula_rule *)
+  ; abduce_instance_rule
   ]
 
-let rules_of_calculus =
-  let apply_rule_schema rs s = (* RLP: Should we refer to some bindings here? *)
-    let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.goal_pattern s in
-    let is_fresh bs (v, e) =
-      not (List.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
-    let check bs c = smt_is_valid (instantiate bs c) in
-    let side_conditions bs =
-      List.for_all (is_fresh bs) rs.Calculus.fresh_in_expr
-      && List.for_all (check bs) rs.Calculus.pure_check in
-    let m = List.filter side_conditions m in
+(* FIXME: should freshen free logical variables in seq_subgoal_pattern
+   and rw_to_pattern patterns *)
+(* TODO: apply rw to pure check *)
+(* TODO: normalize rule patterns (perhaps best done earlier as this is called often-ish *)
+let rules_of_calculus rw =
+  let check bs c = smt_is_valid (instantiate bs c) in
+  let is_fresh bs (v, e) =
+    not (List.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
+  let side_conditions freshs checks bs =
+    List.for_all (is_fresh bs) freshs
+    && List.for_all (check bs) checks in
+  let apply_seq_schema rs s = (* RLP: Should we refer to some bindings here? *)
+    let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.seq_goal_pattern s in
+    let sc = side_conditions rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
+    let m = List.filter sc m in
     let try_one bs =
-      List.map (instantiate_sequent bs) rs.Calculus.subgoal_pattern in
+      List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
     if m != [] then List.map try_one m
     else rule_notapplicable in
-  let to_rule rs =
-    { rule_name = rs.Calculus.schema_name
-    ; rule_apply = prof_fun1 "user_rule" (apply_rule_schema rs)
-    ; rule_priority = rs.Calculus.rule_priority
-    ; rule_flags = rs.Calculus.rule_flags } in
-  List.map to_rule
+  let rule_of_seq_schema rs =
+    { rule_name = rs.Calculus.seq_name
+    ; rule_apply = prof_fun1 ("user-"^rs.Calculus.seq_name) (apply_seq_schema rs)
+    ; rule_priority = rs.Calculus.seq_priority
+    ; rule_flags = rs.Calculus.seq_flags } in
+  List.map rule_of_seq_schema
+
+let rw_of_rules rss s e =
+  Smt.push ();
+  let eqs = add_sequent_eqs s in
+  let rec apply e = function
+    | [] -> e
+    | rs::tl ->
+      let f = rewrite_in_expr eqs rs e in
+      if Syntax.expr_equal e f then apply e tl
+      else apply f rss in
+  let r = apply e rss in
+  Smt.pop ();
+  r
 
 
 (* }}} *)
@@ -779,12 +825,12 @@ of acceptable as a leaf, but we should keep looking for something better.
   TODO: we may want to count only once a leaf appearing twice
   TODO: we may want to partly cache the results of proving
 *)
-let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
+let rec solve rw rules penalty n goal =
   if log log_prove then fprintf logf "@[<2>@{<details>";
   let goal =
-    { Calculus.frame = normalize frame
-    ; hypothesis = normalize hypothesis
-    ; conclusion = normalize conclusion } in
+    { Calculus.frame = normalize goal.Calculus.frame
+    ; hypothesis = normalize (rw goal goal.Calculus.hypothesis)
+    ; conclusion = normalize (rw goal goal.Calculus.conclusion) } in
   if log log_prove then fprintf logf "@{<summary>goal@@%d:@} @{<p>%a@}@," n CalculusOps.pp_sequent goal;
   let leaf = ([goal], penalty n goal) in
   if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
@@ -798,7 +844,7 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
         if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
         ess in
       let btrackable r = not (Calculus.is_no_backtrack_rule r.rule_flags) in
-      let solve_subgoal = solve rules penalty (n - 1) in
+      let solve_subgoal = solve rw rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal (c1 true) ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals (c1 true) leaf in
       let choose_rule =
@@ -812,9 +858,9 @@ let rec solve rules penalty n { Calculus.frame; hypothesis; conclusion } =
   if log log_prove then fprintf logf "@}@]@\n";
   result
 
-let solve_idfs min_depth max_depth rules penalty goal =
+let solve_idfs min_depth max_depth rw rules penalty goal =
   if log log_prove then fprintf logf "@[<2>@{<details>@{<summary>start idfs proving@}@\n";
-  let solve = flip (solve rules penalty) goal in
+  let solve = flip (solve rw rules penalty) goal in
   let fail = ([], Backtrack.max_penalty) in
   let give_up i = i > max_depth in
   let r = Backtrack.choose solve (c1 true) give_up succ fail min_depth in
@@ -838,44 +884,52 @@ let min_depth = 2
 let max_depth = 6
 
 let wrap_calculus flags f calculus =
-  let user_filter r = flags r.Calculus.rule_flags in
-  let user_rules = rules_of_calculus (List.filter user_filter calculus) in
+  let filt (sqr,rwr) = function
+    | Calculus.Sequent_rule r -> (r::sqr,rwr)
+    | Calculus.Rewrite_rule r -> (sqr,r::rwr) in
+  let (seq_rules, rw_rules) = List.fold_left filt ([],[]) calculus in
+  (* order has been flipped by fold on [filt], restore it *)
+  let rw = rw_of_rules (List.rev rw_rules) in
+  let user_filter r = flags r.Calculus.seq_flags in
+  let user_rules = rules_of_calculus rw (List.filter user_filter seq_rules) in
+  (* order has been flipped by fold on [filt], restore it *)
+  let user_rules = List.rev user_rules in
   let filter r = flags r.rule_flags in
   let rules = List.filter filter builtin_rules in
   let cmp_rules r1 r2 = compare r1.rule_priority r2.rule_priority in
   let rules = List.stable_sort cmp_rules (rules @ user_rules) in
-  f rules
+  f rw rules
 
-let is_entailment rules lhs rhs =
+let is_entailment rw rules lhs rhs =
   let penalty _ { Calculus.hypothesis; conclusion; _ } =
     if Syntax.expr_equal conclusion Syntax.mk_emp && Syntax.is_pure hypothesis
     then 0
     else Backtrack.max_penalty in
   let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
-  let _, p = solve_idfs min_depth max_depth rules penalty goal in
+  let _, p = solve_idfs min_depth max_depth rw rules penalty goal in
   p = 0
 let is_entailment = prof_fun3 "Prover.is_entailment" is_entailment
 
-let infer_frame rules lhs rhs =
+let infer_frame rw rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
     then (n + 1) * heap_size hypothesis
     else Backtrack.max_penalty in
   let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
-  let ss, p = solve_idfs min_depth max_depth rules penalty goal in
+  let ss, p = solve_idfs min_depth max_depth rw rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 let infer_frame = prof_fun3 "Prover.infer_frame" infer_frame
 
-let biabduct rules lhs rhs =
+let biabduct rw rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     (n + 1) * (heap_size hypothesis + heap_size conclusion) in
   let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
-  let ss, p = solve_idfs min_depth max_depth rules penalty goal in
+  let ss, p = solve_idfs min_depth max_depth rw rules penalty goal in
   if p < Backtrack.max_penalty then afs_of_sequents ss else []
 let biabduct = prof_fun3 "Prover.biabduct" biabduct
 
-let is_inconsistent rules e =
-  is_entailment rules e (Z3.Boolean.mk_false z3_ctx)
+let is_inconsistent rw rules e =
+  is_entailment rw rules e (Z3.Boolean.mk_false z3_ctx)
 let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
 let is_entailment = wrap_calculus (fun f -> (not @@ Calculus.is_abduct_rule) f && (not @@ Calculus.is_instantiation_rule) f) is_entailment
