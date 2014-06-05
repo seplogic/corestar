@@ -777,19 +777,20 @@ let builtin_rules =
 
 (* FIXME: should freshen free logical variables in seq_subgoal_pattern
    and rw_to_pattern patterns *)
-(* TODO: apply rw to pure check *)
 (* TODO: normalize rule patterns (perhaps best done earlier as this is called often-ish *)
 let rules_of_calculus rw =
-  let check bs c = smt_is_valid (instantiate bs c) in
-  let is_fresh bs (v, e) =
-    not (List.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
-  let side_conditions freshs checks bs =
-    List.for_all (is_fresh bs) freshs
-    && List.for_all (check bs) checks in
   let apply_seq_schema rs s = (* RLP: Should we refer to some bindings here? *)
+    let check bs c = smt_is_valid (rw s (instantiate bs c)) in
+    let is_fresh bs (v, e) =
+      not (List.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
+    let side_conditions s freshs checks bs =
+      List.for_all (is_fresh bs) freshs
+      && List.for_all (check bs) checks in
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.seq_goal_pattern s in
-    let sc = side_conditions rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
+    let sc = side_conditions s rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
+    let mm = m in
     let m = List.filter sc m in
+    if m = [] && mm <> [] then fprintf logf "@{side conditions failed@}@?@\n";
     let try_one bs =
       List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
     if m != [] then List.map try_one m
