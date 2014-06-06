@@ -610,12 +610,18 @@ end = struct
 
   (* }}} *)
 
-  (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of assumptions
-  that are sufficient.  This implies that H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is
-  sufficient to demonically split on the frames Fk, and then angelically on the
-  antiframes Ak.  Further, it is sufficient to demonically split on (antiframe,
-  frame) pairs (Ak, Fk). *)
-  let execute_one_triple abstract_afs abduct is_deadend pre_conf triple =
+  (* The prover answers a query H⊢P with a list F1⊢A1, ..., Fn⊢An of
+     assumptions that are sufficient.  This implies that
+     H*(A1∧...∧An)⊢P*(F1∨...∨Fn).  It is sufficient to demonically split
+     on the frames Fk, and then angelically on the antiframes Ak.
+     Further, it is sufficient to demonically split on (antiframe, frame)
+     pairs (Ak, Fk).
+
+     [lvars] is a set of logical variables to preserve (those in the
+     final post-condition of the procedure), as this simplifies the
+     resulting post-condition by removing garbage logical
+     variables. *)
+  let execute_one_triple lvars abstract_afs abduct is_deadend pre_conf triple =
     if log log_exec then
       fprintf logf "@[<2>@{<p>execute %a@ from %a@ to get@\n"
         CoreOps.pp_triple triple
@@ -633,9 +639,17 @@ end = struct
         let f = substitute_defs pre_defs f in
         let post = substitute_defs post_defs post in
         let a = substitute_defs pre_defs a in
-        let h = Prover.normalize (mk_star post f) in
-        let hs = (Syntax.on_or id & Syntax.on_app (c2 [h])) h in
         let missing_heap = mk_star pre_conf.G.missing_heap a in
+        let h = Prover.normalize (mk_star post f) in
+        (* fprintf logf "garbage collecting %a @,| %a@." Syntax.pp_expr h Syntax.pp_expr missing_heap; *)
+        let is_garbage v =
+          let eq_v = Syntax.expr_equal v in
+          Syntax.is_lvar v
+          && not (List.exists eq_v lvars)
+          && not (List.exists (eq_v @@ snd) (Syntax.ExprMap.bindings post_defs)) in
+	let (h, missing_heap) = Prover.substitute_garbage is_garbage (h, missing_heap) in
+        (* fprintf logf "garbage collected  %a @,| %a@." Syntax.pp_expr h Syntax.pp_expr missing_heap; *)
+        let hs = (Syntax.on_or id & Syntax.on_app (c2 [h])) h in
         let mk current_heap =
           { G.current_heap; missing_heap; pvar_value = post_defs } in
 (*  TODO       G.check_ok_configuration conf; *)
@@ -665,9 +679,9 @@ end = struct
     if log log_exec then fprintf logf "@}@]@,@?";
     r
 
-  let execute abstract_afs abduct is_deadend =
+  let execute lvars abstract_afs abduct is_deadend =
     let execute_one_triple =
-      execute_one_triple abstract_afs abduct is_deadend in
+      execute_one_triple lvars abstract_afs abduct is_deadend in
     fun spec_of pre_conf statement ->
       statement
       |> spec_of
@@ -931,7 +945,8 @@ end = struct
     let ask = ask rules.C.calculus in
     let is_deadend = Prover.is_inconsistent rules.C.calculus in
     let abstract_afs = abstract_afs rules.C.calculus in
-    let execute = execute
+    let lvars = Syntax.vars post in
+    let execute = execute lvars
       abstract_afs ask is_deadend (spec_of post body.P.stop) in
     update execute (abstract_conf rules.C.calculus)
 

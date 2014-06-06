@@ -361,6 +361,46 @@ let normalize =
   List.fold_left (@@) id fs
 let normalize = prof_fun1 "Prover.normalize" normalize
 
+(** [substitute_garbage is_garbage (e,m)] applies and removes all
+    equalities g = f in [e] and [m] where [is_garbage g]
+
+    note: only one g = f is removed for each g, otherwise it's
+    unsound.
+
+    assumes [e] and [m] in normal form
+    returns the new [e] and [m]
+*)
+let substitute_garbage is_garbage (e,m) =
+  (* a simplified union-find struct *)
+  let module H = Syntax.ExprHashMap in
+  let gc = H.create 0 in
+  let rec clean e =
+    try clean (H.find gc e)
+    with Not_found -> e in
+  let is_garbage =
+    (Syntax.on_eq
+       (fun a b ->
+         if is_garbage a && not (H.mem gc a) then
+           (let b = clean b in (* avoid cycles *)
+            if not (Syntax.expr_equal a b) then H.add gc a b;
+            fprintf logf "garbage %a@\n" Syntax.pp_expr a;
+	    false)
+         else if is_garbage b && not (H.mem gc b) then
+           (let a = clean a in
+            if not (Syntax.expr_equal a b) then H.add gc b a;
+            fprintf logf "garbage %a@\n" Syntax.pp_expr b;
+            false)
+         else true)
+     & c1 true) in
+  let es = List.filter is_garbage (unfold on_star_nary e) in
+  let ms = List.filter is_garbage (unfold on_star_nary m) in
+  let e = Syntax.mk_big_star es in
+  let m = Syntax.mk_big_star ms in
+  let (subees, subers) = H.fold
+    (fun a b (subees, subers) -> (a::subees, (clean b)::subers))
+    gc ([], []) in
+  (Z3.Expr.substitute e subees subers,Z3.Expr.substitute m subees subers)
+
 (* find_matches and helpers *) (* {{{ *)
 type bindings = Z3.Expr.expr Syntax.ExprMap.t
 
