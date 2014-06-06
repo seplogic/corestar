@@ -32,5 +32,7 @@ val mk_big_meet
 val normalize
   : Z3.Expr.expr -> Z3.Expr.expr
 
+val rewrite_in_expr : Z3.Expr.expr list -> Calculus.rewrite_schema -> Z3.Expr.expr -> Z3.Expr.expr
+
 (* For debug only. *)
 val print_stats : unit -> unit
