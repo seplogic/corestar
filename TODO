@@ -25,7 +25,11 @@
   account (eg, no || below || as we are careful to use only the n-ary
   version). This is warranted because normalize is called all the time.
 - eliminate garbage logical variables in the states
-
-
+- better location reporting for syntax errors; sometimes, they are a bit off
+- well-formedness checks for specs "{P}(M){Q} [FA<-AA] returns [FR<-AR]"
+  - FA and FR are (lists of) local variables
+  - AR is a list of variables (*not* arbitrary terms) -- enforcable by grammar
+  - FA may occur in P but not in M or Q
+  - FR may occur in Q but not in M or P
 
 :load_local_vimrc
