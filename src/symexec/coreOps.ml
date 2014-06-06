@@ -25,12 +25,20 @@ let pp_triple f { pre; post; modifies } =
 
 let pp_spec f ts = pp_list_sep "+" pp_triple f (TripleSet.elements ts)
 
+let pp_subst f (subees, subers) =
+  if subees <> [] then
+    fprintf f "@[[%a<-%a]@]" pp_expr_list subees pp_expr_list subers
+  else ()
+let pp_rets_subst f (retf, ret) =
+  if retf <> [] then fprintf f "@[returns %a@]" pp_subst (retf, ret)
+  else ()
+
 let pp_statement f = function
   | Nop_stmt_core -> fprintf f "nop;"
   | Label_stmt_core l -> fprintf f "label %s;" l
-  | Assignment_core { asgn_rets; asgn_args; asgn_spec } ->
-      fprintf f "@[<2>assign@ @[%a@]@,:=%a@,(%a);@]"
-        pp_expr_list asgn_rets pp_spec asgn_spec pp_expr_list asgn_args
+  | Assignment_core { asgn_rets; asgn_rets_formal; asgn_args; asgn_args_formal; asgn_spec } ->
+      fprintf f "@[<2>assign@ %a@,%a@,%a;@]"
+        pp_spec asgn_spec pp_subst (asgn_args_formal, asgn_args) pp_rets_subst (asgn_rets_formal, asgn_rets)
   | Call_core { call_name; call_rets; call_args } ->
       fprintf f "@[<2>call @[%a@]@,:=@[%s@[(%a)@]@];@]"
         pp_expr_list call_rets call_name pp_expr_list call_args
@@ -45,8 +53,8 @@ let pp_ast_procedure f { proc_name; proc_spec; proc_body; proc_args; proc_rets }
     let pp_nl_core f c = fprintf f "@\n@{<p>%a@}" pp_statement c in
     fprintf f "@\n@[<2>?%a@]" (pp_list pp_nl_core) body in
   fprintf f "@\n@[@{<details>";
-  fprintf f "@[<2>@{<summary>procedure (%a) := %s(%a) :@}@\n%a@]"
-    pp_expr_list proc_rets proc_name pp_expr_list proc_args pp_spec proc_spec;
+  fprintf f "@[<2>@{<summary>procedure %s(%a) returns (%a) :@}@\n%a@]"
+    proc_name pp_expr_list proc_args pp_expr_list proc_rets pp_spec proc_spec;
   option () (pp_body f) proc_body;
   fprintf f "@}@]"
 
