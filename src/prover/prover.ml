@@ -441,7 +441,7 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
          bs' on the provision that ev = po(ps)[bs'] *)
       let p = Z3.FuncDecl.apply po ps in
       let been_there =
-        ( Syntax.on_star (fun f a -> Syntax.is_tpat f &&
+        (Syntax.on_star (fun f a -> Syntax.is_tpat f &&
           (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
            & c1 false) a)
           & c1 false ) pat in
@@ -455,7 +455,7 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
         let is_good b =
           let p = instantiate b p in
           (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
-          if congruent ev p then true else false in
+          congruent ev p in
         List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
@@ -464,7 +464,15 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
       else
         let todos = List.combine ps es in
         let process_todo acc (tp, te) =
-          acc >>= flip ((flip find_atom_matches) tp) te in
+	  let atom bs =
+            let new_bs = flip ((flip find_atom_matches) tp) te bs in
+	    if Z3.Boolean.is_eq (Z3.FuncDecl.apply po ps) then
+	      let (p1, p2) = match ps with [x; y] -> x, y | _ -> assert false in
+	      let f bs =
+		not (Syntax.expr_equal (instantiate bs p1) (instantiate bs p2)) in
+	      List.filter f new_bs
+	    else new_bs in
+          acc >>= atom in
         List.fold_left process_todo [bs] todos in
     cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
   (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
@@ -605,8 +613,8 @@ let spatial_id_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let hyp_pure, hyp_spatial = extract_pure_part hypothesis in
       let conc_pure, conc_spatial = extract_pure_part conclusion in
-      if log log_prove then fprintf logf "hp: %a@ hs: %a@ cp: %a@ cs: %a"
-        Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;
+      (* if log log_prove then fprintf logf "hp: %a@ hs: %a@ cp: %a@ cs: %a"
+        Syntax.pp_expr hyp_pure Syntax.pp_expr hyp_spatial Syntax.pp_expr conc_pure Syntax.pp_expr conc_spatial;*)
       if Syntax.expr_equal hyp_spatial Syntax.mk_emp
         && Syntax.expr_equal conc_spatial Syntax.mk_emp
       then rule_notapplicable
@@ -765,10 +773,10 @@ let instantiate_sequent bs s =
 
 let builtin_rules =
   [ id_rule
-  (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
-  ; spatial_id_rule
   ; smt_pure_rule
   ; smt_disprove
+  ; spatial_id_rule
+  (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
   (* ; or_rule *)
   (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
   (* ; match_subformula_rule *)
