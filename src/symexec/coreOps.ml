@@ -72,7 +72,6 @@ let pp_ast_question f { q_procs; q_rules; q_infer; q_name } =
 
 let empty_ast_question =
   { q_procs = []
-  ; q_globals = []
   ; q_rules = { calculus = []; abstraction = [] }
   ; q_infer = false
   ; q_name = "empty_question" }

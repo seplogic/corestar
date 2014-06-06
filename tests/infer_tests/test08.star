@@ -4,6 +4,6 @@ if
   foo(?v) * ?f |- foo(?v) * ?v = ?w * ?g
 ;
 
-procedure Test08: {foo(bar(twelve()))}{foo(bar(_x))}
-?
+procedure Test08 {foo(bar(twelve()))}{foo(bar(_x))}
+:
 end;

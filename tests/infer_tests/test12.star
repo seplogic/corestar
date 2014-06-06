@@ -1,8 +1,8 @@
-procedure Test12:
-?
+procedure Test12
+:
   call step();
 end;
 
-procedure step:
+procedure step
   { @state = "a" } (@state) { @state = "b" }
   { @state = "b" } (@state) { @state = "c" }

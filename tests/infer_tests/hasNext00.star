@@ -1,10 +1,10 @@
-procedure emit_$$ (%x, %y):
-?
-  call :=enqueue_$$(%x,%y);
-  call :=step_$$();
-  assign :={((@state!="HasNexterror"))}(){((@state!="HasNexterror"))}();
+procedure emit_$$ (%x, %y)
+:
+  call enqueue_$$(%x,%y);
+  call step_$$();
+  spec {((@state!="HasNexterror"))}(){((@state!="HasNexterror"))};
 
-procedure step_$$ :
+procedure step_$$ 
   // loop/skip on "start"
   {((@qsz="2")
     *(@q_1_1=_q_1_1)
@@ -132,7 +132,7 @@ procedure step_$$ :
    *(@qsz="1"))
   }
 
-procedure enqueue_$$(%x,%y) :
+procedure enqueue_$$(%x,%y) 
   {(@qsz="0")}
   (@qsz,@q_0_0
   ,@q_0_1)
@@ -145,45 +145,45 @@ procedure enqueue_$$(%x,%y) :
   {((@qsz="2")
    *(@q_1_0=%x)
    *(@q_1_1=%y))
-  }[%x,%y]
+  }
 
 
-procedure HasNext.print$$java.util.Iterator$$void(%x) :
-?
+procedure HasNext.print$$java.util.Iterator$$void(%x) 
+:
   call 
     :=emit_$$("call_$$_HasNext.print$$java.util.Iterator$$void"
              ,%x);
-  call :=HasNext.print$$java.util.Iterator$$void_I(%x);
-  call :=emit_$$("return_$$_HasNext.print$$java.util.Iterator$$void");
-procedure HasNext.print$$java.util.Iterator$$void_I(%x) :
+  call HasNext.print$$java.util.Iterator$$void_I(%x);
+  call emit_$$("return_$$_HasNext.print$$java.util.Iterator$$void");
+procedure HasNext.print$$java.util.Iterator$$void_I(%x) 
   
-?
-  assign %r0:={()}(){/%a/(%a=%x)}();
+:
+  spec {()}(){%a=%x} returns [%a<-%r0];
   call %temp:=java.util.Iterator.hasNext$$$$boolean();
-  assign %z0:={()}(){/%a/(%a=%temp)}();
+  spec {()}(){%a=%temp} returns [%a<-%z0];
   goto gen_1,gen_2;
   label gen_1;
-  assign :={()}(){(%z0=0)}();
+  spec {()}(){(%z0=0)};
   goto label0;
   label gen_2;
-  assign :={()}(){(%z0!=0)}();
-  call :=java.util.Iterator.next$$$$java.lang.Object();
+  spec {()}(){(%z0!=0)};
+  call java.util.Iterator.next$$$$java.lang.Object();
   label label0;
   nop;
-procedure (%b) := java.util.Iterator.hasNext$$$$boolean :
+procedure java.util.Iterator.hasNext$$$$boolean returns (%b)
   
-?
-  call :=emit_$$("call_$$_java.util.Iterator.hasNext$$$$boolean");
+:
+  call emit_$$("call_$$_java.util.Iterator.hasNext$$$$boolean");
   call %b:=java.util.Iterator.hasNext$$$$boolean_I();
-  call :=emit_$$("return_$$_java.util.Iterator.hasNext$$$$boolean");
-procedure (%b) := java.util.Iterator.hasNext$$$$boolean_I :
+  call emit_$$("return_$$_java.util.Iterator.hasNext$$$$boolean");
+procedure (%b) := java.util.Iterator.hasNext$$$$boolean_I 
   {}(){}
-procedure java.util.Iterator.next$$$$java.lang.Object :
+procedure java.util.Iterator.next$$$$java.lang.Object 
   
-?
-  call :=emit_$$("call_$$_java.util.Iterator.next$$$$java.lang.Object");
+:
+  call emit_$$("call_$$_java.util.Iterator.next$$$$java.lang.Object");
   call %z:=java.util.Iterator.next$$$$java.lang.Object_I();
   call 
     :=emit_$$("return_$$_java.util.Iterator.next$$$$java.lang.Object");
-procedure (%a) := java.util.Iterator.next$$$$java.lang.Object_I :
+procedure java.util.Iterator.next$$$$java.lang.Object_I returns (%a)
 

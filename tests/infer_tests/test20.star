@@ -1,6 +1,6 @@
 // Tests for angelic-vs-demonic splits.
 
-// Should infer: { %x == 4 } { %y == 5 || %y == 6 }
+// Should infer { %x == 4 } { %y == 5 || %y == 6 }
 procedure OneDemonicSplit(%x) returns (%y):
   goto l1, l2, l3;
   label l1; call %y := p1(%x); goto done;

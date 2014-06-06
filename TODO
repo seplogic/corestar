@@ -4,7 +4,6 @@
 - disjunctions in preconditions should probably lead to splitting the triple
 - do some sensible checking for the "instantiations" claimed while checking
   (this is a soundness problem!)
-- proper treatement of global variables
 - add "without" side-conditions
 - port old tests
 - add location to AST elements (CFG/rules/...)

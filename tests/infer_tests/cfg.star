@@ -20,5 +20,5 @@ procedure Test2:
   label done;
 
 procedure f(%a,%b) returns (%c)
-:
+
 

@@ -21,7 +21,6 @@ let question_of_entries xs =
   let f q = function
     | PA.AbstractionRule r -> add_abstraction r q
     | PA.CalculusRule r -> add_calculus r q
-    | PA.Global xs -> { q with C.q_globals = xs @ q.C.q_globals }
     | PA.Procedure p -> { q with C.q_procs = p :: q.C.q_procs } in
   let z =
     { CoreOps.empty_ast_question with C.q_infer = !Config.use_abduction } in

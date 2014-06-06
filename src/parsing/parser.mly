@@ -375,7 +375,6 @@ import_entry:
 
 normal_entry:
   | procedure { ParserAst.Procedure $1 }
-  | GLOBAL variable_list_ne SEMICOLON { ParserAst.Global $2 }
   | calculus_rule { ParserAst.CalculusRule (Calculus.Sequent_rule $1) }
 ;
 

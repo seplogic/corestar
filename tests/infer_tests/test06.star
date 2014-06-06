@@ -1,3 +1,3 @@
-procedure Test02: {}{ls(@x,nil())}
-?
+procedure Test02 {}{ls(@x,nil())}
+:
 end;

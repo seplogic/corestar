@@ -1,7 +1,7 @@
-procedure Test14:
-?
+procedure Test14
+:
   call step();
 end;
 
-procedure step:
+procedure step
   { @state = "a" } (@state) { @state = "b" || @state = "c" }

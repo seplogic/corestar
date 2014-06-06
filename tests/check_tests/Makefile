@@ -9,6 +9,7 @@ clean:
 
 $(TESTS): %.test:
 	@rm -rf $*.out && mkdir $*.out
+	@echo "verifying $*.star"
 	@cd $*.out;\
 	  OCAMLRUNPARAM=b \
 	  	corestar -v -v -v -noabd ../$*.star > stdout 2> stderr \

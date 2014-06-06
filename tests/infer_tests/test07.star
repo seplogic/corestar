@@ -1,3 +1,3 @@
-procedure Test07: {}{}
-?
+procedure Test07 {}{}
+:
 end;
