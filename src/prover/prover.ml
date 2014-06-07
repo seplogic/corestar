@@ -383,12 +383,12 @@ let substitute_garbage is_garbage (e,m) =
          if is_garbage a && not (H.mem gc a) then
            (let b = clean b in (* avoid cycles *)
             if not (Syntax.expr_equal a b) then H.add gc a b;
-            fprintf logf "garbage %a@\n" Syntax.pp_expr a;
+            if log log_prove then fprintf logf "@{garbage %a@}@\n" Syntax.pp_expr a;
 	    false)
          else if is_garbage b && not (H.mem gc b) then
            (let a = clean a in
             if not (Syntax.expr_equal a b) then H.add gc b a;
-            fprintf logf "garbage %a@\n" Syntax.pp_expr b;
+            if log log_prove then fprintf logf "@{garbage %a@}@\n" Syntax.pp_expr b;
             false)
          else true)
      & c1 true) in
