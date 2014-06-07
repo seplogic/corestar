@@ -850,7 +850,7 @@ end = struct
   let gsc_is_ok confgraph starts confs =
     let count x =
       if CS.mem confs x then 0
-      else max 1 (match CG.V.label x with
+      else max 0 (match CG.V.label x with
         | G.OkConf (_, G.Angelic) -> 1
         | G.OkConf (_, G.Demonic) -> CG.fold_succ (c1 succ) confgraph x 0
         | G.ErrorConf -> failwith "INTERNAL: errors should be pruned by now") in
@@ -872,11 +872,12 @@ end = struct
     let rec loop css =
       if is_ok remaining then
         let cs = shrink (CS.elements remaining) in
-        List.iter (CS.remove remaining) cs;
-        loop (cs :: css)
+        if cs = [] then [[]] else begin
+          List.iter (CS.remove remaining) cs;
+          loop (cs :: css)
+        end
       else css in
     let css = if CS.length starts = 0 then [] else loop [] in
-    if safe then List.iter (fun cs -> assert (cs <> [])) css;
     if log log_exec then begin
       let n = ref 0 in
       let ppg f cs =
