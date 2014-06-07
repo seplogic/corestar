@@ -1,8 +1,5 @@
 open Corestar_std
 
-(* TODO: We want mk_star, mk_big_star, mk_or, mk_big_or here.
-We don't want on_big_star here because it's slow; but we have one in Prover. *)
-
 type var
 
 (** the global Z3 context *)
@@ -90,6 +87,7 @@ val mk_fresh_bool_lvar : string -> Z3.Expr.expr
 val mk_fresh_bool_tpat : string -> Z3.Expr.expr
 val mk_fresh_bool_vpat : string -> Z3.Expr.expr
 
+(* We don't want on_big_star here because it's slow; but we have one in Prover. *)
 val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_distinct : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_emp : Z3.Expr.expr
