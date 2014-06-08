@@ -163,12 +163,12 @@ variable_list:
 
 term:
   | function_ { mk_int_app (fst $1) (snd $1) }
+  | variable { $1 }
   | term_nf { $1 }
   | L_PAREN term_nf R_PAREN { $2 }
 ;
 
 term_nf:
-  | variable { $1 }
   | STRING_CONSTANT { mk_string_const $1 }
   | INT_CONSTANT { Z3.Arithmetic.Integer.mk_numeral_s z3_ctx $1 }
   | term OP_MINUS term { Z3.Arithmetic.mk_sub z3_ctx [$1; $3] }
@@ -186,6 +186,7 @@ term_list:
 
 formula:
   | function_ { mk_bool_app (fst $1) (snd $1) }
+  | TPIDENTIFIER { Syntax.mk_bool_tpat $1 } /* used for patterns */
   | formula_nf { $1 }
   | L_PAREN formula_nf R_PAREN { $2 }
 ;
@@ -200,7 +201,6 @@ formula_nf:
   | term NOT_EQUALS term { Syntax.mk_distinct [$1; $3] }
   | term EQUALS term { Syntax.mk_eq $1 $3 }
   | term cmpop term { $2 $1 $3 }
-  | TPIDENTIFIER { Syntax.mk_bool_tpat $1 } /* used for patterns */
 ;
 
 function_:
