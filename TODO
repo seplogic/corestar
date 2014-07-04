@@ -13,6 +13,7 @@
   costly "normalize_internal" that takes internal invariants into
   account (eg, no || below || as we are careful to use only the n-ary
   version). This is warranted because normalize is called all the time.
+- eliminate garbage logical variables in the states
 - better location reporting for syntax errors; sometimes, they are a bit off
 - well-formedness checks for specs "{P}(M){Q} [FA<-AA] returns [FR<-AR]"
   - FA and FR are (lists of) local variables

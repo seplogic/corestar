@@ -31,14 +31,6 @@ val mk_big_meet
   : Z3.Expr.expr list -> Z3.Expr.expr
 val normalize
   : Z3.Expr.expr -> Z3.Expr.expr
-(** [substitute_garbage is_garbage (e,m)] applies and removes all
-    equalities g = f in [e] and [m] where [is_garbage g]
-
-    assumes [e] and [m] in normal form
-    returns the new [e] and [m]
-*)
-val substitute_garbage: (Z3.Expr.expr -> bool) -> (Z3.Expr.expr * Z3.Expr.expr)
-  -> (Z3.Expr.expr * Z3.Expr.expr)
 
 val rewrite_in_expr : Z3.Expr.expr list -> Calculus.rewrite_schema -> Z3.Expr.expr -> Z3.Expr.expr
 
