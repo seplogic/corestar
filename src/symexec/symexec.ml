@@ -657,6 +657,7 @@ end = struct
         |> List.map mk_ok
         |> make_demonic_choice in
     let r = match afs with
+      (* TODO: The [] is insufficient! *)
       | [] -> (* abduct failed, see prover.mli *)
           if log log_exec then
             fprintf logf "(error conf)@?";
@@ -833,10 +834,12 @@ end = struct
 
   (* helpers for [get_stop_confs] *) (* {{{ *)
 
-  let gsc_is_ok confgraph starts confs =
+  let gsc_is_ok confgraph starts stops confs =
+    let no_succ x = CG.fold_succ (c2 false) confgraph x true in
     let count x =
       if CS.mem confs x then 0
-      else max 0 (match CG.V.label x with
+      else if CS.mem stops x then (assert (no_succ x); 1)
+      else (match CG.V.label x with
         | G.OkConf (_, G.Angelic) -> 1
         | G.OkConf (_, G.Demonic) -> CG.fold_succ (c1 succ) confgraph x 0
         | G.ErrorConf -> failwith "INTERNAL: errors should be pruned by now") in
@@ -847,7 +850,8 @@ end = struct
   sets, for which no output-polynomial time is known. That's why it's OK to use
   a rather stupid approximation. For some definition of OK. *)
   let gsc_group confgraph starts cs =
-    let is_ok = gsc_is_ok confgraph starts in
+    let is_ok = gsc_is_ok confgraph starts cs in
+    let cs = CS.elements cs in
     assert (List.length cs < 100); (* Otherwise this may take forever. *)
     let shrink cs =
       let ds = CS.of_list cs in
@@ -883,7 +887,6 @@ end = struct
   let get_stop_confs context proc =
     prune_error_confs context proc.P.start;
     post_confs context proc.P.stop
-      |> CS.elements
       |> gsc_group context.confgraph (post_confs context proc.P.start)
       |> List.map (List.map conf_of_vertex)
 
