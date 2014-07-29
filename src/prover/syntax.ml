@@ -352,11 +352,11 @@ let rec is_pure e =
 	& on_false (c0 true)
 	& on_star (fun a b -> is_pure a && is_pure b)
 	& on_or (List.for_all is_pure)
-	& on_not (fun e -> assert (is_pure e); true)
+	& on_not (fun e -> is_pure e)
 	& on_eq (c2 true)
 	& on_distinct (c1 true)
 	& on_quantifier (fun b _ _ _ _ -> is_pure b)
-	& on_filter is_z3_bool_op (fun l -> assert(List.for_all is_pure l); true)
+	& on_filter is_z3_bool_op (fun l -> List.for_all is_pure l)
 	& on_filter is_z3_pure_op (c1 true)
 	& is_pure_op ) e in
     ExprHashMap.add mem_pure e pure;
