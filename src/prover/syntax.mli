@@ -57,7 +57,7 @@ val is_pure : Z3.Expr.expr -> bool
 
 (* operations on formulas *)
 val size : Z3.Expr.expr -> int
-val vars : Z3.Expr.expr -> Z3.Expr.expr list
+val vars : Z3.Expr.expr -> ExprSet.t
 
 (* various helpers *)
 val mk_0 : Z3.FuncDecl.func_decl -> Z3.Expr.expr

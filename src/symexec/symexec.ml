@@ -529,8 +529,8 @@ end = struct
       | G.Spec_cfg spec ->
           let cp_triple { Core.pre; post } acc =
             let cp_formula f =
-              let vs = List.filter Syntax.is_pvar (Syntax.vars f) in
-              List.fold_right Syntax.ExprSet.add vs in
+              let vs = Syntax.ExprSet.filter Syntax.is_pvar (Syntax.vars f) in
+              Syntax.ExprSet.union vs in
             acc |> cp_formula pre |> cp_formula post in
           C.TripleSet.fold cp_triple spec acc
     in
@@ -563,7 +563,7 @@ end = struct
   let update_defs pre_defs vs post =
     let is_v =
       flip Syntax.ExprSet.mem (List.fold_right Syntax.ExprSet.add vs Syntax.ExprSet.empty) in
-    let vs_of = List.filter is_v @@ Syntax.vars in
+    let vs_of = Syntax.ExprSet.filter is_v @@ Syntax.vars in
     let rec get_pdefs pdefs e =
       let eq a b =
         let va, vb = is_v a, is_v b in
@@ -583,8 +583,8 @@ end = struct
     let rec define v = if not (Syntax.ExprHashSet.mem seen v) then begin
       Syntax.ExprHashSet.add seen v;
       let process_eq (e, ws) =
-        List.iter define ws;
-        if List.for_all (flip Syntax.ExprMap.mem !post_defs) ws then begin
+        Syntax.ExprSet.iter define ws;
+        if Syntax.ExprSet.for_all (flip Syntax.ExprMap.mem !post_defs) ws then begin
           let e = substitute_defs !post_defs e in
           post_defs := Syntax.ExprMap.add v e !post_defs;
           raise Done

@@ -195,14 +195,12 @@ module ExprMap = Map.Make(HashableExpr)
 module ExprHashSet = HashSet.Make(HashableExpr)
 module ExprHashMap = Hashtbl.Make(HashableExpr)
 
-let vars x =
-  let vs = ExprHashSet.create 0 in
-  let rec f expr =
-    (on_var (fun _ -> ExprHashSet.add vs expr)
-     & on_app (fun _ xs -> List.iter f xs ))
+let vars =
+  let rec f vs expr =
+    (on_var (fun _ -> ExprSet.add expr vs)
+     & on_app (fun _ xs -> List.fold_left f vs xs))
       expr in
-  let g expr a = expr::a in
-  f x; ExprHashSet.fold g vs []
+  f ExprSet.empty
 
 let bool_sort = Z3.Boolean.mk_sort z3_ctx
 

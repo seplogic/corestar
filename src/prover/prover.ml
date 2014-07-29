@@ -126,9 +126,7 @@ let afs_of_sequents = function
       List.map f ss
 
 let get_lvars e =
-  let module VS = Syntax.ExprSet in
-  let vs = List.filter Syntax.is_lvar (Syntax.vars e) in
-  List.fold_right VS.add vs VS.empty
+  Syntax.ExprSet.filter Syntax.is_lvar (Syntax.vars e)
 
 (* Returns a list of expressions e' such that lvars(e*e') includes lvars(f).
 More importantly, each e' is supposed to be a good guess of how to instantiate
@@ -222,9 +220,8 @@ let smt_disprove_query e f =
     then (incr disproved_hit; raise Disproved)
   with Not_found -> begin
     incr disproved_miss;
-    let vars e = List.fold_right VS.add (Syntax.vars e) VS.empty in
     let ys = VS.diff (get_lvars f) (get_lvars e) in
-    let xs = VS.diff (VS.union (vars e) (vars f)) ys in
+    let xs = VS.diff (VS.union (Syntax.vars e) (Syntax.vars f)) ys in
     let xs, ys = VS.elements xs, VS.elements ys in
     let q =
       let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
@@ -790,7 +787,7 @@ let rules_of_calculus rw =
   let apply_seq_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let check bs c = smt_is_valid (rw s (instantiate bs c)) in
     let is_fresh bs (v, e) =
-      not (List.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
+      not (Syntax.ExprSet.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
     let side_conditions s freshs checks bs =
       List.for_all (is_fresh bs) freshs
       && List.for_all (check bs) checks in
