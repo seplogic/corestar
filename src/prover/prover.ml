@@ -461,14 +461,14 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
       else
         let todos = List.combine ps es in
         let process_todo acc (tp, te) =
-	  let atom bs =
+          let atom bs =
             let new_bs = flip ((flip find_atom_matches) tp) te bs in
-	    if Z3.Boolean.is_eq (Z3.FuncDecl.apply po ps) then
-	      let (p1, p2) = match ps with [x; y] -> x, y | _ -> assert false in
-	      let f bs =
-		not (Syntax.expr_equal (instantiate bs p1) (instantiate bs p2)) in
-	      List.filter f new_bs
-	    else new_bs in
+            if Z3.Boolean.is_eq (Z3.FuncDecl.apply po ps) then
+              let (p1, p2) = match ps with [x; y] -> x, y | _ -> assert false in
+              let f bs =
+                not (Syntax.expr_equal (instantiate bs p1) (instantiate bs p2)) in
+              List.filter f new_bs
+            else new_bs in
           acc >>= atom in
         List.fold_left process_todo [bs] todos in
     cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
@@ -741,7 +741,7 @@ let find_sequent_matches bs ps s =
     not recursively though: rewriting could trigger more
     rewriting. That is not taken into account. This is because to do
     it properly we would need to do a fix point over all the rewrite
-    rules, not just one. Perhaps we should do that.
+    rules, not just one. This happens in [rw_of_rules].
 *)
 let rec rewrite_in_expr eqs r e =
   let name = r.Calculus.rw_name in
@@ -795,7 +795,7 @@ let rules_of_calculus rw =
     let sc = side_conditions s rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
     let mm = m in
     let m = List.filter sc m in
-    if m = [] && mm <> [] then fprintf logf "@{side conditions failed@}@?@\n";
+    if log log_prove && m = [] && mm <> [] then fprintf logf "@{side conditions failed@}@?@\n";
     let try_one bs =
       List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
     if m != [] then List.map try_one m
