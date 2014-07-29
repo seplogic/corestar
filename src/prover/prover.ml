@@ -798,7 +798,12 @@ let rules_of_calculus rw =
     if log log_prove && m = [] && mm <> [] then fprintf logf "@{side conditions failed@}@?@\n";
     let try_one bs =
       List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
-    if m != [] then List.map try_one m
+    if m != [] then
+      if Calculus.is_no_backtrack_rule rs.Calculus.seq_flags then
+        (* if no backtrack then just pick one instantiation *)
+        [try_one (List.hd m)]
+      else
+        List.map try_one m
     else rule_notapplicable in
   let rule_of_seq_schema rs =
     { rule_name = rs.Calculus.seq_name
@@ -842,6 +847,7 @@ let rec solve rw rules penalty n goal =
   if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
   let result =
     if n = 0 then leaf else begin
+      let btrackable r = not (Calculus.is_no_backtrack_rule r.rule_flags) in
       let process_rule r =
         if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
         let ess = r.rule_apply goal in
@@ -849,7 +855,6 @@ let rec solve rw rules penalty n goal =
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
         if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
         ess in
-      let btrackable r = not (Calculus.is_no_backtrack_rule r.rule_flags) in
       let solve_subgoal = solve rw rules penalty (n - 1) in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal (c1 true) ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals (c1 true) leaf in
