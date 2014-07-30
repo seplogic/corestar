@@ -829,6 +829,8 @@ let rw_of_rules rss s e =
 (* }}} *)
 (* The main proof-search algorithm. *) (* {{{ *)
 
+let level = ref 0
+
 (* A goal with penalty [<= Backtrack.min_penalty] is discharged.  A goal with
 with score [> Backtrack.max_penalty] needs a proof.  Anything in-between is kind
 of acceptable as a leaf, but we should keep looking for something better.
@@ -836,7 +838,8 @@ of acceptable as a leaf, but we should keep looking for something better.
   TODO: we may want to count only once a leaf appearing twice
   TODO: we may want to partly cache the results of proving
 *)
-let rec solve rw rules penalty n goal =
+let rec solve rw rules penalty goal =
+  let n = !level in
   if log log_prove then fprintf logf "@[<2>@{<details>";
   let goal =
     { Calculus.frame = normalize goal.Calculus.frame
@@ -854,8 +857,10 @@ let rec solve rw rules penalty n goal =
         if ess = rule_notapplicable then raise Backtrack.No_match;
         if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
         if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
+	if not (btrackable r) then
+	  incr level; (* bump level: non-backtrack rules are "free" *)
         ess in
-      let solve_subgoal = solve rw rules penalty (n - 1) in
+      let solve_subgoal = solve rw rules penalty in
       let solve_all_subgoals = Backtrack.combine_list solve_subgoal (c1 true) ([], 0) in
       let choose_alternative = Backtrack.choose_list solve_all_subgoals (c1 true) leaf in
       let choose_rule =
@@ -871,10 +876,11 @@ let rec solve rw rules penalty n goal =
 
 let solve_idfs min_depth max_depth rw rules penalty goal =
   if log log_prove then fprintf logf "@[<2>@{<details>@{<summary>start idfs proving@}@\n";
-  let solve = flip (solve rw rules penalty) goal in
+  let solve = fun () -> solve rw rules penalty goal in
   let fail = ([], Backtrack.max_penalty) in
-  let give_up i = i > max_depth in
-  let r = Backtrack.choose solve (c1 true) give_up succ fail min_depth in
+  let give_up () = !level > max_depth in
+  level := min_depth;
+  let r = Backtrack.choose solve (c1 true) give_up (fun () -> incr level) fail () in
   if log log_prove then fprintf logf "@}@]@\n@?";
   r
 
