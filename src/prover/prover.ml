@@ -196,9 +196,18 @@ let guess_instances e f =
   List.map mk (List.map ((@) vggs) vbgss)
 
 let smt_implies e f =
-  Syntax.is_pure e
-  && Syntax.is_pure f
-  && smt_is_valid (Syntax.mk_or (Syntax.mk_not e) f)
+  if Syntax.is_pure f then
+    let f = Smt.rewrite_star_to_and f in
+    let e = if Syntax.is_pure e then Smt.rewrite_star_to_and e else e in
+    let vs = Syntax.ExprSet.diff (Syntax.vars f) (Syntax.vars e) in
+    let vs = Syntax.ExprSet.elements vs in
+    let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
+    let quant mk xs b =
+      let r = mk Syntax.z3_ctx xs b None [] [] None None in
+      Z3.Quantifier.expr_of_quantifier r in
+    let exists = quant Z3.Quantifier.mk_exists_const in
+    smt_is_valid (exists vs (implies e f))
+  else false
 
 (* [smt_disprove_query] and helpers *) (* {{{ *)
 exception Disproved
