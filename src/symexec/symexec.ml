@@ -18,23 +18,6 @@ let fix_scc_limit = 1 lsl 2
 (* }}} *)
 (* helpers, mainly related to expressions *) (* {{{ *)
 
-(** specialize spec to the given actuals
-
-    Warning: If actuals/formals have different lengths, then it makes them equal.
-    See [CoreOps.check_well_formed] for an explanation. *)
-let specialize_spec a_ps f_ps a_rs f_rs =
-  let f { Core.pre; post; modifies } =
-    let rec chop (a_s', f_s') = function
-      | _, [] -> (List.rev a_s', List.rev f_s')
-      | [], f :: f_s -> chop (Syntax.freshen f :: a_s', f :: f_s') ([], f_s)
-      | a :: a_s, f :: f_s -> chop (a :: a_s', f :: f_s') (a_s, f_s) in
-    let a_ps', f_ps' = chop ([], []) (a_ps, f_ps) in
-    let a_rs', f_rs' = chop ([], []) (a_rs, f_rs) in
-    { Core.pre = Z3.Expr.substitute pre f_ps' a_ps'
-    ; post = Z3.Expr.substitute post (f_ps' @ f_rs') (a_ps' @ a_rs')
-    ; modifies = a_rs @ modifies (* old rets, so it havocs extra returns *) } in
-  C.TripleSet.map f
-
 let mk_big_star = Prover.mk_big_star
 let mk_star = Prover.mk_star
 
@@ -223,7 +206,7 @@ let sc_interesting_label = function
 let sc_new_label = function
   | C.Assignment_core a ->
       G.Spec_cfg
-        ( specialize_spec
+        ( C.specialize_spec
             a.C.asgn_args a.C.asgn_args_formal
             a.C.asgn_rets a.C.asgn_rets_formal
             a.C.asgn_spec )
@@ -955,7 +938,7 @@ end = struct
       | G.Call_cfg { C.call_name; call_rets; call_args } ->
           let p = proc_of_name call_name in
           let spec =
-            specialize_spec
+            C.specialize_spec
               call_args p.C.proc_args
               call_rets p.C.proc_rets
               p.C.proc_spec in
