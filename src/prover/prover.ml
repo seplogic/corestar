@@ -752,7 +752,6 @@ let rec rewrite_in_expr eqs r e =
     let bs = find_pattern_matches eqs Syntax.ExprMap.empty (from_pat, e) in
     if bs = [] then e
     else (
-      assert (List.length bs = 1); (* Jules: is this reasonable? *)
       let f = instantiate (List.hd bs) to_pat in
       if log log_prove then
         fprintf logf "@{<p>Rewrote %s: @[%a@] -> @[%a@]@}@\n" name Syntax.pp_expr e Syntax.pp_expr f;
