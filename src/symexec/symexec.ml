@@ -12,7 +12,7 @@ let z3_ctx = Syntax.z3_ctx
 
 exception Fatal of string
 
-let bfs_limit = 1 lsl 4
+let bfs_limit = 1 lsl 5
 let fix_scc_limit = 1 lsl 2
 
 (* }}} *)
