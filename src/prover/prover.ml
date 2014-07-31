@@ -752,6 +752,19 @@ let rec rewrite_in_expr eqs r e =
     let bs = find_pattern_matches eqs Syntax.ExprMap.empty (from_pat, e) in
     if bs = [] then e
     else (
+      (* freshen the free variables in the rule, ie the logical
+      variables that appear only in the "to pattern" *)
+      let rw_lvs = CalculusOps.vars_of_rewrite_schema r in
+      let from_lvs = Syntax.vars from_pat in
+      let lv_filt = Syntax.ExprSet.filter Syntax.is_lvar in
+      let free_lvs =  Syntax.ExprSet.diff (lv_filt rw_lvs) (lv_filt from_lvs) in
+      let free_lvs = Syntax.ExprSet.elements free_lvs in
+      let fresh_lvs = List.map Syntax.freshen free_lvs in
+      let to_pat = Z3.Expr.substitute to_pat free_lvs fresh_lvs in
+      (* Take first match. Rewrite rules are implicitly
+      non-backtrackable. [rw_of_rules] should catch most instances
+      where several rewritings are possible (except those which do not
+      commute). *)
       let f = instantiate (List.hd bs) to_pat in
       if log log_prove then
         fprintf logf "@{<p>Rewrote %s: @[%a@] -> @[%a@]@}@\n" name Syntax.pp_expr e Syntax.pp_expr f;
@@ -779,9 +792,7 @@ let builtin_rules =
   ; abduce_instance_rule
   ]
 
-(* FIXME: should freshen free logical variables in seq_subgoal_pattern
-   and rw_to_pattern patterns *)
-(* TODO: normalize rule patterns (perhaps best done earlier as this is called often-ish *)
+(* TODO: normalize rule patterns (best done earlier as this is called often-ish *)
 let rules_of_calculus rw =
   let apply_seq_schema rs s = (* RLP: Should we refer to some bindings here? *)
     let check bs c = smt_is_valid (rw s (instantiate bs c)) in
@@ -791,6 +802,18 @@ let rules_of_calculus rw =
       List.for_all (is_fresh bs) freshs
       && List.for_all (check bs) checks in
     let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.seq_goal_pattern s in
+    (* freshen logical variables appearing in subgoals and side conditions but not in the goal *)
+    let rs = (* OPTIM: only freshen if there is a match otherwise don't bother *)
+      if m <> [] then
+        let rule_lvs = CalculusOps.vars_of_sequent_schema rs in
+        let goal_lvs = CalculusOps.vars_of_sequent rs.Calculus.seq_goal_pattern in
+        let lv_filt = Syntax.ExprSet.filter Syntax.is_lvar in
+        let free_lvars = Syntax.ExprSet.diff (lv_filt rule_lvs) (lv_filt goal_lvs) in
+        let free_lvars = Syntax.ExprSet.elements free_lvars in
+        let fresh_lvars = List.map Syntax.freshen free_lvars in
+        let subst e = Z3.Expr.substitute e free_lvars fresh_lvars in
+        CalculusOps.subst_in_sequent_schema subst rs
+      else rs in
     let sc = side_conditions s rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
     let mm = m in
     let m = List.filter sc m in
