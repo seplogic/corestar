@@ -33,23 +33,6 @@ end)
 
 type spec = TripleSet.t
 
-(** specialize spec to the given actuals
-
-    Warning: If actuals/formals have different lengths, then it makes them equal.
-    See [CoreOps.check_well_formed] for an explanation. *)
-let specialize_spec a_ps f_ps a_rs f_rs =
-  let f { pre; post; modifies } =
-    let rec chop (a_s', f_s') = function
-      | _, [] -> (List.rev a_s', List.rev f_s')
-      | [], f :: f_s -> chop (Syntax.freshen f :: a_s', f :: f_s') ([], f_s)
-      | a :: a_s, f :: f_s -> chop (a :: a_s', f :: f_s') (a_s, f_s) in
-    let a_ps', f_ps' = chop ([], []) (a_ps, f_ps) in
-    let a_rs', f_rs' = chop ([], []) (a_rs, f_rs) in
-    { pre = Z3.Expr.substitute pre f_ps' a_ps'
-    ; post = Z3.Expr.substitute post (f_ps' @ f_rs') (a_ps' @ a_rs')
-    ; modifies = a_rs @ modifies (* old rets, so it havocs extra returns *) } in
-  TripleSet.map f
-
 type rules =
   { calculus : Calculus.t
   ; abstraction : Abstraction.t }

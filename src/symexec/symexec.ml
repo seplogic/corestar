@@ -206,7 +206,7 @@ let sc_interesting_label = function
 let sc_new_label = function
   | C.Assignment_core a ->
       G.Spec_cfg
-        ( C.specialize_spec
+        ( CoreOps.specialize_spec
             a.C.asgn_args a.C.asgn_args_formal
             a.C.asgn_rets a.C.asgn_rets_formal
             a.C.asgn_spec )
@@ -938,7 +938,7 @@ end = struct
       | G.Call_cfg { C.call_name; call_rets; call_args } ->
           let p = proc_of_name call_name in
           let spec =
-            C.specialize_spec
+            CoreOps.specialize_spec
               call_args p.C.proc_args
               call_rets p.C.proc_rets
               p.C.proc_spec in

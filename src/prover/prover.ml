@@ -807,7 +807,7 @@ let rules_of_calculus rw =
     let try_one bs =
       List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
     if m != [] then
-      if Calculus.is_no_backtrack_rule rs.Calculus.seq_flags then
+      if CalculusOps.is_no_backtrack_rule rs.Calculus.seq_flags then
         (* if no backtrack then just pick one instantiation *)
         [try_one (List.hd m)]
       else
@@ -858,12 +858,12 @@ let rec solve rw rules penalty goal =
   if log log_prove then fprintf logf "@{<p>Current goal has penalty %d at level %d@}@\n" (penalty n goal) n;
   let result =
     if n = 0 then leaf else begin
-      let btrackable r = not (Calculus.is_no_backtrack_rule r.rule_flags) in
+      let btrackable r = not (CalculusOps.is_no_backtrack_rule r.rule_flags) in
       let process_rule r =
         if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
         let ess = r.rule_apply goal in
         if ess = rule_notapplicable then raise Backtrack.No_match;
-        if safe then assert (List.for_all (List.for_all (not @@ Calculus.sequent_equal goal)) ess);
+        if safe then assert (List.for_all (List.for_all (not @@ CalculusOps.sequent_equal goal)) ess);
         if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
 	if not (btrackable r) then
 	  incr level; (* bump level: non-backtrack rules are "free" *)
@@ -957,10 +957,10 @@ let is_inconsistent rw rules e =
   is_entailment rw rules e (Z3.Boolean.mk_false z3_ctx)
 let is_inconsistent = prof_fun2 "Prover.is_inconsistent" is_inconsistent
 
-let is_entailment = wrap_calculus (fun f -> (not @@ Calculus.is_abduct_rule) f && (not @@ Calculus.is_instantiation_rule) f) is_entailment
-let infer_frame = wrap_calculus (not @@ Calculus.is_abduct_rule) infer_frame
+let is_entailment = wrap_calculus (fun f -> (not @@ CalculusOps.is_abduct_rule) f && (not @@ CalculusOps.is_instantiation_rule) f) is_entailment
+let infer_frame = wrap_calculus (not @@ CalculusOps.is_abduct_rule) infer_frame
 let biabduct = wrap_calculus (c1 true) biabduct
-let is_inconsistent = wrap_calculus Calculus.is_inconsistency_rule is_inconsistent
+let is_inconsistent = wrap_calculus CalculusOps.is_inconsistency_rule is_inconsistent
 
 let print_stats () =
   if log log_stats then
