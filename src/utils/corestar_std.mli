@@ -45,6 +45,9 @@ val curry : ('a * 'b -> 'c) -> 'a -> 'b -> 'c
 (** Converts a curried function into an uncurried one. *)
 val uncurry : ('a -> 'b -> 'c) -> 'a * 'b -> 'c
 
+(** Map for monomorphic pairs *)
+val pair_map : ('a -> 'b) -> 'a * 'a -> 'b * 'b
+
 (** Like in Haskell. *)
 val option : 'b -> ('a -> 'b) -> 'a option -> 'b
 
