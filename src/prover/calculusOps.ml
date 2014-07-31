@@ -11,12 +11,6 @@ let is_inconsistency_rule f = f land rule_inconsistency <> 0
 let is_no_backtrack_rule f = f land rule_no_backtrack <> 0
 let is_instantiation_rule f = f land rule_instantiation <> 0
 
-(* Checks:
-  - if pattern variables occuring in subgoals also occur in goal
-  - if ?x patterns (for formulas and terms) don't mix up formulas and terms
- *)
-let is_rule_schema_ok _ = failwith "TODO: CalculusOps.is_rule_schema_ok"
-
 let pp_sequent f { frame; hypothesis; conclusion } =
   fprintf f "@[<2>@[%a@]@ | @[%a@]@ ⊢ @[%a@]@]"
     Syntax.pp_expr frame Syntax.pp_expr hypothesis Syntax.pp_expr conclusion
@@ -81,3 +75,42 @@ let vars_of_rewrite_schema { rw_name; rw_from_pattern; rw_to_pattern } =
 let vars_of_rule_schema = function
   | Sequent_rule r -> vars_of_sequent_schema r
   | Rewrite_rule r -> vars_of_rewrite_schema r
+
+(* well-formedness checks:
+  - pattern variables occuring in subgoals also occur in goal
+  - TODO: if ?x patterns (for formulas and terms) don't mix up formulas and terms
+    (Jules: I don't understand this one. Is it still relevant?)
+ *)
+(* {{{ *)
+
+let filter_pats =
+  Syntax.ExprSet.filter (fun e -> Syntax.is_tpat e || Syntax.is_vpat e)
+
+let check_sequent_schema r =
+  let gps = filter_pats (vars_of_sequent r.seq_goal_pattern) in
+  let sgps = union_map (filter_pats @@ vars_of_sequent) r.seq_subgoal_pattern in
+  let b = Syntax.ExprSet.subset sgps gps in
+  if not b then (
+    let ps = Syntax.ExprSet.diff sgps gps in
+    eprintf
+      "pattern(s) %a appear in the subgoals of rule %s but not in the goal.@\n"
+      (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements ps) r.seq_name);
+  b
+
+let check_rewrite_schema r =
+  let pats_of = filter_pats @@ Syntax.vars in
+  let b = Syntax.ExprSet.subset (pats_of r.rw_to_pattern)
+                                (pats_of r.rw_from_pattern) in
+  if not b then (
+    let ps = Syntax.ExprSet.diff (pats_of r.rw_to_pattern)
+                                 (pats_of r.rw_from_pattern) in
+    eprintf
+      "pattern(s) %a appear in the RHS of rule %s but not in the LHS.@\n"
+      (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements ps) r.rw_name);
+  b
+
+let check_rule_schema = function
+  | Sequent_rule r -> check_sequent_schema r
+  | Rewrite_rule r -> check_rewrite_schema r
+
+let check_calculus = List.fold_left (fun b rs -> b && check_rule_schema rs) true

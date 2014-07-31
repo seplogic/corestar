@@ -177,5 +177,5 @@ let is_well_formed q =
   let ok = ref true in
   let sigs = compute_sigs ok q.q_procs in
   List.iter (check_statements ok sigs) q.q_procs;
-  !ok
-
+  let calc_ok = CalculusOps.check_calculus q.q_rules.calculus in
+  !ok && calc_ok

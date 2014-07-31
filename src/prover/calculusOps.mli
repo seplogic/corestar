@@ -8,7 +8,8 @@ val is_inconsistency_rule : int -> bool
 val is_no_backtrack_rule : int -> bool
 val is_instantiation_rule : int -> bool
 
-val is_rule_schema_ok : rule_schema -> bool
+val check_rule_schema : rule_schema -> bool
+val check_calculus : t -> bool
 
 val mk_equiv_rule : string -> int -> int -> Z3.Expr.expr -> Z3.Expr.expr -> t
 
