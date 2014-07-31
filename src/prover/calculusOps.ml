@@ -58,3 +58,26 @@ let mk_equiv_rule name priority flags lhs rhs =
      ; seq_priority = priority
      ; seq_flags = flags }] in
   List.map (fun r -> Sequent_rule r) rs
+
+let (++) = Syntax.ExprSet.union
+let union_map f = List.fold_left (fun s x -> f x ++ s) Syntax.ExprSet.empty
+let union_pair_map f (a, b) = f a ++ f b
+
+let vars_of_sequent { frame; hypothesis; conclusion } =
+  Syntax.vars frame ++ Syntax.vars hypothesis ++ Syntax.vars conclusion
+
+let vars_of_sequent_schema
+      { seq_name; seq_pure_check; seq_fresh_in_expr; seq_goal_pattern
+        ; seq_subgoal_pattern; seq_priority; seq_flags } =
+  let v = Syntax.vars in
+  union_map v seq_pure_check
+  ++ union_map (union_pair_map v) seq_fresh_in_expr
+  ++ vars_of_sequent seq_goal_pattern
+  ++ union_map vars_of_sequent seq_subgoal_pattern
+
+let vars_of_rewrite_schema { rw_name; rw_from_pattern; rw_to_pattern } =
+  Syntax.vars rw_from_pattern ++ Syntax.vars rw_to_pattern
+
+let vars_of_rule_schema = function
+  | Sequent_rule r -> vars_of_sequent_schema r
+  | Rewrite_rule r -> vars_of_rewrite_schema r
