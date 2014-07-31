@@ -76,6 +76,27 @@ let vars_of_rule_schema = function
   | Sequent_rule r -> vars_of_sequent_schema r
   | Rewrite_rule r -> vars_of_rewrite_schema r
 
+let subst_in_sequent subst { frame; hypothesis; conclusion } =
+  { frame = subst frame
+  ; hypothesis = subst hypothesis
+  ; conclusion = subst conclusion }
+
+let subst_in_sequent_schema subst r =
+  { r with
+    seq_pure_check = List.map subst r.seq_pure_check
+  ; seq_fresh_in_expr = List.map (pair_map subst) r.seq_fresh_in_expr
+  ; seq_goal_pattern = subst_in_sequent subst r.seq_goal_pattern
+  ; seq_subgoal_pattern = List.map (subst_in_sequent subst) r.seq_subgoal_pattern }
+
+let subst_in_rewrite_schema subst r =
+  { r with
+    rw_from_pattern = subst r.rw_from_pattern
+    ; rw_to_pattern = subst r.rw_to_pattern }
+
+let subst_in_rule_schema subst = function
+  | Sequent_rule r -> Sequent_rule (subst_in_sequent_schema subst r)
+  | Rewrite_rule r -> Rewrite_rule (subst_in_rewrite_schema subst r)
+
 (* well-formedness checks:
   - pattern variables occuring in subgoals also occur in goal
   - TODO: if ?x patterns (for formulas and terms) don't mix up formulas and terms
