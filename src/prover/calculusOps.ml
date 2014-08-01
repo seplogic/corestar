@@ -134,4 +134,4 @@ let check_rule_schema = function
   | Sequent_rule r -> check_sequent_schema r
   | Rewrite_rule r -> check_rewrite_schema r
 
-let check_calculus = List.fold_left (fun b rs -> b && check_rule_schema rs) true
+let check_calculus = List.for_all check_rule_schema

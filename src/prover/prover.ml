@@ -25,7 +25,7 @@ let rec is_instantiation e =
 (*   printf "oops@\n@?"; *)
   let has_lvar = List.exists Syntax.is_lvar in
   (Syntax.on_emp (c1 true)
-   & Syntax.on_star (fun a b -> is_instantiation a && is_instantiation b)
+   & Syntax.on_star (List.for_all is_instantiation)
    & Syntax.on_eq (fun a b -> has_lvar [a; b])
    & Syntax.on_distinct has_lvar
    & c1 false) e
@@ -37,14 +37,11 @@ let is_emp e =
 
 let rec unfold on e = (on (ListH.concatMap (unfold on)) & c1 [e]) e
 
-let on_star_nary f =
-  Syntax.on_star (fun a b -> f [a; b])
-
 let on_big_star f g e =
   let rec collect e =
-    (Syntax.on_star (fun e1 e2 -> (collect e1)@(collect  e2))
+    (Syntax.on_star (ListH.concatMap collect)
      & (fun e -> [e])) e in
-  (Syntax.on_star (fun a b -> (f ((collect a)@(collect b))))
+  (Syntax.on_star (ListH.concatMap collect)
    & g) e
 
 
@@ -66,12 +63,12 @@ let ac_make zero mk =
 
 (* Returns (pure, spatial) pair. *)
 let extract_pure_part e =
-  let mk = ac_make Syntax.mk_emp Syntax.mk_big_star in
-  let xs, ys = ac_simplify_split is_emp on_star_nary [e] in
+  let mk = ac_make Syntax.mk_emp Syntax.mk_star in
+  let xs, ys = ac_simplify_split is_emp Syntax.on_star [e] in
   (mk xs, mk ys)
 
 let mk_big_star l =
-  (ac_make Syntax.mk_emp Syntax.mk_big_star @@ ac_simplify is_emp on_star_nary) l
+  (ac_make Syntax.mk_emp Syntax.mk_star @@ ac_simplify is_emp Syntax.on_star) l
 
 let mk_big_or =
   ac_make (Z3.Boolean.mk_false z3_ctx) (Z3.Boolean.mk_or z3_ctx) @@
@@ -109,7 +106,7 @@ let find_lvar_pvar_subs e =
         else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
         else l)
     & (c1 l) in
-  let es = unfold on_star_nary e in
+  let es = unfold Syntax.on_star e in
   List.fold_left add_if_good [] es
 
 (* Handles ss=[],
@@ -141,7 +138,7 @@ let guess_instances e f =
       if not (H.mem h_eq a || H.mem h_eq b) then H.add h a;
       H.add h_eq a; H.add h_eq b in
     let rec get e =
-      ( Syntax.on_star (fun a b -> get a; get b)
+      ( Syntax.on_star (List.iter get)
       & Syntax.on_or (List.iter get)
       & Syntax.on_eq add
       & Syntax.on_distinct (List.iter (fun x -> add x x))
@@ -156,7 +153,10 @@ let guess_instances e f =
       else if is_v b && not (Syntax.is_lvar a)
       then Some a
       else None in
-    let do_star a b = match guess v a with None -> guess v b | g -> g in
+    let rec do_star = function
+      | [] -> None
+      | x::tl ->
+	match guess v x with None -> do_star tl | g -> g in
     ( Syntax.on_star do_star
     & Syntax.on_eq do_eq
     & c1 None) f in
@@ -171,7 +171,7 @@ let guess_instances e f =
     let rec collect x =
       ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v)
       & Syntax.on_const (c1 ())
-      & Syntax.on_star (fun a b -> collect a; collect b)
+      & Syntax.on_star (List.iter collect)
       & Syntax.on_or (List.iter collect)
       & Syntax.on_app (fun _ es -> if Syntax.is_pure x then List.iter collect es)) x in
     collect f;
@@ -232,7 +232,7 @@ let smt_disprove_query e f =
       let exists = quant Z3.Quantifier.mk_exists_const in
       forall xs (exists ys (implies e f)) in
     Smt.push ();
-(*     fprintf logf "@[<2>(DBG say %a)@]@\n@?" Syntax.pp_expr q; *)
+    (* fprintf logf "@[<2>(DBG say %a)@]@\n@?" Syntax.pp_expr q; *)
     Smt.say q;
     let r = Smt.check_sat () in
     Smt.pop ();
@@ -338,7 +338,7 @@ let normalize =
     (Syntax.on_not (Syntax.on_not c0 & (c1 e))
      & c0) e in
   let rec star_below_or e = (* (a∨b)*(c∨d) becomes (a*c)∨(a*d)∨(b*c)∨(b*d) *)
-    let ess = List.map (unfold Syntax.on_or) (unfold on_star_nary e) in
+    let ess = List.map (unfold Syntax.on_or) (unfold Syntax.on_star e) in
     let fss = Misc.product ess in
     let r f = if Syntax.expr_equal f e then f else star_below_or f in
     let fs = List.map (r @@ mk_big_star) fss in
@@ -390,7 +390,7 @@ let match_args = expr_match_ops
   (fun ep es fp fs ->
     if ep <> fp then None
     else let rec go eqs es fs = match es, fs with
-      | [], [] -> Some (Syntax.mk_big_star eqs)
+      | [], [] -> Some (Syntax.mk_star eqs)
       | [], _ | _, [] -> None
       | e :: es, f :: fs ->
           let eqs = if Syntax.expr_equal e f then eqs else Syntax.mk_eq e f :: eqs in
@@ -434,26 +434,25 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
     (* called when pattern is an op and expression is a variable *)
     let on_pop_var po ps ev =
-      if Z3.FuncDecl.equal Syntax.star po then
-	let pl = ps >>= unfold on_star_nary in
-	fprintf logf "XXX: %a" (pp_list Syntax.pp_expr) pl;
+      if Syntax.is_star_op po then
+	let pl = ps >>= unfold Syntax.on_star in
 	find_star_matches bs pl [ev]
       else
 	(* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
            bs' on the provision that ev = po(ps)[bs'] *)
 	let p = Z3.FuncDecl.apply po ps in
 	let been_there =
-          (Syntax.on_star (fun f a -> Syntax.is_tpat f &&
+          (Syntax.on_star (function [f;a] -> Syntax.is_tpat f &&
             (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
-             & c1 false) a)
+             & c1 false) a | _ -> false)
            & c1 false ) pat in
 	if been_there then [] (* prevent infinite loops *)
 	else
           let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
           let f = Syntax.mk_fresh_bool_tpat "f" in
-          let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
+          let new_pat = Syntax.mk_star [f; Syntax.mk_eq x p] in
           (* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
-          let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
+          let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_star eqs) in
           let is_good b =
             let p = instantiate b p in
             (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
@@ -461,15 +460,15 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
           List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
-      if not (Z3.FuncDecl.equal po o) then
-	if Z3.FuncDecl.equal Syntax.star po then
-	  let pl = ps >>= unfold on_star_nary in
+      if Syntax.is_star_op po && Syntax.is_star_op o then
+	let pl = ps >>= unfold Syntax.on_star in
+	let el = es >>= unfold Syntax.on_star in
+	find_star_matches bs pl el
+      else if not (Z3.FuncDecl.equal po o) then
+	if Syntax.is_star_op po then
+	  let pl = ps >>= unfold Syntax.on_star in
 	  find_star_matches bs pl [Z3.FuncDecl.apply o es]
 	else []
-      else if Z3.FuncDecl.equal Syntax.star po then
-	let pl = ps >>= unfold on_star_nary in
-	let el = es >>= unfold on_star_nary in
-	find_star_matches bs pl el
       else if List.length ps <> List.length es then []
       else
         let todos = List.combine ps es in
@@ -511,7 +510,7 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
       (* at most one pattern variable, which gets the leftover frame *)
       atom_matches >>=
         (fun (bss, es) ->
-          bss >>= fun bs -> bind bs tpatvar (Syntax.mk_big_star es)) in
+          bss >>= fun bs -> bind bs tpatvar (Syntax.mk_star es)) in
   (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr pat Syntax.pp_expr expr; *)
   let r = aux bs pat expr in
   (* let pp_binding f b = *)
@@ -545,8 +544,8 @@ let rec list_spatial_matches gs hp cp fs nhs hs cs = match hs, cs with
             let gs = (match match_args h c with
               | None -> gs
               | Some p ->
-                  let cp = Syntax.mk_star cp p in
-                  if smt_is_valid (Syntax.mk_not (Syntax.mk_star hp cp))
+                  let cp = Syntax.mk_star [cp; p] in
+                  if smt_is_valid (Syntax.mk_not (Syntax.mk_star [hp; cp]))
                   then gs
                   else list_spatial_matches gs hp cp (h :: fs) nhs hs (ds @ cs)) in
             try_c gs (c :: ds) cs in
@@ -664,7 +663,7 @@ let match_subformula_rule =
       then rule_notapplicable else begin
         let lo_name = "_leftover" in
         let leftover = Syntax.mk_bool_lvar lo_name in
-        let enhanced_conc = Syntax.mk_star leftover conc_spatial in
+        let enhanced_conc = Syntax.mk_star [leftover; conc_spatial] in
         let matches =
           find_existential_sub_matches leftover Syntax.ExprMap.empty (enhanced_conc, hyp_spatial) in
         if log log_prove then
@@ -696,8 +695,8 @@ let spatial_match_rule =
     prof_fun1 "Prover.spatial_match_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
       (* TODO: don't apply rule if hyp & conc have disjunctions. *)
-      let hyp_pure, hs = ac_simplify_split is_emp on_star_nary [hypothesis] in
-      let conc_pure, cs = ac_simplify_split is_emp on_star_nary [conclusion] in
+      let hyp_pure, hs = ac_simplify_split is_emp Syntax.on_star [hypothesis] in
+      let conc_pure, cs = ac_simplify_split is_emp Syntax.on_star [conclusion] in
       let hyp_pure = mk_big_star hyp_pure in
       let conc_pure = mk_big_star conc_pure in
 (* TODO: Activate this once list_spatial_matches takes advantage of sorting.
@@ -720,7 +719,7 @@ let find_pattern_matches eqs = find_matches eqs (c1 true) Syntax.is_tpat
 let add_sequent_eqs s =
   let rec add_eqs e =
     ( Syntax.on_eq (fun _ _ -> (Smt.say e); [e])
-    & Syntax.on_star (fun a b -> add_eqs a@add_eqs b)
+    & Syntax.on_star (ListH.concatMap add_eqs)
     & (c1 [])) e in
   add_eqs s.Calculus.hypothesis
 
@@ -917,7 +916,7 @@ let rec heap_size e =
   if Syntax.is_pure e then 0 else
   ( Syntax.on_not heap_size
   & Syntax.on_or (List.fold_left max 0 @@ List.map heap_size)
-  & Syntax.on_star (fun a b -> heap_size a + heap_size b)
+  & Syntax.on_star (List.fold_left (+) 0 @@ List.map heap_size)
   & c1 1) e
 
 (* }}} *)
