@@ -961,7 +961,7 @@ let is_entailment = prof_fun3 "Prover.is_entailment" is_entailment
 let infer_frame rw rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
-    then (n + 1) * heap_size hypothesis
+    then Backtrack.min_penalty
     else Backtrack.max_penalty in
   let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
   let ss, p = solve_idfs min_depth max_depth rw rules penalty goal in
