@@ -63,6 +63,12 @@ let z3_is_not = z3_is Z3.Boolean.is_not
 let z3_is_eq = z3_is Z3.Boolean.is_eq
 let z3_is_distinct = z3_is Z3.Boolean.is_distinct
 let z3_is_const = z3_is Z3.Expr.is_const
+let is_star_op f =
+    let s = Z3.FuncDecl.get_name f in
+    Z3.Symbol.is_string_symbol s && Z3.Symbol.get_string s = "*"
+let is_star e =
+  try is_star_op (Z3.Expr.get_func_decl e)
+  with Z3native.Exception _ -> false
 
 (* watch out for code duplication below (is_var and is_const) *)
 let is_pvar v = z3_is_const v && is_pvar_name (Z3.Expr.to_string v)
@@ -118,7 +124,10 @@ let on_quantifier f g e =
 
 let on_op op_ref f g e =
   let b =
-    try Z3.FuncDecl.equal op_ref (Z3.Expr.get_func_decl e)
+    try
+      let op = Z3.Expr.get_func_decl e in
+      is_star_op op_ref && is_star_op op
+      || Z3.FuncDecl.equal op_ref op
     with Z3native.Exception _ -> false in
   if b then f (Z3.Expr.get_args e) else g e
 let on_0 op_ref f =
@@ -213,13 +222,6 @@ let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
 let star_func_n n =
   let arg_sort = ListH.replicate n bool_sort in
   Z3.FuncDecl.mk_func_decl_s z3_ctx "*" arg_sort bool_sort
-let is_star_op f =
-    let s = Z3.FuncDecl.get_name f in
-    Z3.Symbol.is_string_symbol s && Z3.Symbol.get_string s = "*"
-let is_star e =
-  (* huge hack again *)
-  try is_star_op (Z3.Expr.get_func_decl e)
-  with Z3native.Exception _ -> false
 
 let mk_var s v = Z3.Expr.mk_const_s z3_ctx v s
 let mk_plvar s v = mk_var s (String.make 1 plvar_char ^ v)
