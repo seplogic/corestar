@@ -456,8 +456,9 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
         List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
-      if (not (Z3.FuncDecl.equal po o)) || List.length ps <> List.length es
-      then []
+      if not (Z3.FuncDecl.equal po o) then []
+      else if Z3.FuncDecl.equal Syntax.star po then find_star_matches bs ps es
+      else if List.length ps <> List.length es then []
       else
         let todos = List.combine ps es in
         let process_todo acc (tp, te) =
@@ -471,9 +472,9 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
             else new_bs in
           acc >>= atom in
         List.fold_left process_todo [bs] todos in
-    cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e) in
+    cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e)
   (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
-  let find_star_matches bs pl el =
+  and find_star_matches bs pl el =
     let (tpatvars, patoms)  = List.partition Syntax.is_tpat pl in
     if List.length tpatvars > 1 then
       failwith "pattern formulas should have at most one formula variable (qj979xyr)";
