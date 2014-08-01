@@ -874,11 +874,11 @@ let rec solve rw rules penalty goal =
     if n = 0 then leaf else begin
       let btrackable r = not (CalculusOps.is_no_backtrack_rule r.rule_flags) in
       let process_rule r =
-        if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name;
+        (* if log log_prove then fprintf logf "@{<p>apply rule %s@}@?@\n" r.rule_name; *)
         let ess = r.rule_apply goal in
         if ess = rule_notapplicable then raise Backtrack.No_match;
         if safe then assert (List.for_all (List.for_all (not @@ CalculusOps.sequent_equal goal)) ess);
-        if log log_prove then fprintf logf "@{<p> applied.@}@?@\n";
+        if log log_prove then fprintf logf "@{<p> applied rule %s.@}@?@\n" r.rule_name;
 	if not (btrackable r) then
 	  incr level; (* bump level: non-backtrack rules are "free" *)
         ess in
