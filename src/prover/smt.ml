@@ -33,10 +33,7 @@ let is_impure () = !impure_count > 0
 (** rewrite_star_to_and [e] replaces occurences of "*" in [e] with the boolean conjunction "and" *)
 let rewrite_star_to_and e =
   let cache = Syntax.ExprHashMap.create 0 in
-  let rec rewrite_star a b =
-    let a = rewrite_expr a in
-    let b = rewrite_expr b in
-    Z3.Boolean.mk_and z3_ctx [a; b]
+  let rec rewrite_star l = Z3.Boolean.mk_and z3_ctx (List.map rewrite_expr l)
   and rewrite_expr e =
     try Syntax.ExprHashMap.find cache e
     with Not_found ->

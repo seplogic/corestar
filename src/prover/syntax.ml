@@ -210,7 +210,16 @@ let mk_2 op e f = Z3.FuncDecl.apply op [e; f]
 let mk_n = Z3.FuncDecl.apply
 
 let emp = Z3.FuncDecl.mk_func_decl_s z3_ctx "emp" [] bool_sort
-let star = Z3.FuncDecl.mk_func_decl_s z3_ctx "*" [bool_sort; bool_sort] bool_sort
+let star_func_n n =
+  let arg_sort = ListH.replicate n bool_sort in
+  Z3.FuncDecl.mk_func_decl_s z3_ctx "*" arg_sort bool_sort
+let is_star_op f =
+    let s = Z3.FuncDecl.get_name f in
+    Z3.Symbol.is_string_symbol s && Z3.Symbol.get_string s = "*"
+let is_star e =
+  (* huge hack again *)
+  try is_star_op (Z3.Expr.get_func_decl e)
+  with Z3native.Exception _ -> false
 
 let mk_var s v = Z3.Expr.mk_const_s z3_ctx v s
 let mk_plvar s v = mk_var s (String.make 1 plvar_char ^ v)
@@ -248,18 +257,13 @@ let mk_eq a b = Z3.Boolean.mk_eq z3_ctx a b
 let mk_false = Z3.Boolean.mk_false z3_ctx
 let mk_not a = Z3.Boolean.mk_not z3_ctx a
 let mk_or a b = Z3.Boolean.mk_or z3_ctx [a; b]
-let mk_star a b = mk_2 star a b
-
-let mk_big_star es =
-  let es = List.sort expr_compare es in
-  match es with
+let mk_star = function
   | [] -> mk_emp
   | [e] -> e (* these two cases to avoid introducing too many spurious stars *)
-  | e::tl -> List.fold_left mk_star e tl
-
+  | l -> Z3.FuncDecl.apply (star_func_n (List.length l)) l
 
 let on_emp f = on_0 emp f
-let on_star f = on_2 star f
+let on_star f = on_filter is_star f
 let on_false f = on_filter_0 z3_is_false f
 let on_or f = on_filter z3_is_or f
 let on_not f = on_filter_1 z3_is_not f
@@ -289,7 +293,7 @@ let rec pp_expr_infix f e =
    & on_var (fun e -> fprintf f "%s" (Z3.Expr.to_string e))
    & on_emp (pp_0 "emp")
    & on_false (pp_0 "false")
-   & on_star (pp_2 " * ")
+   & on_star (pp_n " * ")
    & on_or (pp_n " || ")
    & on_not (pp_1 "!")
    & on_eq (pp_2 "=")
@@ -307,7 +311,8 @@ let pp_expr = pp_expr_prefix
 
 let is_pure_op e =
   try
-    (Z3.Symbol.to_string (Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e))).[0] = pure_char
+    let s = Z3.FuncDecl.get_name (Z3.Expr.get_func_decl e) in
+    Z3.Symbol.is_string_symbol s && (Z3.Symbol.get_string s).[0] = pure_char
   with Z3native.Exception _ -> false
 
 (* TODO: do we want to gather statistics on cache hits? *)
@@ -350,7 +355,7 @@ let rec is_pure e =
 	& on_var (c1 false) (* best effort *)
 	& on_emp (c0 true)
 	& on_false (c0 true)
-	& on_star (fun a b -> is_pure a && is_pure b)
+	& on_star (List.for_all is_pure)
 	& on_or (List.for_all is_pure)
 	& on_not (fun e -> is_pure e)
 	& on_eq (c2 true)

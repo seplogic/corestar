@@ -44,7 +44,7 @@ let simplify_triple ({ C.pre; post; modifies } as t1) =
 *)
   let rec get_eqs is_ok e =
     let eq a b = if is_ok a || is_ok b then [(a, b)] else [] in
-    let star a b = get_eqs is_ok a @ get_eqs is_ok b in
+    let star = ListH.concatMap (get_eqs is_ok) in
     (Syntax.on_eq eq & Syntax.on_star star & c1 []) e in
   let rec get_lvars e =
     let var v = if Syntax.is_lvar v then [v] else [] in
@@ -555,7 +555,7 @@ end = struct
           let ds = (try Syntax.ExprMap.find v pdefs with Not_found -> []) in
           Syntax.ExprMap.add v ((e, vs_of e) :: ds) pdefs
         end else pdefs in
-      let star a b = get_pdefs (get_pdefs pdefs a) b in
+      let star = List.fold_left get_pdefs Syntax.ExprMap.empty in
       ( Syntax.on_eq eq
       & Syntax.on_star star
       & c1 pdefs )
@@ -585,7 +585,7 @@ end = struct
 
   let eqs_of_bindings ds =
     let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
-    ds |> List.map mk_eq |> Syntax.mk_big_star
+    ds |> List.map mk_eq |> Syntax.mk_star
 
   (* helpers for [execute_one_triple] *) (* {{{ *)
 

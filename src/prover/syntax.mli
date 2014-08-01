@@ -66,7 +66,8 @@ val mk_2 : Z3.FuncDecl.func_decl -> Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_n : Z3.FuncDecl.func_decl -> Z3.Expr.expr list -> Z3.Expr.expr
 
 val emp : Z3.FuncDecl.func_decl
-val star : Z3.FuncDecl.func_decl
+val is_star_op : Z3.FuncDecl.func_decl -> bool
+val is_star : Z3.Expr.expr -> bool
 
 val mk_plvar : Z3.Sort.sort -> string -> Z3.Expr.expr
 val mk_pgvar : Z3.Sort.sort -> string -> Z3.Expr.expr
@@ -87,15 +88,13 @@ val mk_fresh_bool_lvar : string -> Z3.Expr.expr
 val mk_fresh_bool_tpat : string -> Z3.Expr.expr
 val mk_fresh_bool_vpat : string -> Z3.Expr.expr
 
-(* We don't want on_big_star here because it's slow; but we have one in Prover. *)
-val mk_big_star : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_distinct : Z3.Expr.expr list -> Z3.Expr.expr
 val mk_emp : Z3.Expr.expr
 val mk_eq : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
 val mk_false : Z3.Expr.expr
 val mk_not :Z3.Expr.expr -> Z3.Expr.expr
 val mk_or : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
-val mk_star : Z3.Expr.expr -> Z3.Expr.expr -> Z3.Expr.expr
+val mk_star : Z3.Expr.expr list -> Z3.Expr.expr
 
 (* [on_star f g op xs] returns either [f xs] or [g op xs] depending on
    whether [op] is a star or not. Similarly for the other [on_*]
@@ -115,7 +114,7 @@ val on_false : 'a app_eval_0
 val on_distinct : 'a app_eval_n
 val on_not : 'a app_eval_1
 val on_or : 'a app_eval_n
-val on_star : 'a app_eval_2
+val on_star : 'a app_eval_n
 (** if [e] is of the form "e1 * (e2 * (... * en))" where en is not
     itself of the form "en' * en''", call [f] on the list [e1; e2; ...;
     en] *)
