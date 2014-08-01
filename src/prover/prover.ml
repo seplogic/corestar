@@ -423,8 +423,8 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
   let bind bs pv eb = match try_find pv bs with
     | None -> [Syntax.ExprMap.add pv eb bs]
     | Some e' -> if congruent eb e' then [bs] else [] in
-  (** [p] and [e] are atoms, ie expressions that have neither || nor * *)
-  let rec find_atom_matches bs p e =
+  (* FIXME: does not work properly if [p] or [e] has || in them *)
+  let rec aux bs p e =
     (* called when pattern is a variable [pv] and expression is a variable [ev] *)
     (* TODO: We might need a symmetric condition. *)
     let on_pvar_var pv ev =
@@ -434,36 +434,48 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
     (* called when pattern is an op and expression is a variable *)
     let on_pop_var po ps ev =
-      (* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
-         bs' on the provision that ev = po(ps)[bs'] *)
-      let p = Z3.FuncDecl.apply po ps in
-      let been_there =
-        (Syntax.on_star (fun f a -> Syntax.is_tpat f &&
-          (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
-           & c1 false) a)
-          & c1 false ) pat in
-      if been_there then [] (* prevent infinite loops *)
+      if Z3.FuncDecl.equal Syntax.star po then
+	let pl = ps >>= unfold on_star_nary in
+	fprintf logf "XXX: %a" (pp_list Syntax.pp_expr) pl;
+	find_star_matches bs pl [ev]
       else
-        let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
-        let f = Syntax.mk_fresh_bool_tpat "f" in
-        let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
-        (* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
-        let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
-        let is_good b =
-          let p = instantiate b p in
-          (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
-          congruent ev p in
-        List.filter is_good new_bs in
+	(* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
+           bs' on the provision that ev = po(ps)[bs'] *)
+	let p = Z3.FuncDecl.apply po ps in
+	let been_there =
+          (Syntax.on_star (fun f a -> Syntax.is_tpat f &&
+            (Syntax.on_eq (fun x q -> Syntax.is_tpat x && Syntax.expr_equal p q)
+             & c1 false) a)
+           & c1 false ) pat in
+	if been_there then [] (* prevent infinite loops *)
+	else
+          let x = Syntax.mk_fresh_tpat (Z3.FuncDecl.get_range po) "x" in
+          let f = Syntax.mk_fresh_bool_tpat "f" in
+          let new_pat = Syntax.mk_star f (Syntax.mk_eq x p) in
+          (* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
+          let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_big_star eqs) in
+          let is_good b =
+            let p = instantiate b p in
+            (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
+            congruent ev p in
+          List.filter is_good new_bs in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
-      if not (Z3.FuncDecl.equal po o) then []
-      else if Z3.FuncDecl.equal Syntax.star po then find_star_matches bs ps es
+      if not (Z3.FuncDecl.equal po o) then
+	if Z3.FuncDecl.equal Syntax.star po then
+	  let pl = ps >>= unfold on_star_nary in
+	  find_star_matches bs pl [Z3.FuncDecl.apply o es]
+	else []
+      else if Z3.FuncDecl.equal Syntax.star po then
+	let pl = ps >>= unfold on_star_nary in
+	let el = es >>= unfold on_star_nary in
+	find_star_matches bs pl el
       else if List.length ps <> List.length es then []
       else
         let todos = List.combine ps es in
         let process_todo acc (tp, te) =
           let atom bs =
-            let new_bs = flip ((flip find_atom_matches) tp) te bs in
+            let new_bs = flip ((flip aux) tp) te bs in
             if Z3.Boolean.is_eq (Z3.FuncDecl.apply po ps) then
               let (p1, p2) = match ps with [x; y] -> x, y | _ -> assert false in
               let f bs =
@@ -484,7 +496,7 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     let rec one_patom bs acc p = function
       | [] -> [] (* no match *)
       | e::tl ->
-        let bs' = find_atom_matches bs p e in
+        let bs' = aux bs p e in
         if bs' = [] then one_patom bs (e::acc) p tl
         else (bs', (List.rev acc)@tl)::one_patom bs (e::acc) p tl in
     let f ebl p =
@@ -493,24 +505,15 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     let atom_matches = List.fold_left f [([bs], el)] patoms in
     if tpatvars = [] then
       atom_matches >>=
-        (fun (bss, es) ->
-          bss >>= fun bs -> if es = [] then [bs] else [])
+        fun (bss, es) -> if es = [] then bss else []
     else
       let tpatvar = List.hd tpatvars in
       (* at most one pattern variable, which gets the leftover frame *)
       atom_matches >>=
         (fun (bss, es) ->
           bss >>= fun bs -> bind bs tpatvar (Syntax.mk_big_star es)) in
-  let no_star pa =
-    let fsm = find_star_matches bs [pa] in
-    (on_big_star fsm
-     & fun _ -> fsm [expr]) expr in
-  let star pl =
-    let fsm = find_star_matches bs pl in
-    (on_big_star fsm
-     & fun _ -> fsm [expr]) expr in
-  (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr p Syntax.pp_expr e; *)
-  let r = (on_big_star star & no_star) pat in
+  (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr pat Syntax.pp_expr expr; *)
+  let r = aux bs pat expr in
   (* let pp_binding f b = *)
   (*   fprintf f "@{Found matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair Syntax.pp_expr Syntax.pp_expr)) (Syntax.ExprMap.fold (fun pat ex l -> (pat,ex)::l) b []) in *)
   (* fprintf logf "@{<v 2>%a@}" (pp_list pp_binding) r; *)
@@ -620,7 +623,7 @@ let spatial_id_rule =
       then [[{ Calculus.hypothesis = hyp_pure; conclusion = conc_pure; frame}]]
       else begin
         let matches = find_existential_matches Syntax.ExprMap.empty (conc_spatial, hyp_spatial) in
-        if log log_prove then fprintf logf "@,found %d matches@," (List.length matches);
+        (* if log log_prove then fprintf logf "@,found %d matches@," (List.length matches); *)
         let mk_goal m =
           let b = Syntax.ExprMap.bindings m in
           let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
@@ -639,7 +642,7 @@ let match_rule =
     (function { Calculus.hypothesis; conclusion; frame } ->
       let matches =
           find_existential_matches Syntax.ExprMap.empty (conclusion, hypothesis) in
-      if log log_prove then fprintf logf "@,found %d matches@\n" (List.length matches);
+      (* if log log_prove then fprintf logf "@,found %d matches@\n" (List.length matches); *)
       let mk_goal m =
         let b = Syntax.ExprMap.bindings m in
         let mk_eq (v, e) = Z3.Boolean.mk_eq z3_ctx v e in
