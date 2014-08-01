@@ -484,8 +484,8 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
   (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
   let find_star_matches bs pl el =
     let (tpatvars, patoms)  = List.partition Syntax.is_tpat pl in
-    (* if List.length tpatvars > 1 then *)
-    (*   failwith "pattern formulas should have at most one formula variable (qj979xyr)"; *)
+    if List.length tpatvars > 1 then
+      failwith "pattern formulas should have at most one formula variable (qj979xyr)";
     (** matches a pattern [p] against a list of *-conjoined
         expressions el. Returns a list of pairs (b',el') of matching
         bindings b' together with leftover expressions el' *)
