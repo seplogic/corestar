@@ -206,10 +206,22 @@ module HashableExpr = struct
   let compare = expr_compare
 end
 
+module HashableSort = struct
+  type t = Z3.Sort.sort
+  let hash = Z3.AST.hash @@ Z3.Sort.ast_of_sort
+  let equal = Z3.Sort.equal
+  let compare s1 s2 = Z3.AST.compare (Z3.Sort.ast_of_sort s1) (Z3.Sort.ast_of_sort s2)
+end
+
 module ExprSet = Set.Make(HashableExpr)
 module ExprMap = Map.Make(HashableExpr)
 module ExprHashSet = HashSet.Make(HashableExpr)
 module ExprHashMap = Hashtbl.Make(HashableExpr)
+
+module SortSet = Set.Make(HashableSort)
+module SortMap = Map.Make(HashableSort)
+module SortHashSet = HashSet.Make(HashableSort)
+module SortHashMap = Hashtbl.Make(HashableSort)
 
 let vars =
   let rec f vs expr =
