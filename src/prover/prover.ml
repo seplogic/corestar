@@ -397,6 +397,74 @@ let match_args = expr_match_ops
           go eqs es fs in
       go [] es fs)
 
+let polymorphic_update (si,bs) =
+  let h = Syntax.ExprHashMap.create 0 in
+  Syntax.ExprMap.iter (Syntax.ExprHashMap.add h) bs;
+  let sort_sub s = try Syntax.SortMap.find s si with Not_found -> s in
+  let rec f e =
+    let app op args =
+      let s = Z3.FuncDecl.get_name op in
+      let dom = Z3.FuncDecl.get_domain op in
+      let rg = Z3.FuncDecl.get_range op in
+      let dom' = List.map sort_sub dom in
+      let rg' = sort_sub rg in
+      (* hack to get around Z3 losing track of native operations that
+         don't like to be renamed *)
+      let op' =
+        if List.for_all2 Z3.Sort.equal (rg::dom) (rg'::dom') then op
+        else Z3.FuncDecl.mk_func_decl z3_ctx s dom' rg' in
+      let args' = List.map f args in
+      Z3.FuncDecl.apply op' args' in
+    let var v =
+      try
+        let s = Syntax.SortMap.find (Z3.Expr.get_sort v) si in
+        let name = Z3.FuncDecl.get_name (Z3.Expr.get_func_decl v) in
+        Z3.Expr.mk_const z3_ctx name s
+      with Not_found -> v in
+    try Syntax.ExprHashMap.find h e
+    with Not_found ->
+      (* special case for equality is needed otherwise Z3 doesn't recognise the new expression as an equality *)
+      let r =
+        (Syntax.on_var var
+         & Syntax.on_const id
+         & Syntax.on_eq (fun a b -> Syntax.mk_eq (f a) (f b))
+         & Syntax.on_distinct (Syntax.mk_distinct @@ List.map f)
+         & Syntax.on_app app) e in
+      Syntax.ExprHashMap.add h e r;
+      r
+  in f
+
+let pp_symb f = pp_string f @@ Z3.Symbol.to_string
+let pp_sort f = pp_string f @@ Z3.Sort.to_string
+
+let match_sort is_poly_sort si s1 s2 =
+  if Z3.Sort.equal s1 s2 then [si]
+  else if is_poly_sort s1 then
+    try
+      let s' = Syntax.SortMap.find s1 si in
+      if Z3.Sort.equal s2 s' then [si] else []
+    with Not_found -> [Syntax.SortMap.add s1 s2 si]
+  else []
+
+let match_op is_poly_sort si op1 op2 =
+  if Syntax.is_star_op op1 && Syntax.is_star_op op2 then [si]
+  else
+    let s1 = Z3.FuncDecl.get_name op1 in
+    let s2 = Z3.FuncDecl.get_name op2 in
+    let dom1 = Z3.FuncDecl.get_domain op1 in
+    let dom2 = Z3.FuncDecl.get_domain op2 in
+    let rg1 = Z3.FuncDecl.get_range op1 in
+    let rg2 = Z3.FuncDecl.get_range op2 in
+    (* fprintf logf "%a: %a -> %a  =?=> %a: %a -> %a" *)
+    (*         pp_symb s1 (pp_list pp_sort) dom1 pp_sort rg1 *)
+    (*         pp_symb s2 (pp_list pp_sort) dom2 pp_sort rg2; *)
+    if Syntax.symbol_equal s1 s2 then
+      List.fold_left2
+        (fun is s1 s2 -> is >>= (fun i -> match_sort is_poly_sort i s1 s2))
+        [si] (rg1::dom1) (rg2::dom2)
+    else []
+
+
 (** Find all instantiations that make the pattern [pat] match the expression [expr]
 
     input [bs] is one assignment, the current branch we are exploring
@@ -404,6 +472,7 @@ let match_args = expr_match_ops
 
     Parameterized by
     [eqs] : expr list, a set of equalities that are known to hold (typically, the LHS of the current sequent)
+    [is_poly_sort] : sort -> bool, signifying which sorts are wildcard sorts
     [is_free] : expr -> bool, signifying which variables should be instantiated
     [can_be_op] : expr -> bool, signifying which variables can be instantiated not just with variables
 
@@ -411,32 +480,40 @@ let match_args = expr_match_ops
     Assumes that [expr] and [pat] are in normal form
     Always fails when either [expr] or [pat] have top-level disjunctions
 
+    Polymorphic sorted variables can only be free variables.
+
     Works best if known equalities have been pushed to Z3, so that we
     can use its congruence closure mechanism to ask if some expression
     is "trivially" equal to another efficiently. This allows matching
     between two syntactically different expressions which are equal
     because of known equalities.
 *)
-let rec find_matches eqs is_free can_be_op bs (pat,expr) =
-  (* use Z3 congruence closure to decide equality between expressions *)
-  let congruent e f = Syntax.expr_equal e f || smt_is_valid (Syntax.mk_eq e f) in
+let rec find_matches eqs is_poly_sort is_free can_be_op (si,bs) (pat,expr) =
+  (* use Z3 to decide equality between expressions *)
+  let congruent e f =
+    Syntax.expr_equal e f
+    || (Z3.Sort.equal (Z3.Expr.get_sort e) (Z3.Expr.get_sort f)
+        && smt_is_valid (Syntax.mk_eq e f)) in
   let bind bs pv eb = match try_find pv bs with
     | None -> [Syntax.ExprMap.add pv eb bs]
     | Some e' -> if congruent eb e' then [bs] else [] in
-  (* FIXME: does not work properly if [p] or [e] has || in them *)
-  let rec aux bs p e =
+  (* does not work properly wrt AC if [p] or [e] has || in
+  them. [find_star_matches] could be adapted to work with any AC
+  connective. *)
+  let rec aux si bs p e =
     (* called when pattern is a variable [pv] and expression is a variable [ev] *)
     (* TODO: We might need a symmetric condition. *)
     let on_pvar_var pv ev =
-      if is_free pv then bind bs pv ev
-      else if congruent pv ev then [bs] else [] in
+      if is_free pv then List.map (fun b -> (si,b)) (bind bs pv ev)
+      else if congruent pv ev then [(si,bs)] else [] in
     (* called when pattern is a variable [pv] and expression is an op ([o] [es]) *)
-    let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
+    let on_pvar_op pv o es =
+      if can_be_op pv then List.map (fun b -> (si,b)) (bind bs pv e) else [] in
     (* called when pattern is an op and expression is a variable *)
     let on_pop_var po ps ev =
       if Syntax.is_star_op po then
 	let pl = ps >>= unfold Syntax.on_star in
-	find_star_matches bs pl [ev]
+	find_star_matches si bs pl [ev]
       else
 	(* HEURISTIC: look for ?x = po(ps) in [expr] and use the matches
            bs' on the provision that ev = po(ps)[bs'] *)
@@ -452,72 +529,77 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
           let f = Syntax.mk_fresh_bool_tpat "f" in
           let new_pat = Syntax.mk_star [f; Syntax.mk_eq x p] in
           (* fprintf logf "@[Trying to find %a = %a in %a@]@\n" Syntax.pp_expr ev Syntax.pp_expr p (pp_list_sep "*" Syntax.pp_expr) eqs; *)
-          let new_bs = find_matches eqs is_free can_be_op bs (new_pat, Syntax.mk_star eqs) in
-          let is_good b =
-            let p = instantiate b p in
+          let new_insts = find_matches eqs is_poly_sort is_free can_be_op (si,bs) (new_pat, Syntax.mk_star eqs) in
+          let is_good inst =
+            let p = instantiate (snd inst) p in
             (* fprintf logf "@[found a candidate: %a@]@\n" Syntax.pp_expr p; *)
             congruent ev p in
-          List.filter is_good new_bs in
+          List.filter is_good new_insts in
     (* called when pattern is an op ([po] [ps]) and expression is an op ([o] [es]) *)
     let on_pop_op po ps o es =
+      let sis = match_op is_poly_sort si po o in
       if Syntax.is_star_op po && Syntax.is_star_op o then
 	let pl = ps >>= unfold Syntax.on_star in
 	let el = es >>= unfold Syntax.on_star in
-	find_star_matches bs pl el
-      else if not (Z3.FuncDecl.equal po o) then
+	sis >>= (fun i -> find_star_matches i bs pl el)
+      else if sis = [] then
 	if Syntax.is_star_op po then
 	  let pl = ps >>= unfold Syntax.on_star in
-	  find_star_matches bs pl [Z3.FuncDecl.apply o es]
+	  find_star_matches si bs pl [Z3.FuncDecl.apply o es]
 	else []
       else if List.length ps <> List.length es then []
+      (* Some constant expressions sneakily make it into this function
+         due to some unknown Z3 quirk (eg, bitvector numerals) *)
+      else if ps = [] then if Z3.FuncDecl.equal po o then [(si,bs)] else []
       else
         let todos = List.combine ps es in
         let process_todo acc (tp, te) =
-          let atom bs =
-            let new_bs = flip ((flip aux) tp) te bs in
+          let atom (si,bs) =
+            let new_insts = aux si bs tp te in
             if Z3.Boolean.is_eq (Z3.FuncDecl.apply po ps) then
               let (p1, p2) = match ps with [x; y] -> x, y | _ -> assert false in
               let f bs =
-                not (Syntax.expr_equal (instantiate bs p1) (instantiate bs p2)) in
-              List.filter f new_bs
-            else new_bs in
+                not (Syntax.expr_equal (instantiate (snd bs) p1) (instantiate (snd bs) p2)) in
+              List.filter f new_insts
+            else new_insts in
           acc >>= atom in
-        List.fold_left process_todo [bs] todos in
+        sis >>= (fun si -> List.fold_left process_todo [(si,bs)] todos) in
     cases_pat_exp on_pvar_var on_pvar_op on_pop_var on_pop_op (p, e)
   (** matches bigstar of [el] against bigstar of [pl] under bindings [bs] *)
-  and find_star_matches bs pl el =
+  and find_star_matches si bs pl el =
     let (tpatvars, patoms)  = List.partition Syntax.is_tpat pl in
     if List.length tpatvars > 1 then
       failwith "pattern formulas should have at most one formula variable (qj979xyr)";
     (** matches a pattern [p] against a list of *-conjoined
         expressions el. Returns a list of pairs (b',el') of matching
         bindings b' together with leftover expressions el' *)
-    let rec one_patom bs acc p = function
+    let rec one_patom si bs acc p = function
       | [] -> [] (* no match *)
       | e::tl ->
-        let bs' = aux bs p e in
-        if bs' = [] then one_patom bs (e::acc) p tl
-        else (bs', (List.rev acc)@tl)::one_patom bs (e::acc) p tl in
+        let insts = aux si bs p e in
+        if insts = [] then one_patom si bs (e::acc) p tl
+        else (insts, (List.rev acc)@tl)::one_patom si bs (e::acc) p tl in
     let f ebl p =
-      let g (bss, es) = bss >>= (fun bs' -> one_patom bs' [] p es) in
+      let g (insts, es) = insts >>= (fun (si',bs') -> one_patom si' bs' [] p es) in
       ebl >>= g in
-    let atom_matches = List.fold_left f [([bs], el)] patoms in
+    let atom_matches = List.fold_left f [([si, bs], el)] patoms in
     if tpatvars = [] then
       atom_matches >>=
-        fun (bss, es) -> if es = [] then bss else []
+        fun (insts, es) -> if es = [] then insts else []
     else
       let tpatvar = List.hd tpatvars in
       (* at most one pattern variable, which gets the leftover frame *)
       atom_matches >>=
-        (fun (bss, es) ->
-          bss >>= fun bs -> bind bs tpatvar (Syntax.mk_star es)) in
+        (fun (insts, es) ->
+          insts >>= fun (si,bs) -> List.map (fun b -> (si,b)) (bind bs tpatvar (Syntax.mk_star es))) in
   (* fprintf logf "@{Matching %a to %a@}@?@\n" Syntax.pp_expr pat Syntax.pp_expr expr; *)
-  let r = aux bs pat expr in
-  (* let pp_binding f b = *)
-  (*   fprintf f "@{Found matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair Syntax.pp_expr Syntax.pp_expr)) (Syntax.ExprMap.fold (fun pat ex l -> (pat,ex)::l) b []) in *)
+  let r = aux si bs pat expr in
+  (* let pp_binding f (i,b) = *)
+  (*   fprintf f "@{Found sort matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair pp_sort pp_sort)) (Syntax.SortMap.bindings i); *)
+  (*   fprintf f "@{Found matches:@\n@{<v 2>%a@}@}@?@\n" (pp_list (pp_pair Syntax.pp_expr Syntax.pp_expr)) (Syntax.ExprMap.bindings b) in *)
   (* fprintf logf "@{<v 2>%a@}" (pp_list pp_binding) r; *)
   r
-let find_matches = prof_fun4 "Prover.find_matches" find_matches
+let find_matches = prof_fun6 "Prover.find_matches" find_matches
 
 (* Notations:
     gs is an accumulator for subgoals found so far (any of them suffices)
@@ -596,11 +678,13 @@ let rec find_conversion can_convert bs (p, e) =
 *)
 
 (* interpret free variables as existential variables *)
-let find_existential_matches =
-  find_matches [] Syntax.is_lvar (c1 false)
+let find_existential_matches bs (pat,expr) =
+  let insts = find_matches [] (c1 false) Syntax.is_lvar (c1 false) (Syntax.SortMap.empty, bs) (pat,expr) in
+  List.map snd insts
 
-let find_existential_sub_matches leftover_var =
-  find_matches [] Syntax.is_lvar (Syntax.expr_equal leftover_var)
+let find_existential_sub_matches leftover_var bs (pat,expr) =
+  let insts = find_matches [] (c1 false) Syntax.is_lvar (Syntax.expr_equal leftover_var) (Syntax.SortMap.empty, bs) (pat,expr) in
+  List.map snd insts
 
 (*
 let find_existential_match = find_conversion Syntax.is_lvar
@@ -716,7 +800,13 @@ let spatial_match_rule =
 
 let find_pattern_matches eqs =
   let is_pat e = Syntax.is_vpat e || Syntax.is_tpat e in
-  find_matches eqs is_pat Syntax.is_tpat
+  (* polymorphic sorts are named and start with a quote *)
+  let is_poly_sort s =
+    let n = Z3.Sort.get_name s in
+    Z3.Symbol.is_string_symbol n
+    && let a = Z3.Symbol.get_string n in
+       String.length a > 0 && String.get a 0 = '\'' in
+  find_matches eqs is_poly_sort is_pat Syntax.is_tpat
 
 let add_sequent_eqs s =
   let rec add_eqs e =
@@ -725,17 +815,17 @@ let add_sequent_eqs s =
     & (c1 [])) e in
   add_eqs s.Calculus.hypothesis
 
-let find_sequent_matches bs ps s =
+let find_sequent_matches inst ps s =
   Smt.push ();
   let eqs = add_sequent_eqs s in
-  let fm pat exp bs = find_pattern_matches eqs bs (pat, exp) in
+  let fm pat exp inst = find_pattern_matches eqs inst (pat, exp) in
   (* OPTIM: match less expensive things first.
      A lot of rules won't match and we need to discover the ones which
      don't as fast as possible. *)
   (* TODO: This ordering is just a heuristic, it could be improved by
      actually measuring the sizes of the formules in [s] *)
   let r =
-    fm ps.Calculus.conclusion s.Calculus.conclusion bs >>=
+    fm ps.Calculus.conclusion s.Calculus.conclusion inst >>=
       fm ps.Calculus.frame s.Calculus.frame >>=
       fm ps.Calculus.hypothesis s.Calculus.hypothesis in
   Smt.pop ();
@@ -754,8 +844,8 @@ let rec rewrite_in_expr eqs r e =
   let to_pat = r.Calculus.rw_to_pattern in
   let op = Z3.Expr.get_func_decl from_pat in
   let rewrite_op e =
-    let bs = find_pattern_matches eqs Syntax.ExprMap.empty (from_pat, e) in
-    if bs = [] then e
+    let insts = find_pattern_matches eqs (Syntax.SortMap.empty, Syntax.ExprMap.empty) (from_pat, e) in
+    if insts = [] then e
     else (
       (* freshen the free variables in the rule, ie the logical
       variables that appear only in the "to pattern" *)
@@ -770,7 +860,7 @@ let rec rewrite_in_expr eqs r e =
       non-backtrackable. [rw_of_rules] should catch most instances
       where several rewritings are possible (except those which do not
       commute). *)
-      let f = instantiate (List.hd bs) to_pat in
+      let f = polymorphic_update (List.hd insts) to_pat in
       if log log_prove then
         fprintf logf "@{<p>Rewrote %s: @[%a@] -> @[%a@]@}@\n" name Syntax.pp_expr e Syntax.pp_expr f;
       f) in
@@ -779,11 +869,6 @@ let rec rewrite_in_expr eqs r e =
      Z3.FuncDecl.apply op (List.map (rewrite_in_expr eqs r) l))) e
 
 (* }}} *)
-
-let instantiate_sequent bs s =
-  { Calculus.frame = instantiate bs s.Calculus.frame
-  ; hypothesis = instantiate bs s.Calculus.hypothesis
-  ; conclusion = instantiate bs s.Calculus.conclusion }
 
 let builtin_rules =
   [ id_rule
@@ -800,13 +885,13 @@ let builtin_rules =
 (* TODO: normalize rule patterns (best done earlier as this is called often-ish *)
 let rules_of_calculus rw =
   let apply_seq_schema rs s = (* RLP: Should we refer to some bindings here? *)
-    let check bs c = smt_is_valid (rw s (instantiate bs c)) in
-    let is_fresh bs (v, e) =
-      not (Syntax.ExprSet.exists (Syntax.expr_equal v) (Syntax.vars (instantiate bs e))) in
+    let check inst c = smt_is_valid (rw s (polymorphic_update inst c)) in
+    let is_fresh inst (v, e) =
+      not (Syntax.ExprSet.exists (Syntax.expr_equal v) (Syntax.vars (polymorphic_update inst e))) in
     let side_conditions s freshs checks bs =
       List.for_all (is_fresh bs) freshs
       && List.for_all (check bs) checks in
-    let m = find_sequent_matches Syntax.ExprMap.empty rs.Calculus.seq_goal_pattern s in
+    let m = find_sequent_matches (Syntax.SortMap.empty, Syntax.ExprMap.empty) rs.Calculus.seq_goal_pattern s in
     (* freshen logical variables appearing in subgoals and side conditions but not in the goal *)
     let rs = (* OPTIM: only freshen if there is a match otherwise don't bother *)
       if m <> [] then
@@ -822,9 +907,9 @@ let rules_of_calculus rw =
     let sc = side_conditions s rs.Calculus.seq_fresh_in_expr rs.Calculus.seq_pure_check in
     let mm = m in
     let m = List.filter sc m in
-    if log log_prove && m = [] && mm <> [] then fprintf logf "@{side conditions failed@}@?@\n";
-    let try_one bs =
-      List.map (instantiate_sequent bs) rs.Calculus.seq_subgoal_pattern in
+    if log log_prove && m = [] && mm <> [] then fprintf logf "@{side conditions failed in rule %s@}@?@\n" rs.Calculus.seq_name;
+    let try_one inst =
+      List.map (CalculusOps.subst_in_sequent (polymorphic_update inst)) rs.Calculus.seq_subgoal_pattern in
     if m != [] then
       if CalculusOps.is_no_backtrack_rule rs.Calculus.seq_flags then
         (* if no backtrack then just pick one instantiation *)
