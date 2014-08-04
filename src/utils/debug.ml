@@ -84,7 +84,8 @@ let log_stats = 1 lsl 7
 (* enable html tags in output *)
 let log_html = false
 
-let log_active = log_exec lor log_phase lor log_stats
+(* let log_active = log_exec lor log_phase lor log_stats *)
+let log_active = -1 land (lnot log_smt)
   (* -1 means all, 0 means one, in general use lor *)
 
 let log x = log_active land x <> 0
@@ -176,6 +177,8 @@ let prof_fun1 c f x =
 let prof_fun2 c f x y = prof_fun1 c (uncurry f) (x, y)
 let prof_fun3 c f x y = prof_fun2 c (uncurry f) (x, y)
 let prof_fun4 c f x y = prof_fun3 c (uncurry f) (x, y)
+let prof_fun5 c f x y = prof_fun4 c (uncurry f) (x, y)
+let prof_fun6 c f x y = prof_fun5 c (uncurry f) (x, y)
 
 
 (* }}} *)
