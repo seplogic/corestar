@@ -438,7 +438,7 @@ let rec find_matches eqs is_free can_be_op bs (pat,expr) =
     (* TODO: We might need a symmetric condition. *)
     let on_pvar_var pv ev =
       if is_free pv then bind bs pv ev
-      else if Syntax.expr_equal pv ev then [bs] else [] in
+      else if congruent pv ev then [bs] else [] in
     (* called when pattern is a variable [pv] and expression is an op ([o] [es]) *)
     let on_pvar_op pv o es = if can_be_op pv then bind bs pv e else [] in
     (* called when pattern is an op and expression is a variable *)
@@ -723,7 +723,9 @@ let spatial_match_rule =
   ; rule_priority = 100
   ; rule_flags = Calculus.rule_inconsistency }
 
-let find_pattern_matches eqs = find_matches eqs (c1 true) Syntax.is_tpat
+let find_pattern_matches eqs =
+  let is_pat e = Syntax.is_vpat e || Syntax.is_tpat e in
+  find_matches eqs is_pat Syntax.is_tpat
 
 let add_sequent_eqs s =
   let rec add_eqs e =
