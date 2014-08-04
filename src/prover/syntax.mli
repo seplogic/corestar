@@ -22,9 +22,10 @@ val mk_string_const : string -> Z3.Expr.expr (* with side-effects! *)
 val string_sort : Z3.Sort.sort
 val get_all_string_exprs : unit -> Z3.Expr.expr list
 
-(* an omission from Z3's ocaml binding *)
 val expr_compare : Z3.Expr.expr -> Z3.Expr.expr -> int
 val expr_equal : Z3.Expr.expr -> Z3.Expr.expr -> bool
+(* an omission from Z3's ocaml binding *)
+val symbol_equal : Z3.Symbol.symbol -> Z3.Symbol.symbol -> bool
 
 module HashableExpr : Hashtbl.HashedType with type t = Z3.Expr.expr
 module ExprSet : Set.S with type elt = Z3.Expr.expr

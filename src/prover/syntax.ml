@@ -18,6 +18,13 @@ let string_sort = int_sort (* TODO: ugly hack? *)
 let expr_compare = Z3.Expr.compare
 let expr_equal = Z3.Expr.equal
 
+let symbol_equal s1 s2 = match Z3.Symbol.kind s1, Z3.Symbol.kind s2 with
+  | Z3enums.INT_SYMBOL, Z3enums.INT_SYMBOL ->
+     Z3.Symbol.get_int s1 = Z3.Symbol.get_int s2
+  | Z3enums.STRING_SYMBOL, Z3enums.STRING_SYMBOL ->
+     Z3.Symbol.get_string s1 = Z3.Symbol.get_string s2
+  | _, _ -> false
+
 (* {{{ strings stuff *)
 
 let string_const_map = StringHash.create 0
