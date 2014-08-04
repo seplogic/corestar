@@ -32,6 +32,11 @@ module ExprSet : Set.S with type elt = Z3.Expr.expr
 module ExprMap : Map.S with type key = Z3.Expr.expr
 module ExprHashSet : HashSet.S with type elt = Z3.Expr.expr
 module ExprHashMap : Hashtbl.S with type key = Z3.Expr.expr
+module HashableSort : Hashtbl.HashedType with type t = Z3.Sort.sort
+module SortSet : Set.S with type elt = Z3.Sort.sort
+module SortMap : Map.S with type key = Z3.Sort.sort
+module SortHashSet : HashSet.S with type elt = Z3.Sort.sort
+module SortHashMap : Hashtbl.S with type key = Z3.Sort.sort
 
 val freshen : Z3.Expr.expr -> Z3.Expr.expr
   (* [freshen v] is a fresh logical variable whose name is similar to [v].
