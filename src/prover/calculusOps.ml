@@ -85,31 +85,46 @@ let subst_in_rule_schema subst = function
  *)
 (* {{{ *)
 
-let filter_pats =
+let filter_pat =
   Syntax.ExprSet.filter (fun e -> Syntax.is_tpat e || Syntax.is_vpat e)
+let filter_lvar = Syntax.ExprSet.filter Syntax.is_lvar
 
 let check_sequent_schema r =
-  let gps = filter_pats (vars_of_sequent r.seq_goal_pattern) in
-  let sgps = union_map (filter_pats @@ vars_of_sequent) r.seq_subgoal_pattern in
-  let b = Syntax.ExprSet.subset sgps gps in
-  if not b then (
+  let gvs = vars_of_sequent r.seq_goal_pattern in
+  let gps = filter_pat gvs in
+  let sgps = union_map (filter_pat @@ vars_of_sequent) r.seq_subgoal_pattern in
+  let b_pat = Syntax.ExprSet.subset sgps gps in
+  if not b_pat then (
     let ps = Syntax.ExprSet.diff sgps gps in
     eprintf
       "pattern(s) %a appear in the subgoals of rule %s but not in the goal.@\n"
       (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements ps) r.seq_name);
-  b
+  let glvs = filter_lvar gvs in
+  let b_lvar = Syntax.ExprSet.is_empty glvs in
+  if not b_lvar then (
+    eprintf
+      "logical variables cannot appear in the goal of a rule (rule %s, variable(s) %a).@\n"
+      r.seq_name (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements glvs));
+  b_pat && b_lvar
 
 let check_rewrite_schema r =
-  let pats_of = filter_pats @@ Syntax.vars in
-  let b = Syntax.ExprSet.subset (pats_of r.rw_to_pattern)
+  let pats_of = filter_pat @@ Syntax.vars in
+  let b_pat = Syntax.ExprSet.subset (pats_of r.rw_to_pattern)
                                 (pats_of r.rw_from_pattern) in
-  if not b then (
+  if not b_pat then (
     let ps = Syntax.ExprSet.diff (pats_of r.rw_to_pattern)
                                  (pats_of r.rw_from_pattern) in
     eprintf
       "pattern(s) %a appear in the RHS of rule %s but not in the LHS.@\n"
       (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements ps) r.rw_name);
-  b
+  let lvars_of = filter_lvar @@ Syntax.vars in
+  let flvs = lvars_of r.rw_from_pattern in
+  let b_lvar = Syntax.ExprSet.is_empty flvs in
+  if not b_lvar then (
+    eprintf
+      "logical variables cannot appear in the LHS of a rewrite rule (rule %s, variable(s) %a).@\n"
+      r.rw_name (pp_list Syntax.pp_expr) (Syntax.ExprSet.elements flvs));
+  b_pat && b_lvar
 
 let check_rule_schema = function
   | Sequent_rule r -> check_sequent_schema r
