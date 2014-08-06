@@ -13,13 +13,6 @@ type frame_and_antiframe =
 
 (* Helper functions for prover rules. *) (* {{{ *)
 
-let smt_is_valid a =
-  Smt.push ();
-  Smt.say (Z3.Boolean.mk_not z3_ctx a);
-  let r = Smt.check_sat () = Smt.Unsat in
-  Smt.pop ();
-  r
-
 (* True iff _x1=e1 * _x2=e2 * ... *)
 let rec is_instantiation e =
 (*   printf "oops@\n@?"; *)
@@ -96,6 +89,31 @@ let mk_big_meet = function
   | [] -> Syntax.mk_emp
   | [e] -> e
   | e :: es -> List.fold_left mk_meet e es
+
+
+let smt_is_valid a =
+  Smt.push ();
+  Smt.say (Z3.Boolean.mk_not z3_ctx a);
+  let r = Smt.check_sat () = Smt.Unsat in
+  Smt.pop ();
+  r
+
+let smt_implies e f =
+  let (pure_e, spat_e) = extract_pure_part e in
+  let (pure_f, spat_f) = extract_pure_part f in
+  if Syntax.expr_equal spat_f Syntax.mk_emp then
+    let f = Smt.rewrite_star_to_and pure_f in
+    let pure_e = Smt.rewrite_star_to_and pure_e in
+    let e = Z3.Boolean.mk_and z3_ctx [pure_e; spat_e] in
+    let vs = Syntax.ExprSet.diff (Syntax.vars f) (Syntax.vars e) in
+    let vs = Syntax.ExprSet.elements vs in
+    let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
+    let quant mk xs b =
+      let r = mk Syntax.z3_ctx xs b None [] [] None None in
+      Z3.Quantifier.expr_of_quantifier r in
+    let exists = quant Z3.Quantifier.mk_exists_const in
+    smt_is_valid (exists vs (implies e f))
+  else false
 
 (* TODO(rg): Add a comment with what this does. *)
 let find_lvar_pvar_subs e =
@@ -194,20 +212,6 @@ let guess_instances e f =
   (* fprintf logf "@{vbgss = %a@}@\n" (pp_list_sep "\n" (pp_list_sep ";" (pp_pair Syntax.pp_expr Syntax.pp_expr))) vbgss; *)
   let mk es = mk_big_star (List.map (fun (v, e) -> Syntax.mk_eq v e) es) in
   List.map mk (List.map ((@) vggs) vbgss)
-
-let smt_implies e f =
-  if Syntax.is_pure f then
-    let f = Smt.rewrite_star_to_and f in
-    let e = if Syntax.is_pure e then Smt.rewrite_star_to_and e else e in
-    let vs = Syntax.ExprSet.diff (Syntax.vars f) (Syntax.vars e) in
-    let vs = Syntax.ExprSet.elements vs in
-    let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
-    let quant mk xs b =
-      let r = mk Syntax.z3_ctx xs b None [] [] None None in
-      Z3.Quantifier.expr_of_quantifier r in
-    let exists = quant Z3.Quantifier.mk_exists_const in
-    smt_is_valid (exists vs (implies e f))
-  else false
 
 (* [smt_disprove_query] and helpers *) (* {{{ *)
 exception Disproved
