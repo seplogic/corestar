@@ -34,26 +34,6 @@ let pp_rule_schema f = function
   | Sequent_rule r -> pp_seq_schema f r
   | Rewrite_rule r -> pp_rw_schema f r
 
-let mk_equiv_rule name priority flags lhs rhs =
-  let f = Syntax.mk_fresh_bool_tpat "_f" in
-  let lo = Syntax.mk_fresh_bool_tpat "_lo" in
-  let rs =
-    [{ seq_name = name ^ "_right"
-     ; seq_pure_check = []
-     ; seq_fresh_in_expr = []
-     ; seq_goal_pattern = { frame = f; hypothesis = lo; conclusion = lhs }
-     ; seq_subgoal_pattern = [{ frame = f; hypothesis = lo; conclusion = rhs }]
-     ; seq_priority = priority
-     ; seq_flags = flags };
-     { seq_name = name ^ "_left"
-     ; seq_pure_check = []
-     ; seq_fresh_in_expr = []
-     ; seq_goal_pattern = { frame = f; hypothesis = lhs; conclusion = lo }
-     ; seq_subgoal_pattern = [{ frame = f; hypothesis = rhs; conclusion = lo }]
-     ; seq_priority = priority
-     ; seq_flags = flags }] in
-  List.map (fun r -> Sequent_rule r) rs
-
 let (++) = Syntax.ExprSet.union
 let union_map f = List.fold_left (fun s x -> f x ++ s) Syntax.ExprSet.empty
 let union_pair_map f (a, b) = f a ++ f b
