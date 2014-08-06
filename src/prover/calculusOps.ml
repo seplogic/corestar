@@ -12,19 +12,20 @@ let is_no_backtrack_rule f = f land rule_no_backtrack <> 0
 let is_instantiation_rule f = f land rule_instantiation <> 0
 
 let pp_sequent f { frame; hypothesis; conclusion } =
-  fprintf f "@[<2>@[%a@]@ | @[%a@]@ ⊢ @[%a@]@]"
-    Syntax.pp_expr frame Syntax.pp_expr hypothesis Syntax.pp_expr conclusion
+  fprintf f "@[<2>@[%a@]@ | @[%a@]@ ⊢ @[%a@]@]" Syntax.pp_expr frame
+          Syntax.pp_expr hypothesis Syntax.pp_expr conclusion
 
 (* TODO: pp side conditions/priority/flags *)
-let pp_seq_schema f { seq_name; seq_goal_pattern; seq_subgoal_pattern } =
+let pp_seq_schema f { seq_name; seq_pure_check; seq_fresh_in_expr;
+                      seq_goal_pattern; seq_subgoal_pattern;
+                      seq_priority; seq_flags } =
   fprintf f "@[<2>rule %s:@ @[%a@]@ if @[%a@];@]@\n"
     seq_name
     pp_sequent seq_goal_pattern
     (pp_list_sep ", " pp_sequent) seq_subgoal_pattern
 
-(* TODO: pp priority/flags *)
 let pp_rw_schema f { rw_name; rw_from_pattern; rw_to_pattern } =
-  fprintf f "@[<2>rule %s:@ @[%a@]@ ~~> @[%a@];@]@\n"
+  fprintf f "@[<2>rewrite %s:@ @[%a@]@ -> @[%a@];@]@\n"
     rw_name
     Syntax.pp_expr rw_from_pattern
     Syntax.pp_expr rw_to_pattern
