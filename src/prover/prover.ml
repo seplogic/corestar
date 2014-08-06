@@ -302,6 +302,32 @@ let smt_pure_rule =
   ; rule_priority = 100
   ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
+let lvar_instantiate_rule =
+  { rule_name = "RHS lvars instantiation"
+  ; rule_apply =
+    prof_fun1 "Prover.lvar_instantiate_rule"
+    (function { Calculus.hypothesis; conclusion; frame } ->
+      (let (c_pure, c_spat) = extract_pure_part conclusion in
+       (* Examine each atom of the form _x = e in the pure part (where
+         _x doesn't appear in the LHS) and add it to the LHS. *)
+       let vs =
+         Syntax.ExprSet.diff (Syntax.vars c_pure)
+                             (Syntax.ExprSet.union (Syntax.vars hypothesis)
+                                                   (Syntax.vars frame)) in
+       let star =
+         let is_evar = flip Syntax.ExprSet.mem vs in
+         let is_evar_eq a b = is_evar a || is_evar b in
+         let atom = Syntax.on_eq is_evar_eq & c1 false in
+         List.partition atom in
+       let eqs, l = (Syntax.on_star star & (fun e -> star [e])) c_pure in
+       if eqs <> []
+       then [[{ Calculus.hypothesis = Syntax.mk_star (hypothesis::eqs)
+              ; conclusion = Syntax.mk_star (c_spat::l)
+              ; frame }]]
+       else rule_notapplicable ))
+  ; rule_priority = 100
+  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
+
 (* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
 I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
 TODO: This rule is wrongly matching lvars from the spatial part of the
@@ -885,14 +911,15 @@ let rec rewrite_in_expr eqs r e =
 
 let builtin_rules =
   [ id_rule
+  ; lvar_instantiate_rule
+  ; spatial_id_rule
   ; smt_pure_rule
   ; smt_disprove
-  ; spatial_id_rule
   (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
   (* ; or_rule *)
   (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
   (* ; match_subformula_rule *)
-  ; abduce_instance_rule
+  (* ; abduce_instance_rule *)
   ]
 
 (* TODO: normalize rule patterns (best done earlier as this is called often-ish *)
