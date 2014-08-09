@@ -34,6 +34,7 @@ val empty_ast_question : ast_question
 type 'a refinement_check = Calculus.t -> 'a -> 'a -> bool
 val refines_triple : triple refinement_check
 val refines_spec : spec refinement_check
+val specialize_spec : Z3.Expr.expr list -> Z3.Expr.expr list -> Z3.Expr.expr list -> Z3.Expr.expr list -> spec -> spec
 
 (** {2 Construct simple specs} *)
 val mk_assume : Z3.Expr.expr -> spec

@@ -2,6 +2,9 @@
 
 type check_sat_response = Sat | Unsat | Unknown
 
+(** rewrite_star_to_and [e] replaces occurences of "*" in [e] with the boolean conjunction "and" *)
+val rewrite_star_to_and : Z3.Expr.expr -> Z3.Expr.expr
+
 val push : unit -> unit
 val pop : unit -> unit
 val say : Z3.Expr.expr -> unit (** say [e] tells Z3 to assert [e] (assert is a keyword) *)

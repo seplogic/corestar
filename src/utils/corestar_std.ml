@@ -37,6 +37,8 @@ let ( !* ) = Lazy.force
 let curry f a b = f (a, b)
 let uncurry f (a, b) = f a b
 
+let pair_map f (a, b) = (f a, f b)
+
 let option n f = function
   | None -> n
   | Some x -> f x

@@ -83,6 +83,23 @@ let refines_triple calculus triple1 triple2 =
   let ( => ) a b = Prover.infer_frame calculus a b <> [] in
   (triple2.pre => triple1.pre) && (triple1.post => triple2.post)
 
+(** specialize spec to the given actuals
+
+    Warning: If actuals/formals have different lengths, then it makes them equal.
+    See [CoreOps.check_well_formed] for an explanation. *)
+let specialize_spec a_ps f_ps a_rs f_rs =
+  let f { pre; post; modifies } =
+    let rec chop (a_s', f_s') = function
+      | _, [] -> (List.rev a_s', List.rev f_s')
+      | [], f :: f_s -> chop (Syntax.freshen f :: a_s', f :: f_s') ([], f_s)
+      | a :: a_s, f :: f_s -> chop (a :: a_s', f :: f_s') (a_s, f_s) in
+    let a_ps', f_ps' = chop ([], []) (a_ps, f_ps) in
+    let a_rs', f_rs' = chop ([], []) (a_rs, f_rs) in
+    { pre = Z3.Expr.substitute pre f_ps' a_ps'
+    ; post = Z3.Expr.substitute post (f_ps' @ f_rs') (a_ps' @ a_rs')
+    ; modifies = a_rs @ modifies (* old rets, so it havocs extra returns *) } in
+  TripleSet.map f
+
 let refines_spec logic spec1 spec2 =
   TripleSet.for_all
     (fun t2 -> TripleSet.exists (fun t1 -> refines_triple logic t1 t2) spec1)
@@ -160,5 +177,5 @@ let is_well_formed q =
   let ok = ref true in
   let sigs = compute_sigs ok q.q_procs in
   List.iter (check_statements ok sigs) q.q_procs;
-  !ok
-
+  let calc_ok = CalculusOps.check_calculus q.q_rules.calculus in
+  !ok && calc_ok
