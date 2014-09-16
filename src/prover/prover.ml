@@ -116,18 +116,6 @@ let smt_implies evs e f =
   let exists = quant Z3.Quantifier.mk_exists_const in
   smt_is_valid (exists vs (implies e f))
 
-(* TODO(rg): Add a comment with what this does. *)
-let find_lvar_pvar_subs e =
-  let add_if_good l =
-    Syntax.on_eq
-      (fun a b ->
-        if Syntax.is_lvar a && Syntax.is_pvar b then (a, b)::l
-        else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
-        else l)
-    & (c1 l) in
-  let es = unfold Syntax.on_star e in
-  List.fold_left add_if_good [] es
-
 (* Handles ss=[],
 and caries over the pure parts of the antiframe into the frame. *)
 let afs_of_sequents = function
@@ -143,76 +131,6 @@ let afs_of_sequents = function
 
 let get_lvars e =
   Syntax.ExprSet.filter Syntax.is_lvar (Syntax.vars e)
-
-(* Returns a list of expressions e' such that lvars(e*e') includes lvars(f).
-More importantly, each e' is supposed to be a good guess of how to instantiate
-the variables lvars(f)-lvars(e) such that e*e' ⊢ f. *)
-let guess_instances e f =
-  let module VS = Syntax.ExprSet in
-  let module H = Syntax.ExprHashSet in
-  let get_eq_args e =
-    let h = H.create 0 in
-    let h_eq = H.create 0 in (* ∀x in h_eq, there is y in h s.t. x=y *)
-    let add a b =
-      if not (H.mem h_eq a || H.mem h_eq b) then H.add h a;
-      H.add h_eq a; H.add h_eq b in
-    let rec get e =
-      ( Syntax.on_star (List.iter get)
-      & Syntax.on_or (List.iter get)
-      & Syntax.on_eq add
-      & Syntax.on_distinct (List.iter (fun x -> add x x))
-      & c1 ()) e in
-    get e;
-    H.fold ListH.cons h [] in
-  let rec guess v f = (* finds g s.t. f contains v=g and g is not lvar *)
-    let is_v = Syntax.expr_equal v in
-    let do_eq a b =
-      if is_v a && not (Syntax.is_lvar b)
-      then Some b
-      else if is_v b && not (Syntax.is_lvar a)
-      then Some a
-      else None in
-    let rec do_star = function
-      | [] -> None
-      | x::tl ->
-	match guess v x with None -> do_star tl | g -> g in
-    ( Syntax.on_star do_star
-    & Syntax.on_eq do_eq
-    & c1 None) f in
-  let collect_guess v (gs, ws) = match guess v f with
-    | None -> (gs, v :: ws)
-    | Some g -> ((v, g) :: gs, ws) in
-  (* HEURISTIC: Don't try to guess the values of variables inside
-     spatial predicates. Instead, expect that some rule will take care
-     of those predicates. *)
-  let guessable_vars =
-    let h = H.create 0 in
-    let rec collect x =
-      ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v)
-      & Syntax.on_const (c1 ())
-      & Syntax.on_star (List.iter collect)
-      & Syntax.on_or (List.iter collect)
-      & Syntax.on_app (fun _ es -> if Syntax.is_pure x then List.iter collect es)) x in
-    collect f;
-    H.fold VS.add h VS.empty in
-  let vs = VS.diff guessable_vars (get_lvars e) in
-  let vggs, vs = VS.fold collect_guess vs ([], []) in
-  (* fprintf logf "@{vggs = %a@}@\n" (pp_list_sep "+" (pp_pair Syntax.pp_expr Syntax.pp_expr)) vggs; *)
-  let bgs = get_eq_args e in
-  (* fprintf logf "@{bgs = %a@}@\n" (pp_list_sep " " Syntax.pp_expr) bgs; *)
-  let bgss = Misc.tuples (List.length vs) bgs in
-  let rec have_same_types vl bl = match (vl, bl) with
-    | [], [] -> true
-    | v::vtl, b::btl ->
-      if Z3.Sort.equal (Z3.Expr.get_sort v) (Z3.Expr.get_sort b)
-      then have_same_types vtl btl
-      else false
-    | _ -> assert false in
-  let bgss = List.filter (have_same_types vs) bgss in
-  let vbgss = List.map (List.combine vs) bgss in
-  (* fprintf logf "@{vbgss = %a@}@\n" (pp_list_sep "\n" (pp_list_sep ";" (pp_pair Syntax.pp_expr Syntax.pp_expr))) vbgss; *)
-  let mk es = mk_big_star (List.map (fun (v, e) -> Syntax.mk_eq v e) es) in
-  List.map mk (List.map ((@) vggs) vbgss)
 
 (* [smt_disprove_query] and helpers *) (* {{{ *)
 exception Disproved
