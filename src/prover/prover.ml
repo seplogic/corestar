@@ -98,34 +98,23 @@ let smt_is_valid a =
   Smt.pop ();
   r
 
-let smt_implies e f =
+(** Return [true] when [e] |- \exists [evs]. [f] is valid.
+    Return [false] when the SMT solver doesn't know
+*)
+(* [f] must be pure! *)
+let smt_implies evs e f =
+  if safe then assert (Syntax.is_pure f);
+  let f = Smt.rewrite_star_to_and f in
   let (pure_e, spat_e) = extract_pure_part e in
-  let (pure_f, spat_f) = extract_pure_part f in
-  if Syntax.expr_equal spat_f Syntax.mk_emp then
-    let f = Smt.rewrite_star_to_and pure_f in
-    let pure_e = Smt.rewrite_star_to_and pure_e in
-    let e = Z3.Boolean.mk_and z3_ctx [pure_e; spat_e] in
-    let vs = Syntax.ExprSet.diff (Syntax.vars f) (Syntax.vars e) in
-    let vs = Syntax.ExprSet.elements vs in
-    let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
-    let quant mk xs b =
-      let r = mk Syntax.z3_ctx xs b None [] [] None None in
-      Z3.Quantifier.expr_of_quantifier r in
-    let exists = quant Z3.Quantifier.mk_exists_const in
-    smt_is_valid (exists vs (implies e f))
-  else false
-
-(* TODO(rg): Add a comment with what this does. *)
-let find_lvar_pvar_subs e =
-  let add_if_good l =
-    Syntax.on_eq
-      (fun a b ->
-        if Syntax.is_lvar a && Syntax.is_pvar b then (a, b)::l
-        else if Syntax.is_pvar a && Syntax.is_lvar b then (b, a)::l
-        else l)
-    & (c1 l) in
-  let es = unfold Syntax.on_star e in
-  List.fold_left add_if_good [] es
+  let pure_e = Smt.rewrite_star_to_and pure_e in
+  let e = Z3.Boolean.mk_and z3_ctx [pure_e; spat_e] in
+  let vs = Syntax.ExprSet.elements evs in
+  let implies = Z3.Boolean.mk_implies Syntax.z3_ctx in
+  let quant mk xs b =
+    let r = mk Syntax.z3_ctx xs b None [] [] None None in
+    Z3.Quantifier.expr_of_quantifier r in
+  let exists = quant Z3.Quantifier.mk_exists_const in
+  smt_is_valid (exists vs (implies e f))
 
 (* Handles ss=[],
 and caries over the pure parts of the antiframe into the frame. *)
@@ -142,76 +131,6 @@ let afs_of_sequents = function
 
 let get_lvars e =
   Syntax.ExprSet.filter Syntax.is_lvar (Syntax.vars e)
-
-(* Returns a list of expressions e' such that lvars(e*e') includes lvars(f).
-More importantly, each e' is supposed to be a good guess of how to instantiate
-the variables lvars(f)-lvars(e) such that e*e' ⊢ f. *)
-let guess_instances e f =
-  let module VS = Syntax.ExprSet in
-  let module H = Syntax.ExprHashSet in
-  let get_eq_args e =
-    let h = H.create 0 in
-    let h_eq = H.create 0 in (* ∀x in h_eq, there is y in h s.t. x=y *)
-    let add a b =
-      if not (H.mem h_eq a || H.mem h_eq b) then H.add h a;
-      H.add h_eq a; H.add h_eq b in
-    let rec get e =
-      ( Syntax.on_star (List.iter get)
-      & Syntax.on_or (List.iter get)
-      & Syntax.on_eq add
-      & Syntax.on_distinct (List.iter (fun x -> add x x))
-      & c1 ()) e in
-    get e;
-    H.fold ListH.cons h [] in
-  let rec guess v f = (* finds g s.t. f contains v=g and g is not lvar *)
-    let is_v = Syntax.expr_equal v in
-    let do_eq a b =
-      if is_v a && not (Syntax.is_lvar b)
-      then Some b
-      else if is_v b && not (Syntax.is_lvar a)
-      then Some a
-      else None in
-    let rec do_star = function
-      | [] -> None
-      | x::tl ->
-	match guess v x with None -> do_star tl | g -> g in
-    ( Syntax.on_star do_star
-    & Syntax.on_eq do_eq
-    & c1 None) f in
-  let collect_guess v (gs, ws) = match guess v f with
-    | None -> (gs, v :: ws)
-    | Some g -> ((v, g) :: gs, ws) in
-  (* HEURISTIC: Don't try to guess the values of variables inside
-     spatial predicates. Instead, expect that some rule will take care
-     of those predicates. *)
-  let guessable_vars =
-    let h = H.create 0 in
-    let rec collect x =
-      ( Syntax.on_var (fun v -> if Syntax.is_lvar v then H.add h v)
-      & Syntax.on_const (c1 ())
-      & Syntax.on_star (List.iter collect)
-      & Syntax.on_or (List.iter collect)
-      & Syntax.on_app (fun _ es -> if Syntax.is_pure x then List.iter collect es)) x in
-    collect f;
-    H.fold VS.add h VS.empty in
-  let vs = VS.diff guessable_vars (get_lvars e) in
-  let vggs, vs = VS.fold collect_guess vs ([], []) in
-  (* fprintf logf "@{vggs = %a@}@\n" (pp_list_sep "+" (pp_pair Syntax.pp_expr Syntax.pp_expr)) vggs; *)
-  let bgs = get_eq_args e in
-  (* fprintf logf "@{bgs = %a@}@\n" (pp_list_sep " " Syntax.pp_expr) bgs; *)
-  let bgss = Misc.tuples (List.length vs) bgs in
-  let rec have_same_types vl bl = match (vl, bl) with
-    | [], [] -> true
-    | v::vtl, b::btl ->
-      if Z3.Sort.equal (Z3.Expr.get_sort v) (Z3.Expr.get_sort b)
-      then have_same_types vtl btl
-      else false
-    | _ -> assert false in
-  let bgss = List.filter (have_same_types vs) bgss in
-  let vbgss = List.map (List.combine vs) bgss in
-  (* fprintf logf "@{vbgss = %a@}@\n" (pp_list_sep "\n" (pp_list_sep ";" (pp_pair Syntax.pp_expr Syntax.pp_expr))) vbgss; *)
-  let mk es = mk_big_star (List.map (fun (v, e) -> Syntax.mk_eq v e) es) in
-  List.map mk (List.map ((@) vggs) vbgss)
 
 (* [smt_disprove_query] and helpers *) (* {{{ *)
 exception Disproved
@@ -296,75 +215,39 @@ let smt_pure_rule =
   ; rule_apply =
     prof_fun1 "Prover.smt_pure_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      (if not (Syntax.expr_equal conclusion Syntax.mk_emp) && smt_implies hypothesis conclusion
-      then [[{ Calculus.hypothesis; conclusion = Syntax.mk_emp; frame }]]
-      else rule_notapplicable ))
-  ; rule_priority = 100
-  ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
-
-let lvar_instantiate_rule =
-  { rule_name = "RHS lvars instantiation"
-  ; rule_apply =
-    prof_fun1 "Prover.lvar_instantiate_rule"
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      (let (c_pure, c_spat) = extract_pure_part conclusion in
-       (* Examine each atom of the form _x = e in the pure part (where
-         _x doesn't appear in the LHS) and add it to the LHS. *)
-       let vs =
-         Syntax.ExprSet.diff (Syntax.vars c_pure)
-                             (Syntax.ExprSet.union (Syntax.vars hypothesis)
-                                                   (Syntax.vars frame)) in
-       let star =
-         let is_evar = flip Syntax.ExprSet.mem vs in
-         let is_evar_eq a b = is_evar a || is_evar b in
-         let atom = Syntax.on_eq is_evar_eq & c1 false in
-         List.partition atom in
-       let eqs, l = (Syntax.on_star star & (fun e -> star [e])) c_pure in
-       if eqs <> []
-       then [[{ Calculus.hypothesis = Syntax.mk_star (hypothesis::eqs)
-              ; conclusion = Syntax.mk_star (c_spat::l)
-              ; frame }]]
+      (if not (Syntax.expr_equal conclusion Syntax.mk_emp) then (* Jules: why would that ever happen? *)
+          let lhs_vs = Syntax.ExprSet.union (get_lvars hypothesis) (get_lvars frame) in
+          let evs = Syntax.ExprSet.diff (get_lvars conclusion) lhs_vs in
+          let (pure_c, spat_c) = extract_pure_part conclusion in
+          if Syntax.expr_equal spat_c Syntax.mk_emp
+            && smt_implies evs hypothesis pure_c then
+            (* move interesting pure rhs facts to the lhs. A fact is
+               interesting if it involves existential variables: that
+               gives us either an instantiation for them or facts about
+               them. *)
+            let is_interesting e = Syntax.ExprSet.exists
+              (flip Syntax.ExprSet.mem evs) (get_lvars e) in
+            let collect = List.filter is_interesting in
+            let rhs_facts = (Syntax.on_star collect & (fun e -> collect [e])) pure_c in
+            let new_hyp = mk_big_star (hypothesis::rhs_facts) in
+            [[{ Calculus.hypothesis = new_hyp; conclusion = Syntax.mk_emp; frame }]]
+          else rule_notapplicable
        else rule_notapplicable ))
   ; rule_priority = 100
   ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
-(* ( H ⊢ C ) if ( H ⊢ I and H * I ⊢ C ) where
-I is x1=e1 * ... * xn=en and x1,...,xn are lvars occuring in C but not H.
-TODO: This rule is wrongly matching lvars from the spatial part of the
-conclusion with terms from the pure part of the hypothesis. *)
-let abduce_instance_rule =
-  { rule_name = "guess value of lvar that occurs only on rhs"
-  ; rule_apply =
-    prof_fun1 "Prover.abduce_instance_rule"
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      let is_or = Z3.Boolean.is_or in
-      if is_or conclusion then rule_notapplicable
-      else
-        let _Is = guess_instances hypothesis conclusion in
-        let _Is = List.filter (fun _I -> not (Syntax.expr_equal _I Syntax.mk_emp || smt_is_valid (Syntax.mk_eq _I conclusion))) _Is in
-        if _Is = [] then rule_notapplicable
-        else
-          let mk _I =
-            fprintf logf "@{[%a]@}@\n" Syntax.pp_expr _I;
-            [ { Calculus.hypothesis; conclusion = _I; frame = Syntax.mk_emp }
-            ; { Calculus.hypothesis = mk_star hypothesis _I; conclusion; frame } ]
-          in List.map mk _Is
-    )
-  ; rule_priority = 999999
-  ; rule_flags = Calculus.rule_instantiation }
-
 let smt_disprove =
   { rule_name = "SMT disprove"
   ; rule_apply =
-    prof_fun1 "Prover.smt_disprove"
-    (function { Calculus.hypothesis; conclusion; frame } ->
-      if not (Syntax.is_pure hypothesis)
-      then rule_notapplicable
-      else begin
-        let conclusion, _ = extract_pure_part conclusion in
-        smt_disprove_query hypothesis conclusion;
-        rule_notapplicable
-      end)
+      prof_fun1 "Prover.smt_disprove"
+        (function { Calculus.hypothesis; conclusion; frame } ->
+          if not (Syntax.is_pure hypothesis)
+          then rule_notapplicable
+          else begin
+            let conclusion, _ = extract_pure_part conclusion in
+            smt_disprove_query hypothesis conclusion;
+            rule_notapplicable
+          end)
   ; rule_priority = 100
   ; rule_flags = Calculus.rule_no_backtrack lor Calculus.rule_inconsistency }
 
@@ -911,7 +794,6 @@ let rec rewrite_in_expr eqs r e =
 
 let builtin_rules =
   [ id_rule
-  ; lvar_instantiate_rule
   ; spatial_id_rule
   ; smt_pure_rule
   ; smt_disprove
@@ -1008,7 +890,7 @@ let rec solve rw rules penalty goal =
         let ess = r.rule_apply goal in
         if ess = rule_notapplicable then raise Backtrack.No_match;
         if safe then assert (List.for_all (List.for_all (not @@ CalculusOps.sequent_equal goal)) ess);
-        if log log_prove then fprintf logf "@{<p> applied rule %s.@}@?@\n" r.rule_name;
+        if log log_prove then fprintf logf "@{<p>applied rule %s@}@?@\n" r.rule_name;
 	if not (btrackable r) then
 	  incr level; (* bump level: non-backtrack rules are "free" *)
         ess in
@@ -1082,7 +964,7 @@ let is_entailment = prof_fun3 "Prover.is_entailment" is_entailment
 let infer_frame rw rules lhs rhs =
   let penalty n { Calculus.hypothesis; conclusion; _ } =
     if is_instantiation conclusion
-    then (n + 1) * heap_size hypothesis
+    then Backtrack.min_penalty
     else Backtrack.max_penalty in
   let goal =  { Calculus.hypothesis = lhs; conclusion = rhs; frame = Syntax.mk_emp } in
   let ss, p = solve_idfs min_depth max_depth rw rules penalty goal in
