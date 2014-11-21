@@ -180,6 +180,10 @@ let pp_bool f x = if x then fprintf f "true" else fprintf f "false"
 
 let pp_string f s = fprintf f "%s" s
 
+let pp_option pp_some f = function
+  | None -> fprintf f "None"
+  | Some x -> fprintf f "%a" pp_some x
+
 let pp_pair pp_l pp_r f (x, y) =
   Format.fprintf f "(%a, %a)" pp_l x pp_r y
 

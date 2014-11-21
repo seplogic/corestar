@@ -177,6 +177,8 @@ val pp_int : int pretty_printer
 
 val pp_string : string pretty_printer
 
+val pp_option : 'a pretty_printer -> ('a option) pretty_printer
+
 val pp_pair : 'a pretty_printer -> 'b pretty_printer -> ('a * 'b) pretty_printer
 
 val pp_list : 'a pretty_printer -> 'a list pretty_printer
