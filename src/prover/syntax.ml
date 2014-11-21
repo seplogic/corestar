@@ -41,6 +41,7 @@ let get_all_string_exprs () =
 
 (* }}} *)
 
+let pp_sort f = pp_string f @@ Z3.Sort.to_string
 
 let plvar_char = '%'
 let pgvar_char = '@'

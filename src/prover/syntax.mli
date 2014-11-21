@@ -132,3 +132,4 @@ val on_quantifier : (Z3.Expr.expr -> bool -> Z3.Expr.expr list -> int -> Z3.Quan
 (* Example: let rec f e = cases (fun _->false) (recurse f) *)
 val recurse : (Z3.Expr.expr -> Z3.Expr.expr) -> (Z3.Expr.expr -> Z3.Expr.expr)
 val pp_expr : Z3.Expr.expr pretty_printer
+val pp_sort : Z3.Sort.sort pretty_printer
