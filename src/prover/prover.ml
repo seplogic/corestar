@@ -205,8 +205,11 @@ let or_rule =
   ; rule_apply =
     prof_fun1 "Prover.or_rule"
     (function { Calculus.hypothesis; conclusion; frame } ->
-      let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
-      (Syntax.on_or (List.map mk_goal) & (c1 [])) conclusion)
+              let mk_goal c = [ { Calculus.hypothesis; conclusion = c; frame } ] in
+              let mk_goals cs = if List.length cs = 1 then
+                                  rule_notapplicable
+                                else List.map mk_goal cs in
+              (Syntax.on_or mk_goals & (c1 rule_notapplicable)) conclusion)
   ; rule_priority = 100
   ; rule_flags = Calculus.rule_inconsistency lor Calculus.rule_no_backtrack }
 
@@ -797,11 +800,10 @@ let builtin_rules =
   ; spatial_id_rule
   ; smt_pure_rule
   ; smt_disprove
-  (* ; spatial_match_rule (* should be before abduce_instance_rule *) *)
-  (* ; or_rule *)
+  (* ; spatial_match_rule *)
+  ; or_rule
   (* ; match_rule (\* XXX: subsumed by match_subformula_rule? *\) *)
   (* ; match_subformula_rule *)
-  (* ; abduce_instance_rule *)
   ]
 
 (* TODO: normalize rule patterns (best done earlier as this is called often-ish *)
