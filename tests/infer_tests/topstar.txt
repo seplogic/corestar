@@ -1,0 +1,54 @@
+Topstar-related tests, and their problems.
+
+* emit00
+  - decription: just emit, which calls step and enque
+* hasNext00
+  - description: has iterator methods that call emit
+* hasNext01
+  - description: seems like emit00, but with longer identifiers
+* hasNext02
+  - description: seems like hasNext01, but with longer identifiers
+* test11
+  - description: handwritten; has state but no registers
+  - status: FAILS to infer specs for 2 out of 3 procedures
+* test12
+  - description: a smaller version of test11
+  - status: OK
+* test13
+  - description: a smaller version of test12 and of test14
+  - status: OK
+* test14
+  - description: one step, from "a" to "b" or "c"
+  - status: OK
+* test15
+  - description: two steps, a->b and b->c
+  - status: FAILS to infer specs
+* test16
+  - description: like test15, but inconsistent because it disallows mutation
+  - status: doesn't to infer specs
+      (any inferred spec would be correct, although undesirable)
+* test17
+  - description: handwritten emit (step and check)
+  - status: OK
+* test19
+  - description: handwritten, uses one register (enque&compare with const)
+  - status: FAILS to infer specs for emit
+* test20
+  - description: angelic vs demonic splits
+  - status: CORRECT
+    however, the precondition is a disjunciton with many branches out of which
+    only one is consistent; the others should be pruned
+* test21
+  - description: synthesized from automaton, words up to length 4 with 3 letters
+* test22
+  - description: like test21, but with words of length only up to 2
+  - status: FAILS on some cases, works on others
+* test23
+  - description: test that disjunction in post is carried over by inference
+  - status: OK
+* test24
+  - description: handwritten automaton with 2 registers, tested on 3 words
+* test25
+  - description: test that inferred specs take into account returned arg
+  - status: OK
+

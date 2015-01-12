@@ -104,8 +104,7 @@ val mk_star : Z3.Expr.expr list -> Z3.Expr.expr
 
 (* [on_star f g op xs] returns either [f xs] or [g op xs] depending on
    whether [op] is a star or not. Similarly for the other [on_*]
-   functions. In other modules, you should prefer to use these instead of
-   mentioning strings. *)
+   functions. *)
 type 'a app_eval = (Z3.Expr.expr -> 'a) -> (Z3.Expr.expr -> 'a)
 type 'a app_eval_0 = (unit -> 'a) -> 'a app_eval
 type 'a app_eval_1 = (Z3.Expr.expr -> 'a) -> 'a app_eval
@@ -131,5 +130,6 @@ val on_quantifier : (Z3.Expr.expr -> bool -> Z3.Expr.expr list -> int -> Z3.Quan
 
 (* Example: let rec f e = cases (fun _->false) (recurse f) *)
 val recurse : (Z3.Expr.expr -> Z3.Expr.expr) -> (Z3.Expr.expr -> Z3.Expr.expr)
+
 val pp_expr : Z3.Expr.expr pretty_printer
 val pp_sort : Z3.Sort.sort pretty_printer
