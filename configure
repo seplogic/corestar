@@ -29,6 +29,9 @@ too_old () {
     if (( ${A[$i]:-0} > ${B[$i]:-0} )); then
       return 0
     fi
+    if (( ${A[$i]:-0} < ${B[$i]:-0} )); then
+      return 1
+    fi
   done
   return 1
 }
