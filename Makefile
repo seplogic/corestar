@@ -20,7 +20,7 @@ build: native
 
 native byte: $(SRC_SUBDIRS)
 	$(OCAMLBUILD) $(addsuffix .$@,$(MAINS))
-	for f in $(MAINS); do ln -sf ../`readlink $$f.$@` bin/$$f; rm $$f.$@; done
+	for f in $(MAINS); do ln -sf `readlink $$f.$@` bin/$$f; rm $$f.$@; done
 
 test: test-native
 
