@@ -1,33 +1,29 @@
 #!/bin/bash
 
-if [ "$UID" -ne "0" ]; then
-    echo "This script should be run as root"
-    exit 1
-fi
+echo "I need root access to install Z3's shared lib."
+sudo echo "Thanks."
 
-if [ -z "$CORESTAR_HOME" ]; then
-    echo "CORESTAR_HOME is not set. Please source setenv first."
-    exit 1
-fi
-
-SCRIPTS=$CORESTAR_HOME/scripts
-Z3_URL="http://www.doc.ic.ac.uk/~jvillar1/pub/z3-0b6a836eb2695dae1834d7a0c3f4f86f20e17d4d.zip"
+Z3_URL="https://github.com/Z3Prover/z3/archive/z3-4.4.1.zip"
 Z3_ZIP="z3.zip"
 TMP=$(mktemp -d)
 
-echo $TMP
+echo "Working in $TMP"
 cd $TMP
 
-echo "Downloading..."
-wget $Z3_URL -O $Z3_ZIP
-echo "Extracting..."
-unzip $Z3_ZIP
-# dos2unix ./configure
-tr -d '\r' < configure > configure.unix
-cat configure.unix > configure
+echo "Downloading ..."
+wget -nv $Z3_URL -O $Z3_ZIP
+unzip -q $Z3_ZIP
+rm $Z3_ZIP
+cd *
 
-echo "Building Z3..."
-./configure && cd build && make -j 8 && make install
-ldconfig
-
-cd .. && ./configure --ml && cd build && make ml && make install
+echo "Building Z3. This will take a few minutes ..."
+./configure > $TMP/0.log && \
+cd build && make -j $(nproc) > $TMP/1.log && \
+echo "  Installing shared libraries." && \
+sudo make install > $TMP/2.log && \
+sudo ldconfig && cd .. && \
+echo "  Now compiling for OCaml API ..." && \
+./configure -p $HOME --ml > $TMP/3.log && \
+cd build && make -j $(nproc) > $TMP/4.log && \
+make install > $TMP/5.log && \
+echo "Done. All OK."

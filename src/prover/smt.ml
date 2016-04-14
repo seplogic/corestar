@@ -99,6 +99,6 @@ let print_stats () =
   if log log_stats then begin
     fprintf logf "smt_hit %d smt_miss %d@\n" !smt_hit !smt_miss;
     let smt_stats = Z3.Solver.get_statistics z3_solver in
-    let smt_stats = Z3.Solver.Statistics.to_string smt_stats in
+    let smt_stats = Z3.Statistics.to_string smt_stats in
     fprintf logf "SMT stats: %s@\n" smt_stats
   end

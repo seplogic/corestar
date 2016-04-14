@@ -37,7 +37,7 @@ too_old () {
 # Parse arguments {{{
 while (( $# )); do
   case "$1" in
-    --prefix=*) 
+    --prefix=*)
       PREFIX="${1:9}";;
     --prefix)
       shift
@@ -46,7 +46,7 @@ while (( $# )); do
         exit 2
       fi
       PREFIX=$1;;
-    *) 
+    *)
       echo "Strange argument: $1" 2> /dev/stderr
       exit 2;;
   esac
