@@ -28,7 +28,7 @@ let getenv_dirlist variable =
 (* read a file into a string *)
 let string_of_file fname =
   let ichan = if fname = "-" then stdin else open_in fname
-  and str = String.create 1024
+  and str = Bytes.create 1024
   and buf = Buffer.create 1024 in
   let rec loop () =
     let len = input ichan str 0 1024 in
