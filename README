@@ -1,22 +1,16 @@
 The coreStar Verification Framework
 ===================================
 
-coreStar is a highly-customisable automatic generic core symbolic execution 
+coreStar is a highly-customisable automatic generic core symbolic execution
 engine for analysis and verification with separation logic.
 
-For more information, see http://www.jstarverifier.org
 
-
-
-Building on *nix / Mac OSX / Cygwin
------------------------------------
+Building and Running
+--------------------
 
 Use the standard incantation.
   ./configure --prefix DIR
   make install
-
-(NOTE: In some environments, such as Mac OS Leopard, dynlink.cmxa is
-unavailable, leading to a compile error. In that case, try "make install.byte".)
 
 And then run, assuming DIR/bin is in your path.
   corestar
@@ -24,13 +18,15 @@ And then run, assuming DIR/bin is in your path.
 Optionally, run the tests to make sure all is OK.
   make test
 
-Dependencies:
+
+Dependencies
+------------
 
 * OCaml >=3.12
   http://caml.inria.fr/download.en.html
   Debian / Ubuntu: ocaml, ocaml-native-compilers
 
 * Z3
-  To install: "source setenv; sudo -E ./scripts/install_z3.sh".
-  See http://z3.codeplex.com/ for more info.
+  https://github.com/Z3Prover/z3
+  Install from sources via ./scripts/install_z3.sh
 

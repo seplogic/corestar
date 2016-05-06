@@ -1,4 +1,5 @@
 - fix infer_tests/test15.star
+- the test-suite doesn't automatically catch errors! any easy fix?
 - fix the printing of star: has too many newlines
 - use Z3 to help with instantiating lvars that occur only in conclusion
 - make it faster

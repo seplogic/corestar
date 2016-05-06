@@ -659,6 +659,7 @@ end = struct
       |> List.map (execute_one_triple pre_conf)
       |> make_angelic_choice
 
+  (* TODO: this shouldn't require a record in newer ocaml. *)
   (* [abstract], below, needs impredicative polymorphism. *)
   type ('x, 'xs) abs_collection =
     { ac_name : string
