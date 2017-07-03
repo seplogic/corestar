@@ -98,7 +98,7 @@ let is_executable_available fn =
 
 let is_file ext fn =
   Sys.file_exists fn && not (Sys.is_directory fn) &&
-  StringH.ends_with (String.lowercase ext) (String.lowercase fn)
+  StringH.ends_with (String.lowercase_ascii ext) (String.lowercase_ascii fn)
 
 let set_signal_handlers () =
   let old = Sys.signal Sys.sigpipe Sys.Signal_ignore in
